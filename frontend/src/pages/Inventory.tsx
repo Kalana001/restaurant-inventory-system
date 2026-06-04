@@ -25,11 +25,7 @@ export const Inventory: React.FC = () => {
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
   const [supplierId, setSupplierId] = useState('');
-  const [baseUnitId, setBaseUnitId] = useState('');
-  const [purchaseUnitId, setPurchaseUnitId] = useState('');
-  const [issueUnitId, setIssueUnitId] = useState('');
-  const [purchaseToBaseFactor, setPurchaseToBaseFactor] = useState('1');
-  const [issueToBaseFactor, setIssueToBaseFactor] = useState('1');
+
   const [minStock, setMinStock] = useState('10');
   const [maxStock, setMaxStock] = useState('100');
   const [reorderLevel, setReorderLevel] = useState('20');
@@ -96,11 +92,7 @@ export const Inventory: React.FC = () => {
     setDescription('');
     setCategoryId(categories[0]?.id || '');
     setSupplierId(suppliers[0]?.id || '');
-    setBaseUnitId(units[0]?.id || '');
-    setPurchaseUnitId(units[0]?.id || '');
-    setIssueUnitId(units[0]?.id || '');
-    setPurchaseToBaseFactor('1');
-    setIssueToBaseFactor('1');
+
     setMinStock('10');
     setMaxStock('100');
     setReorderLevel('20');
@@ -119,11 +111,7 @@ export const Inventory: React.FC = () => {
     setDescription(item.description || '');
     setCategoryId(item.category_id);
     setSupplierId(item.supplier_id);
-    setBaseUnitId(item.base_unit_id);
-    setPurchaseUnitId(item.purchase_unit_id);
-    setIssueUnitId(item.issue_unit_id);
-    setPurchaseToBaseFactor(String(item.purchase_to_base_factor));
-    setIssueToBaseFactor(String(item.issue_to_base_factor));
+
     setMinStock(String(item.min_stock));
     setMaxStock(String(item.max_stock));
     setReorderLevel(String(item.reorder_level));
@@ -139,11 +127,6 @@ export const Inventory: React.FC = () => {
     e.preventDefault();
     setFormError(null);
 
-    // Validate Factors
-    if (Number(purchaseToBaseFactor) <= 0 || Number(issueToBaseFactor) <= 0) {
-      setFormError('Conversion factors must be greater than zero.');
-      return;
-    }
 
     try {
       const selectedCat = categories.find(c => c.id === categoryId);
@@ -156,11 +139,7 @@ export const Inventory: React.FC = () => {
         description: description.trim(),
         category_id: categoryId,
         supplier_id: supplierId,
-        base_unit_id: baseUnitId,
-        purchase_unit_id: purchaseUnitId,
-        issue_unit_id: issueUnitId,
-        purchase_to_base_factor: Number(purchaseToBaseFactor),
-        issue_to_base_factor: Number(issueToBaseFactor),
+
         min_stock: Number(minStock),
         max_stock: Number(maxStock),
         reorder_level: Number(reorderLevel),

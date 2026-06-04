@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Eye, CheckCircle2, XCircle, AlertCircle, ShoppingCart, Trash2 } from 'lucide-react';
+import { Plus, Search, Eye, CheckCircle2, XCircle, AlertCircle, ShoppingCart, Trash2, PackageSearch } from 'lucide-react';
 
 export const PurchaseOrders: React.FC = () => {
   const { user, hasPermission } = useAuth();
@@ -23,10 +23,10 @@ export const PurchaseOrders: React.FC = () => {
   const [poLines, setPoLines] = useState<any[]>([]);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Active Line Item Selector
-  const [activeItemId, setActiveItemId] = useState('');
-  const [activeQty, setActiveQty] = useState('1');
-  const [activePrice, setActivePrice] = useState('0.00');
+  // Item Search States
+  const [itemSearch, setItemSearch] = useState('');
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
 
   // Detail View States
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -69,18 +69,25 @@ export const PurchaseOrders: React.FC = () => {
     fetchPOs();
   }, []);
 
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
   const openCreateModal = () => {
     setSelectedSupplier(suppliers[0]?.id || '');
     setRemarks('');
     setPoLines([]);
     setFormError(null);
+    setItemSearch('');
+    setShowSuggestions(false);
     setCreateModalOpen(true);
-
-    // Default active item inputs
-    if (catalogItems.length > 0) {
-      const defaultItem = catalogItems[0];
-      setActiveItemId(defaultItem.id);
-      setActiveQty('10');
       setActivePrice(String(defaultItem.cost_price));
     }
   };
@@ -348,57 +355,57 @@ export const PurchaseOrders: React.FC = () => {
                 </div>
               </div>
 
-              {/* Add lines block */}
-              <div className="border border-slate-100 bg-slate-50 p-4 rounded-xl space-y-4">
-                <h4 className="text-xs font-bold text-slate-700 uppercase">Add Item Line</h4>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Catalog Item</label>
-                    <select
-                      value={activeItemId}
-                      onChange={(e) => {
-                        setActiveItemId(e.target.value);
-                        const match = catalogItems.find(i => i.id === e.target.value);
-                        if (match) setActivePrice(String(match.cost_price));
-                      }}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-white"
-                    >
-                      {catalogItems.map(item => (
-                        <option key={item.id} value={item.id}>{item.name} ({item.sku})</option>
+              {/* Search & Add Item Line */}
+              <div ref={searchRef} className="border border-slate-100 bg-slate-50 p-4 rounded-xl space-y-3">
+                <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2">
+                  <PackageSearch size={14} /> Search & Add Item
+                </h4>
+                <div className="relative">
+                  <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary">
+                    <Search size={14} className="text-slate-400 shrink-0" />
+                    <input
+                      type="text"
+                      value={itemSearch}
+                      onChange={(e) => { setItemSearch(e.target.value); setShowSuggestions(true); }}
+                      onFocus={() => setShowSuggestions(true)}
+                      placeholder="Type item name or SKU to search..."
+                      className="flex-1 text-sm outline-none bg-transparent"
+                    />
+                    {itemSearch && (
+                      <button type="button" onClick={() => { setItemSearch(''); setShowSuggestions(false); }} className="text-slate-300 hover:text-slate-500">
+                        ✕
+                      </button>
+                    )}
+                  </div>
+                  {showSuggestions && filteredSuggestions.length > 0 && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-52 overflow-y-auto">
+                      {filteredSuggestions.map(item => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => selectItemFromSearch(item)}
+                          className="w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-50 last:border-0 transition-colors"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-sm font-semibold text-slate-800">{item.name}</p>
+                              <p className="text-xs text-slate-400">{item.sku}</p>
+                            </div>
+                            <span className="text-xs font-bold text-primary bg-blue-50 px-2 py-1 rounded-lg">
+                              LKR {Number(item.cost_price).toFixed(2)}
+                            </span>
+                          </div>
+                        </button>
                       ))}
-                    </select>
-                  </div>
-                  
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">PO Qty</label>
-                    <input
-                      type="number"
-                      step="any"
-                      value={activeQty}
-                      onChange={(e) => setActiveQty(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
-                    />
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-slate-400 uppercase">Cost Price (LKR)</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      value={activePrice}
-                      onChange={(e) => setActivePrice(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs"
-                    />
-                  </div>
-
-                  <button
-                    type="button"
-                    onClick={addPoLine}
-                    className="w-full py-2 bg-slate-800 hover:bg-slate-900 text-white rounded-lg text-xs font-bold transition-all"
-                  >
-                    Add Line
-                  </button>
+                    </div>
+                  )}
+                  {showSuggestions && itemSearch.length > 0 && filteredSuggestions.length === 0 && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg px-4 py-3 text-sm text-slate-400">
+                      No items found matching "{itemSearch}"
+                    </div>
+                  )}
                 </div>
+                <p className="text-[10px] text-slate-400">Click an item to add it. Adjust qty and price directly in the table below.</p>
               </div>
 
               {/* Draft table lists */}
@@ -421,11 +428,35 @@ export const PurchaseOrders: React.FC = () => {
                       </tr>
                     ) : (
                       poLines.map((line, idx) => (
-                        <tr key={idx}>
-                          <td className="px-4 py-3 font-semibold">{line.sku}</td>
-                          <td className="px-4 py-3">{line.name}</td>
-                          <td className="px-4 py-3">{line.quantity} {line.unit}</td>
-                          <td className="px-4 py-3 font-semibold">LKR {line.costPrice.toFixed(2)}</td>
+                        <tr key={idx} className="hover:bg-slate-50/50">
+                          <td className="px-4 py-3 font-semibold text-slate-700">{line.sku}</td>
+                          <td className="px-4 py-3 font-medium text-slate-800">{line.name}</td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min="1"
+                                step="any"
+                                value={line.quantity}
+                                onChange={(e) => updatePoLine(idx, 'quantity', e.target.value)}
+                                className="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-center focus:ring-1 focus:ring-primary outline-none"
+                              />
+                              <span className="text-slate-400 text-xs">{line.unit}</span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2">
+                            <div className="flex items-center gap-1">
+                              <span className="text-xs text-slate-400">LKR</span>
+                              <input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={line.costPrice}
+                                onChange={(e) => updatePoLine(idx, 'costPrice', e.target.value)}
+                                className="w-24 px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary outline-none"
+                              />
+                            </div>
+                          </td>
                           <td className="px-4 py-3 font-bold text-slate-800">LKR {line.totalCost.toFixed(2)}</td>
                           <td className="px-4 py-3 text-right">
                             <button
