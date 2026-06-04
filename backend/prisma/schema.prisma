@@ -1,0 +1,489 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ==========================================
+// 1. AUTHENTICATION & RBAC
+// ==========================================
+
+model User {
+  id            String         @id @default(uuid())
+  username      String         @unique
+  email         String         @unique
+  passwordHash  String
+  roleId        String
+  role          Role           @relation(fields: [roleId], references: [id])
+  status        UserStatus     @default(ACTIVE)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  
+  // Auditing & Operations
+  createdPOs    PurchaseOrder[] @relation("POCreator")
+  approvedPOs   PurchaseOrder[] @relation("POApprover")
+  receivedGRNs  GRN[]          @relation("GRNReceiver")
+  movements     StockMovement[] @relation("MovementCreator")
+  approvedMovements StockMovement[] @relation("MovementApprover")
+  auditLogs     AuditLog[]
+
+  @@map("users")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Role {
+  id          String           @id @default(uuid())
+  name        String           @unique // ADMIN, OWNER, MANAGER, STORE_KEEPER
+  description String?
+  users       User[]
+  permissions RolePermission[]
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid())
+  code        String           @unique // e.g. "items:create", "po:approve"
+  description String?
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role        @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission  @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ==========================================
+// 2. MASTER DATA (INVENTORY & SUPPLIERS)
+// ==========================================
+
+model Category {
+  id            String         @id @default(uuid())
+  name          String         @unique
+  description   String?
+  subcategories Subcategory[]
+  items         InventoryItem[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  @@map("categories")
+}
+
+model Subcategory {
+  id          String          @id @default(uuid())
+  categoryId  String
+  category    Category        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  items       InventoryItem[]
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@unique([categoryId, name])
+  @@map("subcategories")
+}
+
+model Supplier {
+  id                 String           @id @default(uuid())
+  name               String
+  code               String           @unique // e.g. "SUP-0001"
+  phone              String?
+  email              String?
+  address            String?
+  outstandingBalance Decimal          @default(0.00) @db.Decimal(12, 2)
+  creditLimit        Decimal          @default(0.00) @db.Decimal(12, 2)
+  status             SupplierStatus   @default(ACTIVE)
+  purchaseOrders     PurchaseOrder[]
+  grns               GRN[]
+  batches            Batch[]
+  items              InventoryItem[]
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  @@map("suppliers")
+}
+
+enum SupplierStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Unit {
+  id           String            @id @default(uuid())
+  name         String            @unique // e.g., "Kilogram", "Litre", "Pieces"
+  abbreviation String            @unique // e.g., "kg", "litre", "pcs"
+  
+  // Relations
+  baseItems     InventoryItem[]  @relation("BaseUnit")
+  purchaseItems InventoryItem[]  @relation("PurchaseUnit")
+  issueItems    InventoryItem[]  @relation("IssueUnit")
+  
+  conversionsFrom UnitConversion[] @relation("FromUnit")
+  conversionsTo   UnitConversion[] @relation("ToUnit")
+  
+  recipeYieldUnits Recipe[]        @relation("RecipeYieldUnit")
+
+  @@map("units")
+}
+
+model UnitConversion {
+  id         String   @id @default(uuid())
+  fromUnitId String
+  toUnitId   String
+  factor     Decimal  @db.Decimal(12, 6) // Multiplier: toUnitVal = fromUnitVal * factor
+  fromUnit   Unit     @relation("FromUnit", fields: [fromUnitId], references: [id], onDelete: Cascade)
+  toUnit     Unit     @relation("ToUnit", fields: [toUnitId], references: [id], onDelete: Cascade)
+
+  @@unique([fromUnitId, toUnitId])
+  @@map("unit_conversions")
+}
+
+model InventoryItem {
+  id                    String            @id @default(uuid())
+  sku                   String            @unique // e.g. "INV-MILK-001"
+  name                  String
+  description           String?
+  categoryId            String
+  category              Category          @relation(fields: [categoryId], references: [id])
+  subcategoryId         String?
+  subcategory           Subcategory?      @relation(fields: [subcategoryId], references: [id])
+  supplierId            String
+  supplier              Supplier          @relation(fields: [supplierId], references: [id])
+  
+  // Unit Mapping
+  baseUnitId            String
+  baseUnit              Unit              @relation("BaseUnit", fields: [baseUnitId], references: [id])
+  purchaseUnitId        String
+  purchaseUnit          Unit              @relation("PurchaseUnit", fields: [purchaseUnitId], references: [id])
+  issueUnitId           String
+  issueUnit             Unit              @relation("IssueUnit", fields: [issueUnitId], references: [id])
+  
+  // Custom conversion factors (e.g. 1 Purchase Unit = X Base Units)
+  purchaseToBaseFactor Decimal           @db.Decimal(12, 6) // e.g., 2000.0 for 2L milk bottle (where base unit is ml)
+  issueToBaseFactor    Decimal           @db.Decimal(12, 6) // e.g., 1.0 if issue unit is ml
+  
+  // Stock Levels (Stored always in Base Unit)
+  minStock              Decimal           @db.Decimal(12, 4)
+  maxStock              Decimal           @db.Decimal(12, 4)
+  reorderLevel          Decimal           @db.Decimal(12, 4)
+  
+  // Price Defaults
+  costPrice             Decimal           @db.Decimal(12, 2)
+  sellingPrice          Decimal           @db.Decimal(12, 2)
+  
+  isBatchTracked        Boolean           @default(false)
+  isExpiryTracked       Boolean           @default(false)
+  status                ItemStatus        @default(ACTIVE)
+  
+  // Relations
+  batches               Batch[]
+  poItems               PurchaseOrderItem[]
+  grnItems              GRNItem[]
+  movements             StockMovement[]
+  notifications         Notification[]
+  recipeIngredients     RecipeItem[]
+  
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt
+
+  @@map("inventory_items")
+}
+
+enum ItemStatus {
+  ACTIVE
+  INACTIVE
+}
+
+// ==========================================
+// 3. BATCH TRACKING
+// ==========================================
+
+model Batch {
+  id                String          @id @default(uuid())
+  batchNumber       String          // e.g. "B-MILK-2026-06"
+  itemId            String
+  item              InventoryItem   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  supplierId        String
+  supplier          Supplier        @relation(fields: [supplierId], references: [id])
+  receivedDate      DateTime        @default(now())
+  expiryDate        DateTime?
+  
+  // Quantities are stored in Base Unit
+  currentQty        Decimal         @db.Decimal(12, 4) // Actual count in storage
+  availableQty      Decimal         @db.Decimal(12, 4) // Count minus pending issues (if any reserved)
+  
+  status            BatchStatus     @default(ACTIVE)
+  grnItems          GRNItem[]
+  movements         StockMovement[]
+  notifications     Notification[]
+  
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+
+  @@unique([itemId, batchNumber])
+  @@map("batches")
+}
+
+enum BatchStatus {
+  ACTIVE
+  EXPIRED
+  OUT_OF_STOCK
+}
+
+// ==========================================
+// 4. PROCUREMENT (PURCHASE ORDERS & GRNS)
+// ==========================================
+
+model PurchaseOrder {
+  id            String              @id @default(uuid())
+  poNumber      String              @unique // PO-YYYYMMDD-XXXX
+  supplierId    String
+  supplier      Supplier            @relation(fields: [supplierId], references: [id])
+  status        POStatus            @default(PENDING)
+  totalAmount   Decimal             @db.Decimal(12, 2)
+  remarks       String?
+  
+  createdById   String
+  createdBy     User                @relation("POCreator", fields: [createdById], references: [id])
+  approvedById  String?
+  approvedBy    User?               @relation("POApprover", fields: [approvedById], references: [id])
+  approvedAt    DateTime?
+  
+  items         PurchaseOrderItem[]
+  grns          GRN[]
+  
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  @@map("purchase_orders")
+}
+
+enum POStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  COMPLETED
+  CANCELLED
+}
+
+model PurchaseOrderItem {
+  id            String        @id @default(uuid())
+  poId          String
+  po            PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  itemId        String
+  item          InventoryItem @relation(fields: [itemId], references: [id])
+  quantity      Decimal       @db.Decimal(12, 4) // Quantities in Purchase Unit
+  costPrice     Decimal       @db.Decimal(12, 2)
+  totalCost     Decimal       @db.Decimal(12, 2)
+
+  @@map("purchase_order_items")
+}
+
+model GRN {
+  id             String          @id @default(uuid())
+  grnNumber      String          @unique // GRN-YYYYMMDD-XXXX
+  poId           String?
+  po             PurchaseOrder?  @relation(fields: [poId], references: [id])
+  supplierId     String
+  supplier       Supplier        @relation(fields: [supplierId], references: [id])
+  receivedById   String
+  receivedBy     User            @relation("GRNReceiver", fields: [receivedById], references: [id])
+  receivedDate   DateTime        @default(now())
+  invoiceNumber  String?
+  totalAmount    Decimal         @db.Decimal(12, 2)
+  remarks        String?
+  
+  items          GRNItem[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@map("grns")
+}
+
+model GRNItem {
+  id           String        @id @default(uuid())
+  grnId        String
+  grn          GRN           @relation(fields: [grnId], references: [id], onDelete: Cascade)
+  itemId       String
+  item         InventoryItem @relation(fields: [itemId], references: [id])
+  quantity     Decimal       @db.Decimal(12, 4) // Quantities in Purchase Unit
+  costPrice    Decimal       @db.Decimal(12, 2)
+  totalCost    Decimal       @db.Decimal(12, 2)
+  
+  batchId      String
+  batch        Batch         @relation(fields: [batchId], references: [id])
+
+  @@map("grn_items")
+}
+
+// ==========================================
+// 5. INVENTORY MOVEMENTS & ADJUSTMENTS
+// ==========================================
+
+model StockMovement {
+  id             String             @id @default(uuid())
+  movementNumber String             @unique // STK-YYYYMMDD-XXXX
+  itemId         String
+  item           InventoryItem      @relation(fields: [itemId], references: [id])
+  batchId        String?
+  batch          Batch?             @relation(fields: [batchId], references: [id])
+  
+  type           MovementType       // STOCK_IN, STOCK_OUT, ADJUSTMENT
+  quantity       Decimal            @db.Decimal(12, 4) // Always in Base Unit
+  costPrice      Decimal            @db.Decimal(12, 2)
+  
+  reasonId       String
+  reason         MovementReason     @relation(fields: [reasonId], references: [id])
+  
+  createdById    String
+  createdBy      User               @relation("MovementCreator", fields: [createdById], references: [id])
+  
+  referenceId    String?            // Link to GRN ID, PO ID, or Manual Code
+  referenceType  String?            // "GRN", "MANUAL", "KITCHEN_ISSUE", "WASTE"
+  
+  // For approval workflow (if enabled in settings)
+  approvedById   String?
+  approvedBy     User?              @relation("MovementApprover", fields: [approvedById], references: [id])
+  approvedAt     DateTime?
+  status         MovementStatus     @default(APPROVED) // PENDING, APPROVED, REJECTED
+  
+  createdAt      DateTime           @default(now())
+
+  @@map("stock_movements")
+}
+
+enum MovementType {
+  STOCK_IN
+  STOCK_OUT
+  ADJUSTMENT
+}
+
+enum MovementStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model MovementReason {
+  id          String          @id @default(uuid())
+  name        String          @unique // e.g., "Kitchen Usage", "Damaged", "Expired", "Returned"
+  type        MovementType
+  isSystem    Boolean         @default(false)
+  movements   StockMovement[]
+
+  @@map("movement_reasons")
+}
+
+// ==========================================
+// 6. SYSTEM UTILITIES (LOGS, NOTIFICATIONS, SETTINGS)
+// ==========================================
+
+model Notification {
+  id          String             @id @default(uuid())
+  title       String
+  message     String
+  type        NotificationType
+  itemId      String?
+  item        InventoryItem?     @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  batchId     String?
+  batch       Batch?             @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  isRead      Boolean            @default(false)
+  createdAt   DateTime           @default(now())
+
+  @@map("notifications")
+}
+
+enum NotificationType {
+  LOW_STOCK
+  OUT_OF_STOCK
+  EXPIRY_ALERT
+  PENDING_APPROVAL
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action     String   // e.g. "CREATE_ITEM", "APPROVE_PO", "DELETE_USER"
+  tableName  String   // e.g. "inventory_items"
+  recordId   String?  // The modified UUID
+  oldValues  Json?    // Snapshot before change
+  newValues  Json?    // Snapshot after change
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@map("audit_logs")
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique // e.g. "REQUIRE_PURCHASE_APPROVAL", "REQUIRE_ADJUSTMENT_APPROVAL"
+  value       String   // e.g. "true", "false", custom values
+  description String?
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_settings")
+}
+
+// ==========================================
+// 7. FUTURE READY TABLES (RECIPIES & MENU)
+// ==========================================
+
+model MenuItem {
+  id            String        @id @default(uuid())
+  name          String
+  sku           String        @unique // e.g. "MNU-FRICE-01"
+  sellingPrice  Decimal       @db.Decimal(12, 2)
+  active        Boolean       @default(true)
+  recipes       Recipe[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("menu_items")
+}
+
+model Recipe {
+  id            String        @id @default(uuid())
+  menuItemId    String
+  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  yieldQuantity Decimal       @db.Decimal(12, 4)
+  yieldUnitId   String
+  yieldUnit     Unit          @relation("RecipeYieldUnit", fields: [yieldUnitId], references: [id])
+  instructions  String?
+  active        Boolean       @default(true)
+  recipeItems   RecipeItem[]
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  @@map("recipes")
+}
+
+model RecipeItem {
+  id               String        @id @default(uuid())
+  recipeId         String
+  recipe           Recipe        @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  ingredientItemId String
+  ingredientItem   InventoryItem @relation(fields: [ingredientItemId], references: [id])
+  quantity         Decimal       @db.Decimal(12, 4) // Quantity needed in base or issue unit
+  wastePercentage  Decimal       @default(0.00) @db.Decimal(5, 2) // Average waste during prep
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  @@map("recipe_items")
+}
