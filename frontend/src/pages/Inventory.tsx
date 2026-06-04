@@ -404,8 +404,8 @@ export const Inventory: React.FC = () => {
                 </div>
               </div>
 
-              {/* Units & Conversions */}
-              <div className="border-t border-slate-100 pt-4 space-y-4">
+              {/* Units & Conversions - Hidden for now */}
+              {/* <div className="border-t border-slate-100 pt-4 space-y-4">
                 <h4 className="text-sm font-bold text-slate-800">Unit of Measure (UOM) Configuration</h4>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -471,7 +471,7 @@ export const Inventory: React.FC = () => {
                     />
                   </div>
                 </div>
-              </div>
+              </div> */}
 
               {/* Default prices and stock levels */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-slate-100 pt-4">
