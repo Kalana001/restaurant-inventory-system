@@ -13,7 +13,9 @@ import {
   Menu,
   X,
   UserCheck,
-  FolderOpen
+  FolderOpen,
+  Users,
+  ShieldCheck
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
@@ -75,6 +77,18 @@ export const DashboardLayout: React.FC = () => {
       path: '/reports',
       icon: <TrendingUp size={20} />,
       permission: 'reports:read'
+    },
+    {
+      label: 'User Management',
+      path: '/users',
+      icon: <Users size={20} />,
+      permission: null
+    },
+    {
+      label: 'Role Management',
+      path: '/roles',
+      icon: <ShieldCheck size={20} />,
+      permission: null
     }
   ];
 

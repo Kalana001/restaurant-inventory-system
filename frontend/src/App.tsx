@@ -13,6 +13,8 @@ import PurchaseOrders from './pages/PurchaseOrders';
 import GRNs from './pages/GRNs';
 import Adjustments from './pages/Adjustments';
 import Reports from './pages/Reports';
+import Users from './pages/Users';
+import Roles from './pages/Roles';
 import Unauthorized from './pages/Unauthorized';
 
 function App() {
@@ -54,6 +56,12 @@ function App() {
 
             <Route element={<ProtectedRoute requiredPermission="reports:read" />}>
               <Route path="/reports" element={<Reports />} />
+            </Route>
+
+            {/* System Admin Routes */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/users" element={<Users />} />
+              <Route path="/roles" element={<Roles />} />
             </Route>
           </Route>
         </Routes>

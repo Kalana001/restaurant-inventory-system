@@ -442,9 +442,9 @@ export const Suppliers: React.FC = () => {
 
       <ConfirmModal
         isOpen={deleteModalOpen}
-        title="Archive Supplier"
-        message="Are you sure you want to archive this supplier profile? They will no longer appear in active searches."
-        confirmText="Archive Supplier"
+        title="Delete Supplier"
+        message="Are you sure you want to delete this supplier profile? They will no longer appear in active searches."
+        confirmText="Delete Supplier"
         onConfirm={confirmDelete}
         onCancel={() => {
           setDeleteModalOpen(false);

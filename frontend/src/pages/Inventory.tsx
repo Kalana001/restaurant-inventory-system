@@ -608,9 +608,9 @@ export const Inventory: React.FC = () => {
 
       <ConfirmModal
         isOpen={deleteModalOpen}
-        title="Archive Inventory Item"
-        message="Are you sure you want to archive this item? It will no longer appear in active catalog searches or PO drafts."
-        confirmText="Archive Item"
+        title="Delete Inventory Item"
+        message="Are you sure you want to delete this item? It will no longer appear in active catalog searches or PO drafts."
+        confirmText="Delete Item"
         onConfirm={confirmDelete}
         onCancel={() => {
           setDeleteModalOpen(false);
