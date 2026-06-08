@@ -24,6 +24,8 @@ export const Inventory: React.FC = () => {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [categoryInput, setCategoryInput] = useState('');
+  const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [supplierId, setSupplierId] = useState('');
 
   const [minStock, setMinStock] = useState('10');
@@ -34,6 +36,13 @@ export const Inventory: React.FC = () => {
   const [isBatchTracked, setIsBatchTracked] = useState(false);
   const [isExpiryTracked, setIsExpiryTracked] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Filtered categories for autocomplete
+  const filteredCategories = categoryInput.trim()
+    ? categories.filter((c) =>
+        c.name.toLowerCase().includes(categoryInput.toLowerCase())
+      )
+    : categories;
 
   const fetchCatalogData = async () => {
     setLoading(true);
@@ -91,6 +100,7 @@ export const Inventory: React.FC = () => {
     setName('');
     setDescription('');
     setCategoryId(categories[0]?.id || '');
+    setCategoryInput(categories[0]?.name || '');
     setSupplierId(suppliers[0]?.id || '');
 
     setMinStock('10');
@@ -101,6 +111,7 @@ export const Inventory: React.FC = () => {
     setIsBatchTracked(false);
     setIsExpiryTracked(false);
     setFormError(null);
+    setCategoryDropdownOpen(false);
     setModalOpen(true);
   };
 
@@ -110,6 +121,7 @@ export const Inventory: React.FC = () => {
     setName(item.name);
     setDescription(item.description || '');
     setCategoryId(item.category_id);
+    setCategoryInput(item.categories?.name || '');
     setSupplierId(item.supplier_id);
 
     setMinStock(String(item.min_stock));
@@ -120,24 +132,69 @@ export const Inventory: React.FC = () => {
     setIsBatchTracked(item.is_batch_tracked);
     setIsExpiryTracked(item.is_expiry_tracked);
     setFormError(null);
+    setCategoryDropdownOpen(false);
     setModalOpen(true);
+  };
+
+  const handleCategoryInputChange = (value: string) => {
+    setCategoryInput(value);
+    setCategoryDropdownOpen(true);
+    const match = categories.find(
+      (c) => c.name.toLowerCase() === value.toLowerCase()
+    );
+    setCategoryId(match ? match.id : '');
+  };
+
+  const handleCategorySelect = (cat: any) => {
+    setCategoryId(cat.id);
+    setCategoryInput(cat.name);
+    setCategoryDropdownOpen(false);
+  };
+
+  const [addingCategory, setAddingCategory] = useState(false);
+
+  const handleAddNewCategory = async () => {
+    const trimmed = categoryInput.trim();
+    if (!trimmed) return;
+    setAddingCategory(true);
+    try {
+      const { data: newCat, error: catError } = await supabase
+        .from('categories')
+        .insert({ name: trimmed })
+        .select()
+        .single();
+      if (catError) throw catError;
+      setCategories((prev) => [...prev, newCat]);
+      setCategoryId(newCat.id);
+      setCategoryInput(newCat.name);
+      setCategoryDropdownOpen(false);
+    } catch (err: any) {
+      setFormError(err.message || 'Failed to create category.');
+    } finally {
+      setAddingCategory(false);
+    }
   };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
-
     try {
+      if (!categoryId) {
+        setFormError('Please select or create a category before saving.');
+        return;
+      }
+
       const selectedCat = categories.find(c => c.id === categoryId);
       const catAbbr = selectedCat ? selectedCat.name.toUpperCase().slice(0, 3) : 'GEN';
       const finalSku = sku.trim() || `INV-${catAbbr}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const usedCategoryId = categoryId;
 
       const itemPayload = {
         sku: finalSku,
         name: name.trim(),
         description: description.trim(),
-        category_id: categoryId,
+        category_id: usedCategoryId,
         supplier_id: supplierId,
 
         min_stock: Number(minStock),
@@ -198,7 +255,7 @@ export const Inventory: React.FC = () => {
             className="btn-primary flex items-center justify-center space-x-2"
           >
             <Plus size={18} />
-            <span>Add Catalog Item</span>
+            <span>Add Item</span>
           </button>
         )}
       </div>
@@ -311,7 +368,7 @@ export const Inventory: React.FC = () => {
             
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-800">
-                {editingItem ? 'Edit Inventory Item' : 'Register New Item'}
+                {editingItem ? 'Edit Inventory Item' : 'Add New Item'}
               </h3>
               <button 
                 onClick={() => setModalOpen(false)}
@@ -357,17 +414,54 @@ export const Inventory: React.FC = () => {
 
               {/* Category, subcategory & supplier */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
+                <div className="space-y-1.5 relative">
                   <label className="text-xs font-bold text-slate-500 uppercase">Category</label>
-                  <select
-                    value={categoryId}
-                    onChange={(e) => setCategoryId(e.target.value)}
+                  <input
+                    type="text"
+                    value={categoryInput}
+                    onChange={(e) => handleCategoryInputChange(e.target.value)}
+                    onFocus={() => setCategoryDropdownOpen(true)}
+                    onBlur={() => setTimeout(() => setCategoryDropdownOpen(false), 150)}
+                    placeholder="Type to search or add category..."
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
-                  >
-                    {categories.map((c) => (
-                      <option key={c.id} value={c.id}>{c.name}</option>
-                    ))}
-                  </select>
+                    autoComplete="off"
+                  />
+                  {categoryDropdownOpen && (filteredCategories.length > 0 || categoryInput.trim()) && (
+                    <ul className="absolute z-50 left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-56 overflow-y-auto">
+                      {filteredCategories.map((c) => (
+                        <li
+                          key={c.id}
+                          onMouseDown={() => handleCategorySelect(c)}
+                          className={`px-4 py-2.5 text-sm cursor-pointer hover:bg-blue-50 hover:text-primary transition-colors ${
+                            c.id === categoryId ? 'bg-blue-50 text-primary font-semibold' : 'text-slate-700'
+                          }`}
+                        >
+                          {c.name}
+                        </li>
+                      ))}
+                      {categoryInput.trim() && !categories.find(c => c.name.toLowerCase() === categoryInput.toLowerCase()) && (
+                        <li
+                          onMouseDown={handleAddNewCategory}
+                          className="px-4 py-2.5 text-sm cursor-pointer flex items-center space-x-2 border-t border-slate-100 text-primary font-semibold hover:bg-blue-50 transition-colors"
+                        >
+                          {addingCategory ? (
+                            <>
+                              <svg className="animate-spin h-3.5 w-3.5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+                              </svg>
+                              <span>Saving...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus size={14} />
+                              <span>Add "{categoryInput}" as new category</span>
+                            </>
+                          )}
+                        </li>
+                      )}
+                    </ul>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Default Supplier</label>
