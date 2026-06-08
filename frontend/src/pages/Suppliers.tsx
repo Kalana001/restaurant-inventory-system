@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Edit3, Trash2, ShieldCheck, CreditCard, AlertCircle } from 'lucide-react';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export const Suppliers: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -24,6 +25,10 @@ export const Suppliers: React.FC = () => {
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [targetSupplier, setTargetSupplier] = useState<any | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+
+  // Delete Modal States
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [supplierToDelete, setSupplierToDelete] = useState<string | null>(null);
 
   const fetchSuppliers = async () => {
     setLoading(true);
@@ -142,14 +147,21 @@ export const Suppliers: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to archive this supplier profile?')) return;
+  const handleDeleteClick = (id: string) => {
+    setSupplierToDelete(id);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!supplierToDelete) return;
     try {
       const { error } = await supabase
         .from('suppliers')
         .update({ status: 'INACTIVE' })
-        .eq('id', id);
+        .eq('id', supplierToDelete);
       if (error) throw error;
+      setDeleteModalOpen(false);
+      setSupplierToDelete(null);
       fetchSuppliers();
     } catch (err: any) {
       alert(err.message || 'Failed to archive supplier.');
@@ -248,7 +260,7 @@ export const Suppliers: React.FC = () => {
                       )}
                       {hasPermission('suppliers:delete') && (
                         <button
-                          onClick={() => handleDelete(sup.id)}
+                          onClick={() => handleDeleteClick(sup.id)}
                           className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all inline-flex items-center"
                         >
                           <Trash2 size={16} />
@@ -428,6 +440,17 @@ export const Suppliers: React.FC = () => {
         </div>
       )}
 
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        title="Archive Supplier"
+        message="Are you sure you want to archive this supplier profile? They will no longer appear in active searches."
+        confirmText="Archive Supplier"
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setSupplierToDelete(null);
+        }}
+      />
     </div>
   );
 };

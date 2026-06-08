@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Edit3, Trash2, SlidersHorizontal, AlertCircle } from 'lucide-react';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export const Inventory: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -38,6 +39,10 @@ export const Inventory: React.FC = () => {
   const [isBatchTracked, setIsBatchTracked] = useState(false);
   const [isExpiryTracked, setIsExpiryTracked] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Confirm Modal States
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
   // Filtered categories for autocomplete
   const filteredCategories = categoryInput.trim()
@@ -190,9 +195,8 @@ export const Inventory: React.FC = () => {
       }
 
       const selectedCat = categories.find(c => c.id === categoryId);
-      const catAbbr = selectedCat ? selectedCat.name.toUpperCase().slice(0, 3) : 'GEN';
-      const categoryItemsCount = items.filter(i => i.category_id === categoryId).length;
-      const finalSku = sku.trim() || `INV-${catAbbr}-${categoryItemsCount + 1}`;
+      const totalItemsCount = items.length;
+      const finalSku = sku.trim() || `INT-${totalItemsCount + 1}`;
       const usedCategoryId = categoryId;
 
       const itemPayload = {
@@ -239,14 +243,21 @@ export const Inventory: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm('Are you sure you want to archive this inventory item?')) return;
+  const handleDeleteClick = (id: string) => {
+    setItemToDelete(id);
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!itemToDelete) return;
     try {
       const { error } = await supabase
         .from('inventory_items')
         .update({ status: 'INACTIVE' })
-        .eq('id', id);
+        .eq('id', itemToDelete);
       if (error) throw error;
+      setDeleteModalOpen(false);
+      setItemToDelete(null);
       fetchCatalogData();
     } catch (err: any) {
       alert(err.message || 'Failed to archive item.');
@@ -347,7 +358,7 @@ export const Inventory: React.FC = () => {
                         </button>
                         {hasPermission('items:delete') && (
                           <button
-                            onClick={() => handleDelete(item.id)}
+                            onClick={() => handleDeleteClick(item.id)}
                             className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
                           >
                             <Trash2 size={16} />
@@ -595,6 +606,17 @@ export const Inventory: React.FC = () => {
         </div>
       )}
 
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        title="Archive Inventory Item"
+        message="Are you sure you want to archive this item? It will no longer appear in active catalog searches or PO drafts."
+        confirmText="Archive Item"
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setItemToDelete(null);
+        }}
+      />
     </div>
   );
 };

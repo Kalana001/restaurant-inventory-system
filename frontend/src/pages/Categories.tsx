@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Pencil, Trash2, AlertCircle, ChevronDown, ChevronRight, Tag, FolderOpen } from 'lucide-react';
+import { ConfirmModal } from '../components/ConfirmModal';
 
 export const Categories: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -27,6 +28,10 @@ export const Categories: React.FC = () => {
   const [subParentId, setSubParentId] = useState('');
   const [subError, setSubError] = useState<string | null>(null);
   const [subSaving, setSubSaving] = useState(false);
+
+  // Delete modal
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; type: 'category' | 'subcategory' } | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -93,12 +98,11 @@ export const Categories: React.FC = () => {
     }
   };
 
-  const handleDeleteCat = async (id: string, name: string) => {
+  const handleDeleteCatClick = (id: string, name: string) => {
     const hasChildren = subcategories.some(s => s.category_id === id);
     if (hasChildren) { alert(`Cannot delete "${name}" — it has subcategories. Delete the subcategories first.`); return; }
-    if (!confirm(`Delete category "${name}"? This cannot be undone.`)) return;
-    await supabase.from('categories').delete().eq('id', id);
-    fetchData();
+    setDeleteTarget({ id, name, type: 'category' });
+    setDeleteModalOpen(true);
   };
 
   // ── Subcategory CRUD ───────────────────────────────────────────────
@@ -143,10 +147,26 @@ export const Categories: React.FC = () => {
     }
   };
 
-  const handleDeleteSub = async (id: string, name: string) => {
-    if (!confirm(`Delete subcategory "${name}"? This cannot be undone.`)) return;
-    await supabase.from('subcategories').delete().eq('id', id);
-    fetchData();
+  const handleDeleteSubClick = (id: string, name: string) => {
+    setDeleteTarget({ id, name, type: 'subcategory' });
+    setDeleteModalOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      if (deleteTarget.type === 'category') {
+        await supabase.from('categories').delete().eq('id', deleteTarget.id);
+      } else {
+        await supabase.from('subcategories').delete().eq('id', deleteTarget.id);
+      }
+      setDeleteModalOpen(false);
+      setDeleteTarget(null);
+      fetchData();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to delete item.');
+    }
   };
 
   const canWrite = hasPermission('items:create') || hasPermission('items:update');
@@ -257,7 +277,7 @@ export const Categories: React.FC = () => {
                           <Pencil size={14} />
                         </button>
                         <button
-                          onClick={() => handleDeleteCat(cat.id, cat.name)}
+                          onClick={() => handleDeleteCatClick(cat.id, cat.name)}
                           className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                         >
                           <Trash2 size={14} />
@@ -292,7 +312,7 @@ export const Categories: React.FC = () => {
                                   <Pencil size={13} />
                                 </button>
                                 <button
-                                  onClick={() => handleDeleteSub(sub.id, sub.name)}
+                                  onClick={() => handleDeleteSubClick(sub.id, sub.name)}
                                   className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                                 >
                                   <Trash2 size={13} />
@@ -424,6 +444,18 @@ export const Categories: React.FC = () => {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        isOpen={deleteModalOpen}
+        title={deleteTarget?.type === 'category' ? 'Delete Category' : 'Delete Subcategory'}
+        message={`Are you sure you want to delete "${deleteTarget?.name}"? This action cannot be undone.`}
+        confirmText="Delete"
+        onConfirm={confirmDelete}
+        onCancel={() => {
+          setDeleteModalOpen(false);
+          setDeleteTarget(null);
+        }}
+      />
     </div>
   );
 };
