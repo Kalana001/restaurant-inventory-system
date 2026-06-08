@@ -9,6 +9,7 @@ export const Inventory: React.FC = () => {
   // Catalog List States
   const [items, setItems] = useState<any[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
+  const [subcategories, setSubcategories] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,6 +27,7 @@ export const Inventory: React.FC = () => {
   const [categoryId, setCategoryId] = useState('');
   const [categoryInput, setCategoryInput] = useState('');
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
+  const [subcategoryId, setSubcategoryId] = useState('');
   const [supplierId, setSupplierId] = useState('');
 
   const [minStock, setMinStock] = useState('10');
@@ -77,6 +79,9 @@ export const Inventory: React.FC = () => {
         const { data: cats } = await supabase.from('categories').select('*');
         if (cats) setCategories(cats);
 
+        const { data: subs } = await supabase.from('subcategories').select('*');
+        if (subs) setSubcategories(subs);
+
         const { data: sups } = await supabase.from('suppliers').select('*').eq('status', 'ACTIVE');
         if (sups) setSuppliers(sups);
 
@@ -101,6 +106,7 @@ export const Inventory: React.FC = () => {
     setDescription('');
     setCategoryId(categories[0]?.id || '');
     setCategoryInput(categories[0]?.name || '');
+    setSubcategoryId('');
     setSupplierId(suppliers[0]?.id || '');
 
     setMinStock('10');
@@ -122,6 +128,7 @@ export const Inventory: React.FC = () => {
     setDescription(item.description || '');
     setCategoryId(item.category_id);
     setCategoryInput(item.categories?.name || '');
+    setSubcategoryId(item.subcategory_id || '');
     setSupplierId(item.supplier_id);
 
     setMinStock(String(item.min_stock));
@@ -195,6 +202,7 @@ export const Inventory: React.FC = () => {
         name: name.trim(),
         description: description.trim(),
         category_id: usedCategoryId,
+        subcategory_id: subcategoryId || null,
         supplier_id: supplierId,
 
         min_stock: Number(minStock),
@@ -464,13 +472,14 @@ export const Inventory: React.FC = () => {
                   )}
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Default Supplier</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase">Sub Category (Optional)</label>
                   <select
-                    value={supplierId}
-                    onChange={(e) => setSupplierId(e.target.value)}
+                    value={subcategoryId}
+                    onChange={(e) => setSubcategoryId(e.target.value)}
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
                   >
-                    {suppliers.map((s) => (
+                    <option value="">None</option>
+                    {subcategories.filter(s => s.category_id === categoryId).map((s) => (
                       <option key={s.id} value={s.id}>{s.name}</option>
                     ))}
                   </select>
@@ -546,53 +555,7 @@ export const Inventory: React.FC = () => {
                 </div>
               </div> */}
 
-              {/* Default prices and stock levels */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-slate-100 pt-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Cost Price (LKR)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    required
-                    value={costPrice}
-                    onChange={(e) => setCostPrice(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Min Stock</label>
-                  <input
-                    type="number"
-                    step="any"
-                    required
-                    value={minStock}
-                    onChange={(e) => setMinStock(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Reorder Level</label>
-                  <input
-                    type="number"
-                    step="any"
-                    required
-                    value={reorderLevel}
-                    onChange={(e) => setReorderLevel(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Max Stock</label>
-                  <input
-                    type="number"
-                    step="any"
-                    required
-                    value={maxStock}
-                    onChange={(e) => setMaxStock(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
-                </div>
-              </div>
+              {/* Default prices and stock levels removed as requested */}
 
               {/* Toggles */}
               <div className="flex items-center space-x-6 border-t border-slate-100 pt-4">
