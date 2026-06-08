@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { ShieldCheck, Plus, Edit3, Trash2, Check, AlertCircle } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 
 export const Roles: React.FC = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role?.name?.toLowerCase() === 'admin';
   const [roles, setRoles] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -157,7 +160,8 @@ export const Roles: React.FC = () => {
         </div>
         <button
           onClick={openAddModal}
-          className="btn-primary flex items-center gap-2"
+          disabled={!isAdmin}
+          className="btn-primary flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Plus size={18} />
           Create Role
@@ -188,13 +192,15 @@ export const Roles: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => openEditModal(role)}
-                      className="p-1.5 text-slate-400 hover:text-primary hover:bg-blue-50 rounded-lg transition-colors"
-                    >
-                      <Edit3 size={16} />
-                    </button>
-                    {role.name !== 'Admin' && (
+                    {isAdmin && (
+                      <button
+                        onClick={() => openEditModal(role)}
+                        className="p-1.5 text-slate-400 hover:text-primary hover:bg-blue-50 rounded-lg transition-colors"
+                      >
+                        <Edit3 size={16} />
+                      </button>
+                    )}
+                    {isAdmin && role.name !== 'Admin' && (
                       <button
                         onClick={() => handleDeleteClick(role)}
                         className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"

@@ -4,11 +4,13 @@ import { useAuth } from '../contexts/AuthContext';
 
 interface ProtectedRouteProps {
   requiredPermission?: string;
+  requiredRole?: string;
   redirectPath?: string;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requiredPermission,
+  requiredRole,
   redirectPath = '/login'
 }) => {
   const { user, loading, hasPermission } = useAuth();
@@ -32,6 +34,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/unauthorized" replace />;
   }
 
+  if (requiredRole && user.role?.name?.toLowerCase() !== requiredRole.toLowerCase()) {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
   return <Outlet />;
 };
 export default ProtectedRoute;
+
