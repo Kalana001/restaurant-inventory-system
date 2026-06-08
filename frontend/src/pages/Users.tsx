@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { supabaseAdmin } from '../lib/supabaseAdmin';
+import { getSupabaseAdmin } from '../lib/supabaseAdmin';
 import { Users as UsersIcon, Plus, Edit3, ShieldCheck, Mail, AlertCircle } from 'lucide-react';
 
 export const Users: React.FC = () => {
@@ -85,12 +85,17 @@ export const Users: React.FC = () => {
 
     setIsSaving(true);
     try {
+      const adminClient = getSupabaseAdmin();
+      if (!adminClient) {
+        setFormError('Admin service is not configured. Please add VITE_SUPABASE_SERVICE_ROLE_KEY to your Vercel environment variables and redeploy.');
+        setIsSaving(false);
+        return;
+      }
+
       if (editingUser) {
-        // Update user
-        
         // 1. Optionally update password via admin API if provided
         if (password.trim()) {
-          const { error: pwdError } = await supabaseAdmin.auth.admin.updateUserById(
+          const { error: pwdError } = await adminClient.auth.admin.updateUserById(
             editingUser.id,
             { password: password }
           );
@@ -110,7 +115,7 @@ export const Users: React.FC = () => {
 
       } else {
         // Create new user using admin API to avoid logging out the current session
-        const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+        const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
           email: email.trim(),
           password: password,
           email_confirm: true,
