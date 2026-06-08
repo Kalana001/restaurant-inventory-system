@@ -29,72 +29,27 @@ export const DashboardLayout: React.FC = () => {
     navigate('/login');
   };
 
-  const navItems = [
-    {
-      label: 'Dashboard',
-      path: '/',
-      icon: <LayoutDashboard size={20} />,
-      permission: null
-    },
-    {
-      label: 'Inventory Master',
-      path: '/inventory',
-      icon: <Boxes size={20} />,
-      permission: 'items:read'
-    },
-    {
-      label: 'Categories',
-      path: '/categories',
-      icon: <FolderOpen size={20} />,
-      permission: 'items:read'
-    },
-    {
-      label: 'Suppliers Catalog',
-      path: '/suppliers',
-      icon: <Users2 size={20} />,
-      permission: 'suppliers:read'
-    },
-    {
-      label: 'Purchase Orders',
-      path: '/purchase-orders',
-      icon: <ClipboardList size={20} />,
-      permission: 'po:read'
-    },
-    {
-      label: 'Receive Goods (GRN)',
-      path: '/grns',
-      icon: <FileSpreadsheet size={20} />,
-      permission: 'grn:read'
-    },
-    {
-      label: 'Stock Adjustments',
-      path: '/adjustments',
-      icon: <ArrowLeftRight size={20} />,
-      permission: 'stock:read'
-    },
-    {
-      label: 'Analytics & Reports',
-      path: '/reports',
-      icon: <TrendingUp size={20} />,
-      permission: 'reports:read'
-    },
-    {
-      label: 'User Management',
-      path: '/users',
-      icon: <Users size={20} />,
-      permission: null
-    },
-    {
-      label: 'Role Management',
-      path: '/roles',
-      icon: <ShieldCheck size={20} />,
-      permission: null
-    }
+  const mainNavItems = [
+    { label: 'Dashboard',           path: '/',                icon: <LayoutDashboard size={20} />, permission: null },
+    { label: 'Inventory Master',    path: '/inventory',       icon: <Boxes size={20} />,           permission: 'items:read' },
+    { label: 'Categories',          path: '/categories',      icon: <FolderOpen size={20} />,      permission: 'items:read' },
+    { label: 'Suppliers Catalog',   path: '/suppliers',       icon: <Users2 size={20} />,          permission: 'suppliers:read' },
+    { label: 'Purchase Orders',     path: '/purchase-orders', icon: <ClipboardList size={20} />,   permission: 'po:read' },
+    { label: 'Receive Goods (GRN)', path: '/grns',            icon: <FileSpreadsheet size={20} />, permission: 'grn:read' },
+    { label: 'Stock Adjustments',   path: '/adjustments',     icon: <ArrowLeftRight size={20} />,  permission: 'stock:read' },
+    { label: 'Analytics & Reports', path: '/reports',         icon: <TrendingUp size={20} />,      permission: 'reports:read' },
   ];
 
-  const filteredNavItems = navItems.filter(
+  const adminNavItems = [
+    { label: 'User Management', path: '/users',  icon: <Users size={20} /> },
+    { label: 'Role Management', path: '/roles',  icon: <ShieldCheck size={20} /> },
+  ];
+
+  const filteredMainNav = mainNavItems.filter(
     item => !item.permission || permissions.includes(item.permission)
   );
+
+  const isAdmin = user?.role?.name?.toLowerCase() === 'admin';
 
   return (
     <div className="min-h-screen bg-gray-50 flex">
@@ -126,17 +81,18 @@ export const DashboardLayout: React.FC = () => {
         </div>
 
         {/* Sidebar Links */}
-        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
-          {filteredNavItems.map((item) => {
+        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+          {/* Main Navigation */}
+          {filteredMainNav.map((item) => {
             const isActive = location.pathname === item.path;
             return (
               <Link
                 key={item.path}
                 to={item.path}
                 className={`
-                  flex items-center space-x-3 px-4 py-3 rounded-xl font-medium text-sm transition-all duration-200
-                  ${isActive 
-                    ? 'bg-primary text-white shadow-sm shadow-blue-500/20' 
+                  flex items-center space-x-3 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200
+                  ${isActive
+                    ? 'bg-primary text-white shadow-sm shadow-blue-500/20'
                     : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
                 `}
                 onClick={() => setSidebarOpen(false)}
@@ -146,7 +102,37 @@ export const DashboardLayout: React.FC = () => {
               </Link>
             );
           })}
+
+          {/* Admin Section - only for Admin role */}
+          {isAdmin && (
+            <>
+              <div className="pt-4 pb-1 px-2">
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Administration</p>
+              </div>
+              <div className="border-t border-gray-100 mb-1" />
+              {adminNavItems.map((item) => {
+                const isActive = location.pathname === item.path;
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    className={`
+                      flex items-center space-x-3 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200
+                      ${isActive
+                        ? 'bg-primary text-white shadow-sm shadow-blue-500/20'
+                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                    `}
+                    onClick={() => setSidebarOpen(false)}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </>
+          )}
         </nav>
+
 
         {/* User Card & Logout */}
         <div className="p-4 border-t border-gray-100 bg-gray-50/50 space-y-4">
