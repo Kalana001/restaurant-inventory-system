@@ -88,29 +88,20 @@ export const PurchaseOrders: React.FC = () => {
     setItemSearch('');
     setShowSuggestions(false);
     setCreateModalOpen(true);
-      setActivePrice(String(defaultItem.cost_price));
-    }
   };
 
-  // Add line to draft PO
-  const addPoLine = () => {
+  const filteredSuggestions = itemSearch.trim() === '' ? [] : catalogItems.filter(item => 
+    item.name.toLowerCase().includes(itemSearch.toLowerCase()) || 
+    item.sku.toLowerCase().includes(itemSearch.toLowerCase())
+  );
+
+  const selectItemFromSearch = (item: any) => {
     setFormError(null);
-    const item = catalogItems.find(i => i.id === activeItemId);
-    if (!item) return;
-
-    // Check duplicates
-    if (poLines.some(l => l.itemId === activeItemId)) {
-      setFormError('Item already added to PO lines. Remove it to change quantities.');
+    if (poLines.some(l => l.itemId === item.id)) {
+      setFormError('Item already added. Adjust quantity below.');
       return;
     }
-
-    const qty = Number(activeQty);
-    const price = Number(activePrice);
-    if (qty <= 0 || price < 0) {
-      setFormError('Quantity and price must be valid.');
-      return;
-    }
-
+    
     setPoLines([
       ...poLines,
       {
@@ -118,11 +109,26 @@ export const PurchaseOrders: React.FC = () => {
         sku: item.sku,
         name: item.name,
         unit: item.units?.abbreviation || 'pcs',
-        quantity: qty,
-        costPrice: price,
-        totalCost: qty * price
+        quantity: 1,
+        costPrice: Number(item.cost_price),
+        totalCost: Number(item.cost_price)
       }
     ]);
+    setItemSearch('');
+    setShowSuggestions(false);
+  };
+
+  const updatePoLine = (idx: number, field: 'quantity' | 'costPrice', value: string) => {
+    const num = Number(value);
+    setPoLines(prev => {
+      const copy = [...prev];
+      copy[idx] = {
+        ...copy[idx],
+        [field]: num,
+        totalCost: field === 'quantity' ? num * copy[idx].costPrice : copy[idx].quantity * num
+      };
+      return copy;
+    });
   };
 
   const removePoLine = (idx: number) => {
