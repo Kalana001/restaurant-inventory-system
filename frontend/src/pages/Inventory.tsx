@@ -204,6 +204,12 @@ export const Inventory: React.FC = () => {
         category_id: usedCategoryId,
         subcategory_id: subcategoryId || null,
         supplier_id: supplierId,
+        
+        base_unit_id: units[0]?.id,
+        purchase_unit_id: units[0]?.id,
+        issue_unit_id: units[0]?.id,
+        purchase_to_base_factor: 1,
+        issue_to_base_factor: 1,
 
         min_stock: Number(minStock),
         max_stock: Number(maxStock),
