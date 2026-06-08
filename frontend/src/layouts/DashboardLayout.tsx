@@ -12,7 +12,8 @@ import {
   LogOut,
   Menu,
   X,
-  UserCheck
+  UserCheck,
+  FolderOpen
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
@@ -37,6 +38,12 @@ export const DashboardLayout: React.FC = () => {
       label: 'Inventory Master',
       path: '/inventory',
       icon: <Boxes size={20} />,
+      permission: 'items:read'
+    },
+    {
+      label: 'Categories',
+      path: '/categories',
+      icon: <FolderOpen size={20} />,
       permission: 'items:read'
     },
     {

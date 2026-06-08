@@ -7,6 +7,7 @@ import DashboardLayout from './layouts/DashboardLayout';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Inventory from './pages/Inventory';
+import Categories from './pages/Categories';
 import Suppliers from './pages/Suppliers';
 import PurchaseOrders from './pages/PurchaseOrders';
 import GRNs from './pages/GRNs';
@@ -29,6 +30,10 @@ function App() {
 
             <Route element={<ProtectedRoute requiredPermission="items:read" />}>
               <Route path="/inventory" element={<Inventory />} />
+            </Route>
+
+            <Route element={<ProtectedRoute requiredPermission="items:read" />}>
+              <Route path="/categories" element={<Categories />} />
             </Route>
 
             <Route element={<ProtectedRoute requiredPermission="suppliers:read" />}>
