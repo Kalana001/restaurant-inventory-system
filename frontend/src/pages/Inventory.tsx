@@ -55,10 +55,7 @@ export const Inventory: React.FC = () => {
         .select(`
           *,
           categories ( name ),
-          suppliers ( name ),
-          base_unit:units!inventory_items_base_unit_id_fkey ( abbreviation ),
-          purchase_unit:units!inventory_items_purchase_unit_id_fkey ( abbreviation ),
-          issue_unit:units!inventory_items_issue_unit_id_fkey ( abbreviation )
+          subcategories ( name )
         `)
         .eq('status', 'ACTIVE');
 
@@ -194,7 +191,8 @@ export const Inventory: React.FC = () => {
 
       const selectedCat = categories.find(c => c.id === categoryId);
       const catAbbr = selectedCat ? selectedCat.name.toUpperCase().slice(0, 3) : 'GEN';
-      const finalSku = sku.trim() || `INV-${catAbbr}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const categoryItemsCount = items.filter(i => i.category_id === categoryId).length;
+      const finalSku = sku.trim() || `INV-${catAbbr}-${categoryItemsCount + 1}`;
       const usedCategoryId = categoryId;
 
       const itemPayload = {
@@ -311,9 +309,7 @@ export const Inventory: React.FC = () => {
                 <th className="px-6 py-4">SKU / Code</th>
                 <th className="px-6 py-4">Item Name</th>
                 <th className="px-6 py-4">Category</th>
-                <th className="px-6 py-4">Supplier</th>
-                <th className="px-6 py-4">Units Mapping (P / I / B)</th>
-                <th className="px-6 py-4">Default Cost (LKR)</th>
+                <th className="px-6 py-4">Sub Category</th>
                 {hasPermission('items:update') && <th className="px-6 py-4 text-right">Actions</th>}
               </tr>
             </thead>
@@ -340,15 +336,7 @@ export const Inventory: React.FC = () => {
                         {item.categories?.name}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-slate-500">{item.suppliers?.name}</td>
-                    <td className="px-6 py-4 text-xs font-medium text-slate-600">
-                      <span>{item.purchase_unit?.abbreviation}</span>
-                      <span className="text-slate-300 mx-1">/</span>
-                      <span>{item.issue_unit?.abbreviation}</span>
-                      <span className="text-slate-300 mx-1">/</span>
-                      <span>{item.base_unit?.abbreviation}</span>
-                    </td>
-                    <td className="px-6 py-4 font-semibold">LKR {Number(item.cost_price).toFixed(2)}</td>
+                    <td className="px-6 py-4 text-slate-500">{item.subcategories?.name || '-'}</td>
                     {hasPermission('items:update') && (
                       <td className="px-6 py-4 text-right space-x-2.5">
                         <button
