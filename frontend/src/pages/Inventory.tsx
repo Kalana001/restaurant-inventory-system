@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Edit3, Trash2, SlidersHorizontal, AlertCircle } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, SlidersHorizontal, AlertCircle, Upload } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { BulkImportModal } from '../components/BulkImportModal';
 
 export const Inventory: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -21,6 +22,7 @@ export const Inventory: React.FC = () => {
 
   // Form Modal States
   const [modalOpen, setModalOpen] = useState(false);
+  const [importModalOpen, setImportModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<any | null>(null);
   const [sku, setSku] = useState('');
   const [name, setName] = useState('');
@@ -273,13 +275,22 @@ export const Inventory: React.FC = () => {
           <p className="text-sm text-slate-500">Manage ingredients, packaging, and consumables</p>
         </div>
         {hasPermission('items:create') && (
-          <button
-            onClick={openAddModal}
-            className="btn-primary flex items-center justify-center space-x-2"
-          >
-            <Plus size={18} />
-            <span>Add Item</span>
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setImportModalOpen(true)}
+              className="px-4 py-2 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-sm transition-all shadow-sm flex items-center justify-center space-x-2"
+            >
+              <Upload size={18} />
+              <span className="hidden sm:inline">Bulk Import</span>
+            </button>
+            <button
+              onClick={openAddModal}
+              className="btn-primary flex items-center justify-center space-x-2"
+            >
+              <Plus size={18} />
+              <span>Add Item</span>
+            </button>
+          </div>
         )}
       </div>
 
@@ -373,6 +384,51 @@ export const Inventory: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* Modals */}
+      {importModalOpen && (
+        <BulkImportModal 
+          onClose={() => setImportModalOpen(false)} 
+          onSuccess={() => {
+            setImportModalOpen(false);
+            fetchCatalogData();
+          }}
+        />
+      )}
+
+      {deleteModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 card-shadow">
+            
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <h3 className="text-lg font-bold text-slate-800">
+                Delete Item
+              </h3>
+              <button 
+                onClick={() => setDeleteModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600"
+              >
+                Cancel
+              </button>
+            </div>
+            <p className="text-sm text-slate-600">Are you sure you want to archive this item? This action will remove it from active listings.</p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setDeleteModalOpen(false)}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="px-4 py-2 text-sm font-semibold text-white bg-rose-600 rounded-xl hover:bg-rose-700"
+              >
+                Archive Item
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Catalog Dialog Modal */}
       {modalOpen && (

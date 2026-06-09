@@ -29,15 +29,30 @@ export const DashboardLayout: React.FC = () => {
     navigate('/login');
   };
 
+  // Define grouped navigation
   const mainNavItems = [
-    { label: 'Dashboard',           path: '/',                icon: <LayoutDashboard size={20} />, permission: null },
-    { label: 'Inventory Master',    path: '/inventory',       icon: <Boxes size={20} />,           permission: 'items:read' },
-    { label: 'Categories',          path: '/categories',      icon: <FolderOpen size={20} />,      permission: 'items:read' },
-    { label: 'Suppliers Catalog',   path: '/suppliers',       icon: <Users2 size={20} />,          permission: 'suppliers:read' },
-    { label: 'Purchase Orders',     path: '/purchase-orders', icon: <ClipboardList size={20} />,   permission: 'po:read' },
-    { label: 'Receive Goods (GRN)', path: '/grns',            icon: <FileSpreadsheet size={20} />, permission: 'grn:read' },
-    { label: 'Stock Adjustments',   path: '/adjustments',     icon: <ArrowLeftRight size={20} />,  permission: 'stock:read' },
-    { label: 'Analytics & Reports', path: '/reports',         icon: <TrendingUp size={20} />,      permission: 'reports:read' },
+    { label: 'Dashboard', path: '/', icon: <LayoutDashboard size={20} />, permission: null },
+    { 
+      label: 'Inventory Master', 
+      path: '/inventory', 
+      icon: <Boxes size={20} />, 
+      permission: 'items:read',
+      subItems: [
+        { label: 'Categories', path: '/categories', permission: 'items:read' },
+        { label: 'Stock Adjustments', path: '/adjustments', permission: 'stock:read' }
+      ]
+    },
+    { 
+      label: 'Purchase Orders', 
+      path: '/purchase-orders', 
+      icon: <ClipboardList size={20} />, 
+      permission: 'po:read',
+      subItems: [
+        { label: 'Receive Goods (GRN)', path: '/grns', permission: 'grn:read' },
+        { label: 'Suppliers Catalog', path: '/suppliers', permission: 'suppliers:read' }
+      ]
+    },
+    { label: 'Analytics & Reports', path: '/reports', icon: <TrendingUp size={20} />, permission: 'reports:read' },
   ];
 
   const adminNavItems = [
@@ -45,14 +60,21 @@ export const DashboardLayout: React.FC = () => {
     { label: 'Role Management', path: '/roles',  icon: <ShieldCheck size={20} /> },
   ];
 
-  const filteredMainNav = mainNavItems.filter(
-    item => !item.permission || permissions.includes(item.permission)
-  );
+  // Filter based on permissions
+  const filteredMainNav = mainNavItems.map(item => {
+    if (item.subItems) {
+      return {
+        ...item,
+        subItems: item.subItems.filter(sub => !sub.permission || permissions.includes(sub.permission))
+      };
+    }
+    return item;
+  }).filter(item => !item.permission || permissions.includes(item.permission));
 
   const isAdmin = user?.role?.name?.toLowerCase() === 'admin';
 
   return (
-    <div className="min-h-screen bg-gray-50 flex">
+    <div className="h-screen overflow-hidden bg-gray-50 flex">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
         <div 
@@ -67,7 +89,7 @@ export const DashboardLayout: React.FC = () => {
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Sidebar Header branding */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100 bg-blue-50/50">
+        <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100 bg-blue-50/50 shrink-0">
           <div className="flex items-center space-x-2">
             <img src="/logo.png" alt="Sigiri Logo" className="w-8 h-8 rounded-full object-cover" />
             <span className="font-bold text-sm text-gray-800 tracking-tight leading-tight">Sigiri Catering<br/>& Food Centre</span>
@@ -81,27 +103,61 @@ export const DashboardLayout: React.FC = () => {
         </div>
 
         {/* Sidebar Links */}
-        <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+        <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {/* Main Navigation */}
           {filteredMainNav.map((item) => {
-            const isActive = location.pathname === item.path;
+            const isParentActive = location.pathname === item.path;
+            const isSubActive = item.subItems?.some(sub => location.pathname === sub.path);
+            const isExpanded = isParentActive || isSubActive;
+
             return (
-              <Link
-                key={item.path}
-                to={item.path}
-                className={`
-                  flex items-center space-x-3 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200
-                  ${isActive
-                    ? 'bg-primary text-white shadow-sm shadow-blue-500/20'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
-                `}
-                onClick={() => setSidebarOpen(false)}
-              >
-                {item.icon}
-                <span>{item.label}</span>
-              </Link>
+              <div key={item.path} className="space-y-1">
+                <Link
+                  to={item.path}
+                  className={`
+                    flex items-center space-x-3 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200
+                    ${isExpanded
+                      ? 'bg-primary text-white shadow-sm shadow-blue-500/20'
+                      : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
+                  `}
+                  onClick={() => setSidebarOpen(false)}
+                >
+                  {item.icon}
+                  <span>{item.label}</span>
+                </Link>
+                
+                {/* Render sub-items if expanded */}
+                {isExpanded && item.subItems && item.subItems.length > 0 && (
+                  <div className="pl-11 pr-2 py-1 space-y-1 relative">
+                    {/* Vertical connector line */}
+                    <div className="absolute left-[1.375rem] top-0 bottom-3 w-px bg-slate-200"></div>
+                    
+                    {item.subItems.map(sub => {
+                      const isActive = location.pathname === sub.path;
+                      return (
+                        <Link
+                          key={sub.path}
+                          to={sub.path}
+                          className={`
+                            block px-3 py-2 rounded-lg text-xs font-medium transition-all duration-200 relative
+                            ${isActive
+                              ? 'bg-blue-50 text-primary'
+                              : 'text-slate-500 hover:text-slate-900 hover:bg-slate-50'}
+                          `}
+                          onClick={() => setSidebarOpen(false)}
+                        >
+                          {/* Horizontal connector dot */}
+                          <div className={`absolute -left-[1.375rem] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full border border-white ${isActive ? 'bg-primary' : 'bg-slate-300'}`}></div>
+                          {sub.label}
+                        </Link>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             );
           })}
+
 
           {/* Admin Section - only for Admin role */}
           {isAdmin && (
