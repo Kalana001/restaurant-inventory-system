@@ -16,13 +16,13 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  // 1. Validate the Service Role Key
-  const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+  // 1. Validate environment variables
+  const supabaseUrl = process.env.SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
-  if (!serviceRoleKey) {
+  if (!supabaseUrl || !serviceRoleKey) {
     return res.status(500).json({ 
-      error: 'Admin service is not configured. Please add SUPABASE_SERVICE_ROLE_KEY to your Vercel environment variables and redeploy.' 
+      error: `Server misconfiguration. Missing: ${!supabaseUrl ? 'SUPABASE_URL ' : ''}${!serviceRoleKey ? 'SUPABASE_SERVICE_ROLE_KEY' : ''}. Add these to Vercel Environment Variables and redeploy.`
     });
   }
 
@@ -36,12 +36,12 @@ export default async function handler(req, res) {
   // 2. Verify the Authorization Token
   const token = req.headers.authorization?.split(' ')[1];
   if (!token) {
-    return res.status(401).json({ error: 'Unauthorized: Missing token' });
+    return res.status(401).json({ error: 'Unauthorized: Missing session token' });
   }
 
   const { data: { user }, error: verifyError } = await supabaseAdmin.auth.getUser(token);
   if (verifyError || !user) {
-    return res.status(401).json({ error: `Unauthorized: Invalid token. Details: ${verifyError?.message || 'No user found'}` });
+    return res.status(401).json({ error: `Unauthorized: ${verifyError?.message || 'Invalid session'}` });
   }
 
   // 3. Verify the user is an Admin

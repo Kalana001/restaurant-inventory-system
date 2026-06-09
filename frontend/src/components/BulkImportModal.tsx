@@ -16,32 +16,31 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
+  // Columns match the "Add New Item" form exactly:
+  // SKU (optional), Name, Description, Category, Subcategory (optional), BaseUnit, 
+  // TrackBatches, TrackExpiration
   const downloadTemplate = () => {
     const ws = XLSX.utils.json_to_sheet([
       {
         SKU: 'ITM-001',
-        Name: 'Test Item',
+        Name: 'Example Item',
         Description: 'Optional description',
         Category: 'Beverages',
         Subcategory: 'Cold Drinks',
         BaseUnit: 'Litres',
-        CostPrice: 150.00,
-        SellingPrice: 200.00,
-        MinStock: 10,
-        MaxStock: 100,
-        ReorderLevel: 20
+        TrackBatches: 'No',
+        TrackExpiration: 'No'
       }
     ]);
-    
-    // Auto-size columns slightly
+
     const wscols = [
-      {wch: 15}, {wch: 25}, {wch: 30}, {wch: 20}, {wch: 20}, 
-      {wch: 15}, {wch: 15}, {wch: 15}, {wch: 12}, {wch: 12}, {wch: 15}
+      {wch: 15}, {wch: 25}, {wch: 35}, {wch: 20}, 
+      {wch: 20}, {wch: 15}, {wch: 15}, {wch: 16}
     ];
     ws['!cols'] = wscols;
 
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'InventoryTemplate');
+    XLSX.utils.book_append_sheet(wb, ws, 'InventoryImport');
     XLSX.writeFile(wb, 'inventory_import_template.xlsx');
   };
 
@@ -58,11 +57,9 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
       const worksheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-      if (rows.length === 0) {
-        throw new Error("The uploaded file is empty.");
-      }
+      if (rows.length === 0) throw new Error('The uploaded file is empty or has no data rows.');
 
-      // 2. Fetch required lookup data (Categories, Units)
+      // 2. Fetch lookup data
       const [catRes, unitRes] = await Promise.all([
         supabase.from('categories').select('id, name, subcategories(id, name)'),
         supabase.from('units').select('id, name, abbreviation')
@@ -74,87 +71,90 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
       const categories = catRes.data || [];
       const units = unitRes.data || [];
 
-      // 3. Process and map rows
       const itemsToInsert = [];
-      const errors = [];
+      const errors: string[] = [];
 
       for (let i = 0; i < rows.length; i++) {
         const row = rows[i];
-        const rowNum = i + 2; // +1 for 0-index, +1 for header
+        const rowNum = i + 2;
 
-        // Lookup Base Unit
-        const unit = units.find(u => 
-          u.name.toLowerCase() === String(row.BaseUnit || '').toLowerCase() || 
-          u.abbreviation.toLowerCase() === String(row.BaseUnit || '').toLowerCase()
+        if (!row.Name?.toString().trim()) {
+          errors.push(`Row ${rowNum}: 'Name' is required.`);
+          continue;
+        }
+
+        // Lookup Base Unit (required)
+        const unit = units.find(u =>
+          u.name.toLowerCase() === String(row.BaseUnit || '').trim().toLowerCase() ||
+          u.abbreviation?.toLowerCase() === String(row.BaseUnit || '').trim().toLowerCase()
         );
         if (!unit) {
-          errors.push(`Row ${rowNum}: BaseUnit '${row.BaseUnit}' not found in system.`);
+          errors.push(`Row ${rowNum}: BaseUnit '${row.BaseUnit}' not found. Add it in your system first.`);
           continue;
         }
 
-        // Lookup Category
-        const category = categories.find(c => c.name.toLowerCase() === String(row.Category || '').toLowerCase());
+        // Lookup Category (required)
+        const category = categories.find(c =>
+          c.name.toLowerCase() === String(row.Category || '').trim().toLowerCase()
+        );
         if (!category) {
-          errors.push(`Row ${rowNum}: Category '${row.Category}' not found in system.`);
+          errors.push(`Row ${rowNum}: Category '${row.Category}' not found. Add it in your system first.`);
           continue;
         }
 
-        // Lookup Subcategory (Optional)
+        // Lookup Subcategory (optional)
         let subcatId = null;
-        if (row.Subcategory) {
-          const subcat = category.subcategories?.find((s: any) => s.name.toLowerCase() === String(row.Subcategory).toLowerCase());
-          if (subcat) {
-            subcatId = subcat.id;
-          } else {
-            errors.push(`Row ${rowNum}: Subcategory '${row.Subcategory}' not found in Category '${category.name}'.`);
+        if (row.Subcategory?.toString().trim()) {
+          const subcat = (category.subcategories as any[])?.find((s: any) =>
+            s.name.toLowerCase() === String(row.Subcategory).trim().toLowerCase()
+          );
+          if (!subcat) {
+            errors.push(`Row ${rowNum}: Subcategory '${row.Subcategory}' not found under '${category.name}'.`);
             continue;
           }
+          subcatId = subcat.id;
         }
 
-        // Validate numbers
-        const costPrice = parseFloat(row.CostPrice);
-        if (isNaN(costPrice)) { errors.push(`Row ${rowNum}: Invalid CostPrice`); continue; }
+        const totalItemsCount = rows.length;
+        const autoSku = row.SKU?.toString().trim() || `IMP-${i + 1}`;
 
         itemsToInsert.push({
-          sku: row.SKU,
-          name: row.Name,
-          description: row.Description || null,
+          sku: autoSku,
+          name: row.Name.toString().trim(),
+          description: row.Description?.toString().trim() || null,
           category_id: category.id,
           subcategory_id: subcatId,
           base_unit_id: unit.id,
-          cost_price: costPrice,
-          selling_price: parseFloat(row.SellingPrice) || costPrice,
-          min_stock_level: parseInt(row.MinStock) || 0,
-          max_stock_level: parseInt(row.MaxStock) || null,
-          reorder_level: parseInt(row.ReorderLevel) || 0,
+          purchase_unit_id: unit.id,
+          issue_unit_id: unit.id,
+          purchase_to_base_factor: 1,
+          issue_to_base_factor: 1,
+          is_batch_tracked: String(row.TrackBatches || '').toLowerCase() === 'yes',
+          is_expiry_tracked: String(row.TrackExpiration || '').toLowerCase() === 'yes',
+          min_stock: 0,
+          max_stock: 0,
+          reorder_level: 0,
+          cost_price: 0,
+          selling_price: 0,
           status: 'ACTIVE',
-          created_by: user?.id
         });
       }
 
       if (errors.length > 0) {
-        throw new Error("Validation failed:\n" + errors.join('\n'));
+        throw new Error('Validation errors found:\n' + errors.join('\n'));
       }
 
-      if (itemsToInsert.length === 0) {
-        throw new Error("No valid items found to import.");
-      }
+      if (itemsToInsert.length === 0) throw new Error('No valid items to import.');
 
-      // 4. Bulk Insert
-      const { error: insertError } = await supabase
-        .from('inventory_items')
-        .insert(itemsToInsert);
-
+      // 3. Bulk Insert
+      const { error: insertError } = await supabase.from('inventory_items').insert(itemsToInsert);
       if (insertError) throw insertError;
 
-      setSuccess(`Successfully imported ${itemsToInsert.length} items.`);
-      setTimeout(() => {
-        onSuccess();
-      }, 2000);
+      setSuccess(`Successfully imported ${itemsToInsert.length} item${itemsToInsert.length === 1 ? '' : 's'}!`);
+      setTimeout(() => onSuccess(), 2000);
 
     } catch (err: any) {
-      console.error('Import error:', err);
-      setError(err.message || "An error occurred during import.");
+      setError(err.message || 'An error occurred during import.');
     } finally {
       setLoading(false);
     }
@@ -163,9 +163,10 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
       <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-lg card-shadow flex flex-col">
+
         <div className="flex items-center justify-between border-b border-slate-100 p-6 shrink-0">
           <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
-            <FileSpreadsheet className="text-primary" />
+            <FileSpreadsheet className="text-primary" size={20} />
             Bulk Import Items
           </h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
@@ -176,13 +177,14 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
         <div className="p-6 space-y-6">
           {/* Instructions */}
           <div className="bg-blue-50 border border-blue-100 p-4 rounded-xl space-y-3">
-            <h4 className="font-semibold text-blue-800 text-sm">How to import:</h4>
+            <h4 className="font-semibold text-blue-800 text-sm">Import Instructions</h4>
             <ol className="list-decimal pl-4 text-xs text-blue-700 space-y-1">
-              <li>Download the Excel template.</li>
-              <li>Fill in your items. <strong>Category</strong> and <strong>BaseUnit</strong> names must exactly match existing records in the system.</li>
-              <li>Upload the completed file below.</li>
+              <li>Download the Excel template below.</li>
+              <li>Fill in your items. <strong>Category</strong> and <strong>BaseUnit</strong> must exactly match names already in your system.</li>
+              <li>Leave <strong>SKU</strong> blank to auto-generate one.</li>
+              <li>Upload the completed file and click <strong>Upload & Import</strong>.</li>
             </ol>
-            <button 
+            <button
               onClick={downloadTemplate}
               className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-200 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-50 transition-colors shadow-sm"
             >
@@ -210,18 +212,18 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700">Upload Excel File</label>
             <div className="relative border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors group cursor-pointer">
-              <input 
-                type="file" 
-                accept=".xlsx, .xls"
-                onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
+              <input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={(e) => { setFile(e.target.files?.[0] || null); setError(null); }}
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
               />
-              <div className="flex flex-col items-center justify-center gap-2 pointer-events-none">
+              <div className="flex flex-col items-center gap-2 pointer-events-none">
                 <Upload size={32} className={`transition-colors ${file ? 'text-primary' : 'text-slate-400 group-hover:text-primary'}`} />
                 {file ? (
                   <p className="text-sm font-semibold text-primary">{file.name}</p>
                 ) : (
-                  <p className="text-sm font-medium text-slate-500">Drag and drop or click to select</p>
+                  <p className="text-sm font-medium text-slate-500">Drag & drop or click to select</p>
                 )}
                 <p className="text-xs text-slate-400">Supports .xlsx and .xls</p>
               </div>
@@ -241,7 +243,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
             disabled={!file || loading || !!success}
             className="px-6 py-2.5 bg-primary text-white hover:bg-opacity-90 font-semibold rounded-xl text-sm transition-all shadow-sm shadow-blue-500/20 active:scale-95 disabled:opacity-60 flex items-center gap-2"
           >
-            {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+            {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
             {loading ? 'Importing...' : 'Upload & Import'}
           </button>
         </div>

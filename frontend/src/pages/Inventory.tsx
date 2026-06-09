@@ -32,6 +32,7 @@ export const Inventory: React.FC = () => {
   const [categoryDropdownOpen, setCategoryDropdownOpen] = useState(false);
   const [subcategoryId, setSubcategoryId] = useState('');
   const [supplierId, setSupplierId] = useState('');
+  const [baseUnitId, setBaseUnitId] = useState('');
 
   const [minStock, setMinStock] = useState('10');
   const [maxStock, setMaxStock] = useState('100');
@@ -118,6 +119,7 @@ export const Inventory: React.FC = () => {
     setReorderLevel('20');
     setCostPrice('0.00');
     setSellingPrice('0.00');
+    setBaseUnitId(units[0]?.id || '');
     setIsBatchTracked(false);
     setIsExpiryTracked(false);
     setFormError(null);
@@ -134,6 +136,7 @@ export const Inventory: React.FC = () => {
     setCategoryInput(item.categories?.name || '');
     setSubcategoryId(item.subcategory_id || '');
     setSupplierId(item.supplier_id);
+    setBaseUnitId(item.base_unit_id || '');
 
     setMinStock(String(item.min_stock));
     setMaxStock(String(item.max_stock));
@@ -209,9 +212,9 @@ export const Inventory: React.FC = () => {
         subcategory_id: subcategoryId || null,
         supplier_id: supplierId,
         
-        base_unit_id: units[0]?.id,
-        purchase_unit_id: units[0]?.id,
-        issue_unit_id: units[0]?.id,
+        base_unit_id: baseUnitId || units[0]?.id,
+        purchase_unit_id: baseUnitId || units[0]?.id,
+        issue_unit_id: baseUnitId || units[0]?.id,
         purchase_to_base_factor: 1,
         issue_to_base_factor: 1,
 
@@ -547,74 +550,22 @@ export const Inventory: React.FC = () => {
                 </div>
               </div>
 
-              {/* Units & Conversions - Hidden for now */}
-              {/* <div className="border-t border-slate-100 pt-4 space-y-4">
-                <h4 className="text-sm font-bold text-slate-800">Unit of Measure (UOM) Configuration</h4>
-                
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Purchase Unit</label>
-                    <select
-                      value={purchaseUnitId}
-                      onChange={(e) => setPurchaseUnitId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
-                    >
-                      {units.map((u) => (
-                        <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Issue Unit</label>
-                    <select
-                      value={issueUnitId}
-                      onChange={(e) => setIssueUnitId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
-                    >
-                      {units.map((u) => (
-                        <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Base Unit</label>
-                    <select
-                      value={baseUnitId}
-                      onChange={(e) => setBaseUnitId(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
-                    >
-                      {units.map((u) => (
-                        <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>
-                      ))}
-                    </select>
-                  </div>
+              {/* Base Unit */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Base Unit</label>
+                  <select
+                    value={baseUnitId}
+                    onChange={(e) => setBaseUnitId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
+                  >
+                    <option value="">Select a unit</option>
+                    {units.map((u) => (
+                      <option key={u.id} value={u.id}>{u.name} ({u.abbreviation})</option>
+                    ))}
+                  </select>
                 </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">1 Purchase Unit = X Base Units</label>
-                    <input
-                      type="number"
-                      step="any"
-                      required
-                      value={purchaseToBaseFactor}
-                      onChange={(e) => setPurchaseToBaseFactor(e.target.value)}
-                      className="w-full px-3.5 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">1 Issue Unit = Y Base Units</label>
-                    <input
-                      type="number"
-                      step="any"
-                      required
-                      value={issueToBaseFactor}
-                      onChange={(e) => setIssueToBaseFactor(e.target.value)}
-                      className="w-full px-3.5 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    />
-                  </div>
-                </div>
-              </div> */}
+              </div>
 
               {/* Default prices and stock levels removed as requested */}
 
