@@ -69,8 +69,8 @@ export const DashboardLayout: React.FC = () => {
         {/* Sidebar Header branding */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100 bg-blue-50/50">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold">L</div>
-            <span className="font-bold text-lg text-gray-800 tracking-tight">Lanka Spices</span>
+            <img src="/logo.png" alt="Sigiri Logo" className="w-8 h-8 rounded-full object-cover" />
+            <span className="font-bold text-sm text-gray-800 tracking-tight leading-tight">Sigiri Catering<br/>& Food Centre</span>
           </div>
           <button 
             className="lg:hidden text-gray-500 hover:text-gray-700"

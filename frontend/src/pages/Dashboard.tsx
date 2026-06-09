@@ -131,7 +131,7 @@ export const Dashboard: React.FC = () => {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">System Summary</h2>
-          <p className="text-sm text-slate-500">Real-time status overview of Lanka Spices inventory</p>
+          <p className="text-sm text-slate-500">Real-time status overview of Sigiri Catering and Food Centre inventory</p>
         </div>
         <button 
           onClick={fetchDashboardData}

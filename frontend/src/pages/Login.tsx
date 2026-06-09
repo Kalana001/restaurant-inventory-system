@@ -44,12 +44,10 @@ export const Login: React.FC = () => {
     <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 gradient-bg">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <div className="flex justify-center">
-          <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center text-white font-bold text-3xl shadow-lg shadow-blue-500/20">
-            L
-          </div>
+          <img src="/logo.png" alt="Sigiri Logo" className="w-20 h-20 rounded-full object-cover shadow-lg shadow-green-500/20" />
         </div>
         <h2 className="mt-6 text-center text-3xl font-extrabold text-slate-800 tracking-tight">
-          Lanka Spices Inventory
+          Sigiri Catering & Food Centre
         </h2>
         <p className="mt-2 text-center text-sm text-slate-500 font-medium">
           Dine-In & Takeaway Inventory System

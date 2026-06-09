@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { getSupabaseAdmin } from '../lib/supabaseAdmin';
 import { Users as UsersIcon, Plus, Edit3, ShieldCheck, Mail, AlertCircle } from 'lucide-react';
 
 export const Users: React.FC = () => {
@@ -85,21 +84,25 @@ export const Users: React.FC = () => {
 
     setIsSaving(true);
     try {
-      const adminClient = getSupabaseAdmin();
-      if (!adminClient) {
-        setFormError('Admin service is not configured. Please add VITE_SUPABASE_SERVICE_ROLE_KEY to your Vercel environment variables and redeploy.');
-        setIsSaving(false);
-        return;
-      }
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) throw new Error('Not authenticated');
 
       if (editingUser) {
-        // 1. Optionally update password via admin API if provided
+        // 1. Optionally update password via API if provided
         if (password.trim()) {
-          const { error: pwdError } = await adminClient.auth.admin.updateUserById(
-            editingUser.id,
-            { password: password }
-          );
-          if (pwdError) throw pwdError;
+          const res = await fetch('/api/manageUser', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${session.access_token}`
+            },
+            body: JSON.stringify({
+              action: 'updateUser',
+              payload: { id: editingUser.id, password }
+            })
+          });
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || 'Failed to update password');
         }
 
         // 2. Update profile
@@ -114,30 +117,27 @@ export const Users: React.FC = () => {
         if (profileError) throw profileError;
 
       } else {
-        // Create new user using admin API to avoid logging out the current session
-        const { data: authData, error: authError } = await adminClient.auth.admin.createUser({
-          email: email.trim(),
-          password: password,
-          email_confirm: true,
-          user_metadata: { username: username.trim() }
-        });
-
-        if (authError) throw authError;
-
-        if (authData.user) {
-          // Insert profile record for the newly created user
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .insert({
-              id: authData.user.id,
+        // Create new user using API
+        const res = await fetch('/api/manageUser', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            action: 'createUser',
+            payload: {
               email: email.trim(),
+              password: password,
               username: username.trim(),
-              role_id: roleId,
+              roleId: roleId,
               status: status
-            });
-            
-          if (profileError) throw profileError;
-        }
+            }
+          })
+        });
+        
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to create user account');
       }
 
       setModalOpen(false);
