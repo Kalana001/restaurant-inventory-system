@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
   const { data: { user }, error: verifyError } = await supabaseAdmin.auth.getUser(token);
   if (verifyError || !user) {
-    return res.status(401).json({ error: 'Unauthorized: Invalid token' });
+    return res.status(401).json({ error: `Unauthorized: Invalid token. Details: ${verifyError?.message || 'No user found'}` });
   }
 
   // 3. Verify the user is an Admin

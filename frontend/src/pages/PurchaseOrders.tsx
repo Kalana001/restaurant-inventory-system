@@ -443,7 +443,7 @@ export const PurchaseOrders: React.FC = () => {
                                 type="number"
                                 min="1"
                                 step="any"
-                                value={line.quantity}
+                                value={line.quantity === 0 ? '' : line.quantity}
                                 onChange={(e) => updatePoLine(idx, 'quantity', e.target.value)}
                                 className="w-20 px-2 py-1.5 border border-slate-200 rounded-lg text-xs text-center focus:ring-1 focus:ring-primary outline-none"
                               />
@@ -457,7 +457,7 @@ export const PurchaseOrders: React.FC = () => {
                                 type="number"
                                 min="0"
                                 step="0.01"
-                                value={line.costPrice}
+                                value={line.costPrice === 0 ? '' : line.costPrice}
                                 onChange={(e) => updatePoLine(idx, 'costPrice', e.target.value)}
                                 className="w-24 px-2 py-1.5 border border-slate-200 rounded-lg text-xs focus:ring-1 focus:ring-primary outline-none"
                               />
