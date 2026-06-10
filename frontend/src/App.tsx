@@ -17,6 +17,7 @@ import Users from './pages/Users';
 import Roles from './pages/Roles';
 import Unauthorized from './pages/Unauthorized';
 import SecuritySettings from './pages/SecuritySettings';
+import ActivityLog from './pages/ActivityLog';
 
 function App() {
   return (
@@ -63,6 +64,7 @@ function App() {
             <Route element={<ProtectedRoute requiredRole="Admin" />}>
               <Route path="/users" element={<Users />} />
               <Route path="/roles" element={<Roles />} />
+              <Route path="/activity-log" element={<ActivityLog />} />
               <Route path="/settings/security" element={<SecuritySettings />} />
             </Route>
           </Route>

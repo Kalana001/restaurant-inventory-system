@@ -16,7 +16,8 @@ import {
   FolderOpen,
   Users,
   ShieldCheck,
-  Shield
+  Shield,
+  Activity
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
@@ -57,6 +58,7 @@ export const DashboardLayout: React.FC = () => {
   ];
 
   const adminNavItems = [
+    { label: 'Activity Log', path: '/activity-log', icon: <Activity size={20} /> },
     { label: 'User Management', path: '/users',  icon: <Users size={20} /> },
     { label: 'Role Management', path: '/roles',  icon: <ShieldCheck size={20} /> },
   ];
