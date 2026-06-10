@@ -1,26 +1,38 @@
 import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { FilterPanel } from '../components/reports/FilterPanel';
-import { ReportTable, ColumnDef } from '../components/reports/ReportTable';
+import { ReportTable } from '../components/reports/ReportTable';
+import type { ColumnDef } from '../components/reports/ReportTable';
 import { ExportPanel } from '../components/reports/ExportPanel';
-import { generateCSV, generateExcel, generatePDF, ExportColumn } from '../lib/exportUtils';
+import { generateCSV, generateExcel, generatePDF } from '../lib/exportUtils';
+import type { ExportColumn } from '../lib/exportUtils';
 import { format } from 'date-fns';
 import { TrendingUp, BarChart3, Calendar, FileText, Activity } from 'lucide-react';
 
 export const Reports: React.FC = () => {
-  const [reportType, setReportType] = useState('valuation');
+  const { type } = useParams<{ type: string }>();
+  const navigate = useNavigate();
+  const reportType = type || 'valuation'; // fallback
+
   const [filters, setFilters] = useState<any>({});
   
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   
-  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
   const [exporting, setExporting] = useState(false);
 
   // Reference data for filters
   const [categories, setCategories] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+
+  useEffect(() => {
+    // If no type in URL, redirect to valuation so the sidebar highlights properly
+    if (!type) {
+      navigate('/reports/valuation', { replace: true });
+    }
+  }, [type, navigate]);
 
   useEffect(() => {
     // Load filter reference data
@@ -39,7 +51,6 @@ export const Reports: React.FC = () => {
 
   const fetchReportData = async () => {
     setLoading(true);
-    setSelectedRowIds([]);
     try {
       let query;
 
@@ -71,12 +82,9 @@ export const Reports: React.FC = () => {
         if (filters.showExpired === 'no') {
           query = query.gte('expiry_date', new Date().toISOString().split('T')[0]);
         }
-        
-        // Expiry threshold filtering could be done client-side or server-side.
-        // We'll fetch and filter client-side for complex date math ease.
 
       } else if (reportType === 'outstanding') {
-        // Mocking Supplier Balances (Since we may not have a dedicated ledger table in this snapshot)
+        // Mocking Supplier Balances
         query = supabase.from('suppliers').select('*');
         if (filters.supplierId) query = query.eq('id', filters.supplierId);
 
@@ -94,6 +102,10 @@ export const Reports: React.FC = () => {
 
         if (filters.userId) query = query.eq('created_by', filters.userId);
         if (filters.type) query = query.eq('type', filters.type);
+      } else {
+        // Fallback
+        setData([]);
+        return;
       }
 
       const { data: result, error } = await query;
@@ -101,7 +113,7 @@ export const Reports: React.FC = () => {
 
       let finalData = result || [];
 
-      // Additional client-side filtering for complex types
+      // Additional client-side filtering
       if (reportType === 'expiry' && filters.days && filters.days !== 'all') {
         const thresholdDate = new Date();
         thresholdDate.setDate(thresholdDate.getDate() + parseInt(filters.days));
@@ -122,8 +134,16 @@ export const Reports: React.FC = () => {
   };
 
   useEffect(() => {
+    // Reset filters when tab changes, then fetch
+    setFilters({});
+    // We need to wait for state to update, or just pass empty object to fetch
+    // But since fetch reads from state, let's let the next render trigger it via a separate effect or just call it directly with empty filters
+  }, [reportType]);
+
+  // Use a separate effect to fetch when reportType changes to ensure fresh state
+  useEffect(() => {
     fetchReportData();
-  }, [reportType]); // Fetch on tab change immediately
+  }, [reportType]); // fetch on mount and on reportType change
 
   // --- COLUMNS DEFINITION ---
   const getColumns = (): ColumnDef[] => {
@@ -184,21 +204,22 @@ export const Reports: React.FC = () => {
     }
   };
 
-  const handleExport = async (formatType: 'excel' | 'pdf' | 'csv', selectedOnly: boolean) => {
+  const handleExport = async (formatType: 'excel' | 'pdf' | 'csv', selectedCols: string[]) => {
     setExporting(true);
     try {
-      const exportData = selectedOnly ? data.filter(d => selectedRowIds.includes(d.id)) : data;
-      const cols = getColumns();
-      
-      const exportCols: ExportColumn[] = cols.map(c => ({
-        header: c.header,
-        key: c.key
-      }));
+      const allCols = getColumns();
+      // Filter columns based on user selection in the export panel
+      const exportCols: ExportColumn[] = allCols
+        .filter(c => selectedCols.includes(c.key))
+        .map(c => ({
+          header: c.header,
+          key: c.key
+        }));
 
       // Map dynamic render values for export
-      const mappedData = exportData.map(row => {
+      const mappedData = data.map(row => {
         const newRow: any = {};
-        cols.forEach(c => {
+        allCols.filter(c => selectedCols.includes(c.key)).forEach(c => {
           newRow[c.key] = c.render && typeof c.render(row) === 'string' 
             ? c.render(row) 
             : c.render && React.isValidElement(c.render(row)) 
@@ -220,7 +241,7 @@ export const Reports: React.FC = () => {
         return newRow;
       });
 
-      const title = `Sigiri Catering - ${reportTabs.find(t => t.id === reportType)?.label}`;
+      const title = `Sigiri Catering - Report`;
       const filename = `Report_${reportType}_${format(new Date(), 'yyyyMMdd_HHmm')}`;
 
       if (formatType === 'csv') generateCSV(exportCols, mappedData, filename);
@@ -235,40 +256,15 @@ export const Reports: React.FC = () => {
     }
   };
 
-  const reportTabs = [
-    { id: 'valuation', label: 'Inventory Valuation', icon: <BarChart3 size={18} /> },
-    { id: 'expiry', label: 'Expiry Warning', icon: <Calendar size={18} /> },
-    { id: 'outstanding', label: 'Supplier Balances', icon: <FileText size={18} /> },
-    { id: 'movements', label: 'Stock Movements', icon: <Activity size={18} /> }
-  ];
-
   return (
     <div className="space-y-6 pb-20">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2 capitalize">
           <TrendingUp className="text-primary" />
-          Analytics & Reports
+          {reportType.replace('-', ' ')} Report
         </h2>
         <p className="text-sm text-slate-500 mt-1">Generate, filter, and export comprehensive operational data.</p>
-      </div>
-
-      {/* Report Type Tabs */}
-      <div className="flex overflow-x-auto gap-2 border-b border-slate-200 pb-px hide-scrollbar">
-        {reportTabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => { setReportType(tab.id); setFilters({}); }}
-            className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition-all ${
-              reportType === tab.id 
-                ? 'border-primary text-primary' 
-                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
-            }`}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
       </div>
 
       {/* Filter Panel */}
@@ -288,15 +284,12 @@ export const Reports: React.FC = () => {
         columns={getColumns()}
         data={data}
         loading={loading}
-        selectedIds={selectedRowIds}
-        onSelectionChange={setSelectedRowIds}
       />
 
       {/* Export Panel (Sticky Bottom) */}
       <ExportPanel 
-        selectedCount={selectedRowIds.length}
         totalCount={data.length}
-        onSelectAllPages={() => setSelectedRowIds(data.map(d => d.id))}
+        columns={getColumns()}
         onExport={handleExport}
         exporting={exporting}
       />

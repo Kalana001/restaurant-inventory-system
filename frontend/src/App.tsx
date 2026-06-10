@@ -58,6 +58,7 @@ function App() {
 
             <Route element={<ProtectedRoute requiredPermission="reports:read" />}>
               <Route path="/reports" element={<Reports />} />
+              <Route path="/reports/:type" element={<Reports />} />
             </Route>
 
             {/* System Admin Routes - Admin role only */}

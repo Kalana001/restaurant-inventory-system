@@ -54,7 +54,18 @@ export const DashboardLayout: React.FC = () => {
         { label: 'Suppliers Catalog', path: '/suppliers', permission: 'suppliers:read' }
       ]
     },
-    { label: 'Analytics & Reports', path: '/reports', icon: <TrendingUp size={20} />, permission: 'reports:read' },
+    { 
+      label: 'Analytics & Reports', 
+      path: '/reports', 
+      icon: <TrendingUp size={20} />, 
+      permission: 'reports:read',
+      subItems: [
+        { label: 'Inventory Valuation', path: '/reports/valuation', permission: 'reports:read' },
+        { label: 'Expiry Warning', path: '/reports/expiry', permission: 'reports:read' },
+        { label: 'Supplier Balances', path: '/reports/outstanding', permission: 'reports:read' },
+        { label: 'Stock Movements', path: '/reports/movements', permission: 'reports:read' }
+      ]
+    },
   ];
 
   const adminNavItems = [

@@ -12,8 +12,6 @@ export interface ReportTableProps {
   columns: ColumnDef[];
   data: any[];
   loading: boolean;
-  selectedIds: string[];
-  onSelectionChange: (ids: string[]) => void;
   sortConfig?: { key: string; direction: 'asc' | 'desc' } | null;
   onSort?: (key: string) => void;
 }
@@ -22,8 +20,6 @@ export const ReportTable: React.FC<ReportTableProps> = ({
   columns,
   data,
   loading,
-  selectedIds,
-  onSelectionChange,
   sortConfig,
   onSort
 }) => {
@@ -34,42 +30,12 @@ export const ReportTable: React.FC<ReportTableProps> = ({
   const startIndex = (currentPage - 1) * rowsPerPage;
   const paginatedData = data.slice(startIndex, startIndex + rowsPerPage);
 
-  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.checked) {
-      // Select all visible on current page
-      const newIds = new Set([...selectedIds, ...paginatedData.map(r => r.id)]);
-      onSelectionChange(Array.from(newIds));
-    } else {
-      // Deselect all visible on current page
-      const visibleIds = paginatedData.map(r => r.id);
-      onSelectionChange(selectedIds.filter(id => !visibleIds.includes(id)));
-    }
-  };
-
-  const handleSelectRow = (id: string, checked: boolean) => {
-    if (checked) {
-      onSelectionChange([...selectedIds, id]);
-    } else {
-      onSelectionChange(selectedIds.filter(sid => sid !== id));
-    }
-  };
-
-  const isAllVisibleSelected = paginatedData.length > 0 && paginatedData.every(r => selectedIds.includes(r.id));
-
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col mb-24">
       <div className="overflow-x-auto flex-1">
         <table className="w-full text-left text-sm whitespace-nowrap">
           <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 sticky top-0 z-10">
             <tr>
-              <th className="px-6 py-4 w-12 text-center">
-                <input 
-                  type="checkbox" 
-                  checked={isAllVisibleSelected}
-                  onChange={handleSelectAll}
-                  className="w-4 h-4 text-primary focus:ring-primary border-slate-300 rounded"
-                />
-              </th>
               {columns.map((col) => (
                 <th 
                   key={col.key} 
@@ -95,7 +61,7 @@ export const ReportTable: React.FC<ReportTableProps> = ({
           <tbody className="divide-y divide-slate-100">
             {loading ? (
               <tr>
-                <td colSpan={columns.length + 1} className="px-6 py-12 text-center text-slate-500">
+                <td colSpan={columns.length} className="px-6 py-12 text-center text-slate-500">
                   <div className="flex flex-col items-center justify-center">
                     <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mb-3" />
                     Fetching report data...
@@ -104,7 +70,7 @@ export const ReportTable: React.FC<ReportTableProps> = ({
               </tr>
             ) : paginatedData.length === 0 ? (
               <tr>
-                <td colSpan={columns.length + 1} className="px-6 py-16 text-center">
+                <td colSpan={columns.length} className="px-6 py-16 text-center">
                   <div className="flex flex-col items-center justify-center text-slate-500">
                     <img src="/logo.png" alt="Empty" className="w-16 h-16 opacity-20 grayscale mb-4" />
                     <p className="font-semibold text-lg text-slate-700">No records found</p>
@@ -114,20 +80,11 @@ export const ReportTable: React.FC<ReportTableProps> = ({
               </tr>
             ) : (
               paginatedData.map((row, index) => {
-                const isSelected = selectedIds.includes(row.id);
                 return (
                   <tr 
                     key={row.id || index} 
-                    className={`transition-colors ${isSelected ? 'bg-blue-50/50' : index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-slate-50`}
+                    className={`transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} hover:bg-slate-50`}
                   >
-                    <td className="px-6 py-4 text-center border-r border-slate-50">
-                      <input 
-                        type="checkbox" 
-                        checked={isSelected}
-                        onChange={(e) => handleSelectRow(row.id, e.target.checked)}
-                        className="w-4 h-4 text-primary focus:ring-primary border-slate-300 rounded"
-                      />
-                    </td>
                     {columns.map(col => (
                       <td key={col.key} className="px-6 py-4 text-slate-700">
                         {col.render ? col.render(row) : row[col.key] || '-'}
