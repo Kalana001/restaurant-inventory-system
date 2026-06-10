@@ -1,194 +1,305 @@
-import React, { useState } from 'react';
-import api from '../services/api';
-import { FileDown, Calendar, FileText, BarChart3, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { FilterPanel } from '../components/reports/FilterPanel';
+import { ReportTable, ColumnDef } from '../components/reports/ReportTable';
+import { ExportPanel } from '../components/reports/ExportPanel';
+import { generateCSV, generateExcel, generatePDF, ExportColumn } from '../lib/exportUtils';
+import { format } from 'date-fns';
+import { TrendingUp, BarChart3, Calendar, FileText, Activity } from 'lucide-react';
 
 export const Reports: React.FC = () => {
   const [reportType, setReportType] = useState('valuation');
-  const [format, setFormat] = useState('excel');
-  const [downloading, setDownloading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [filters, setFilters] = useState<any>({});
+  
+  const [data, setData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  
+  const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
+  const [exporting, setExporting] = useState(false);
 
-  const reportsList = [
-    {
-      id: 'valuation',
-      title: 'Inventory Valuation Report',
-      description: 'Calculates the total monetary value of current available stock in base units using cost price.',
-      icon: <BarChart3 size={24} className="text-green-500" />
-    },
-    {
-      id: 'expiry',
-      title: 'Inventory Expiry Warning Report',
-      description: 'Lists all active batches that contain expiry dates, sorted by closest warning thresholds.',
-      icon: <Calendar size={24} className="text-orange-500" />
-    },
-    {
-      id: 'outstanding',
-      title: 'Supplier Outstanding Balances',
-      description: 'Summarizes payment ledger values and current outstanding balances across suppliers.',
-      icon: <FileText size={24} className="text-purple-500" />
-    },
-    {
-      id: 'movements',
-      title: 'Stock Movements Log',
-      description: 'Detailed list of stock logs representing additions, issues, and adjustments.',
-      icon: <FileText size={24} className="text-blue-500" />
-    }
-  ];
+  // Reference data for filters
+  const [categories, setCategories] = useState<any[]>([]);
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+  const [users, setUsers] = useState<any[]>([]);
 
-  const handleExport = async () => {
-    setDownloading(true);
-    setError(null);
+  useEffect(() => {
+    // Load filter reference data
+    const loadRefs = async () => {
+      const [cats, sups, usrs] = await Promise.all([
+        supabase.from('categories').select('id, name').order('name'),
+        supabase.from('suppliers').select('id, name').order('name'),
+        supabase.from('profiles').select('id, username').order('username')
+      ]);
+      if (cats.data) setCategories(cats.data);
+      if (sups.data) setSuppliers(sups.data);
+      if (usrs.data) setUsers(usrs.data);
+    };
+    loadRefs();
+  }, []);
 
+  const fetchReportData = async () => {
+    setLoading(true);
+    setSelectedRowIds([]);
     try {
-      const response = await api.get('/reports/export', {
-        params: { reportType, format },
-        responseType: 'blob' // Essential to parse binary PDF/Excel streams
-      });
+      let query;
 
-      // Construct file download attachment in browser
-      const blob = new Blob([response.data], {
-        type: response.headers['content-type']
-      });
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      
-      const extensionMap: Record<string, string> = {
-        csv: 'csv',
-        excel: 'xlsx',
-        pdf: 'pdf'
-      };
-      
-      link.setAttribute('download', `${reportType}-report.${extensionMap[format]}`);
-      document.body.appendChild(link);
-      link.click();
-      
-      // Cleanup
-      link.remove();
-      window.URL.revokeObjectURL(url);
-    } catch (err: any) {
+      if (reportType === 'valuation') {
+        query = supabase
+          .from('inventory_items')
+          .select(`
+            *,
+            categories(name),
+            units:units!inventory_items_base_unit_id_fkey(abbreviation)
+          `)
+          .eq('status', 'ACTIVE');
+          
+        if (filters.categoryId) query = query.eq('category_id', filters.categoryId);
+        if (filters.stockStatus === 'in_stock') query = query.gt('current_stock', 0);
+        if (filters.stockStatus === 'out_of_stock') query = query.lte('current_stock', 0);
+        if (filters.stockStatus === 'low_stock') query = query.lte('current_stock', 10); // Simple threshold for demo
+
+      } else if (reportType === 'expiry') {
+        query = supabase
+          .from('batches')
+          .select(`
+            *,
+            inventory_items(name, category_id, categories(name))
+          `)
+          .gt('available_qty', 0)
+          .not('expiry_date', 'is', null);
+
+        if (filters.showExpired === 'no') {
+          query = query.gte('expiry_date', new Date().toISOString().split('T')[0]);
+        }
+        
+        // Expiry threshold filtering could be done client-side or server-side.
+        // We'll fetch and filter client-side for complex date math ease.
+
+      } else if (reportType === 'outstanding') {
+        // Mocking Supplier Balances (Since we may not have a dedicated ledger table in this snapshot)
+        query = supabase.from('suppliers').select('*');
+        if (filters.supplierId) query = query.eq('id', filters.supplierId);
+
+      } else if (reportType === 'movements') {
+        query = supabase
+          .from('stock_movements')
+          .select(`
+            *,
+            profiles:created_by (username),
+            inventory_items (name, units:units!inventory_items_base_unit_id_fkey(abbreviation)),
+            movement_reasons (name)
+          `)
+          .order('created_at', { ascending: false })
+          .limit(1000);
+
+        if (filters.userId) query = query.eq('created_by', filters.userId);
+        if (filters.type) query = query.eq('type', filters.type);
+      }
+
+      const { data: result, error } = await query;
+      if (error) throw error;
+
+      let finalData = result || [];
+
+      // Additional client-side filtering for complex types
+      if (reportType === 'expiry' && filters.days && filters.days !== 'all') {
+        const thresholdDate = new Date();
+        thresholdDate.setDate(thresholdDate.getDate() + parseInt(filters.days));
+        finalData = finalData.filter((b: any) => new Date(b.expiry_date) <= thresholdDate);
+      }
+
+      if (reportType === 'movements' && filters.search) {
+        const s = filters.search.toLowerCase();
+        finalData = finalData.filter((m: any) => m.inventory_items?.name?.toLowerCase().includes(s));
+      }
+
+      setData(finalData);
+    } catch (err) {
       console.error(err);
-      setError('Failed to download report files. Verify that data exists.');
     } finally {
-      setDownloading(false);
+      setLoading(false);
     }
   };
 
+  useEffect(() => {
+    fetchReportData();
+  }, [reportType]); // Fetch on tab change immediately
+
+  // --- COLUMNS DEFINITION ---
+  const getColumns = (): ColumnDef[] => {
+    switch (reportType) {
+      case 'valuation':
+        return [
+          { key: 'name', header: 'Item Name', sortable: true },
+          { key: 'category', header: 'Category', render: (r) => r.categories?.name },
+          { key: 'unit', header: 'Unit', render: (r) => r.units?.abbreviation },
+          { key: 'current_stock', header: 'Stock Qty', sortable: true },
+          { key: 'cost_price', header: 'Unit Cost (LKR)', render: (r) => Number(r.cost_price).toLocaleString(undefined, { minimumFractionDigits: 2 }) },
+          { key: 'total_value', header: 'Total Value (LKR)', render: (r) => (Number(r.current_stock) * Number(r.cost_price)).toLocaleString(undefined, { minimumFractionDigits: 2 }) }
+        ];
+      case 'expiry':
+        return [
+          { key: 'item', header: 'Item Name', render: (r) => r.inventory_items?.name, sortable: true },
+          { key: 'batch_number', header: 'Batch No.' },
+          { key: 'category', header: 'Category', render: (r) => r.inventory_items?.categories?.name },
+          { key: 'available_qty', header: 'Qty Remaining' },
+          { key: 'expiry_date', header: 'Expiry Date', render: (r) => format(new Date(r.expiry_date), 'dd/MM/yyyy'), sortable: true },
+          { key: 'days', header: 'Days Until Expiry', render: (r) => {
+              const diff = Math.ceil((new Date(r.expiry_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+              return diff < 0 ? 'Expired' : `${diff} days`;
+            }
+          },
+          { key: 'status', header: 'Status', render: (r) => {
+              const diff = Math.ceil((new Date(r.expiry_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
+              if (diff < 0) return <span className="px-2 py-1 bg-red-100 text-red-700 rounded text-xs font-bold">Expired</span>;
+              if (diff <= 7) return <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-bold">Critical</span>;
+              if (diff <= 30) return <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded text-xs font-bold">Warning</span>;
+              return <span className="px-2 py-1 bg-green-100 text-green-700 rounded text-xs font-bold">OK</span>;
+            }
+          }
+        ];
+      case 'outstanding':
+        return [
+          { key: 'name', header: 'Supplier Name', sortable: true },
+          { key: 'code', header: 'Code' },
+          { key: 'contact_person', header: 'Contact' },
+          { key: 'status', header: 'Status', render: (r) => <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">Active</span> }
+        ];
+      case 'movements':
+        return [
+          { key: 'created_at', header: 'Date & Time', render: (r) => format(new Date(r.created_at), 'dd/MM/yyyy HH:mm'), sortable: true },
+          { key: 'item', header: 'Item Name', render: (r) => r.inventory_items?.name },
+          { key: 'type', header: 'Movement Type', render: (r) => (
+            <span className={`px-2 py-1 rounded text-xs font-bold ${
+              r.type === 'STOCK_IN' ? 'bg-green-100 text-green-700' :
+              r.type === 'STOCK_OUT' ? 'bg-orange-100 text-orange-700' :
+              'bg-blue-100 text-blue-700'
+            }`}>{r.type.replace('_', ' ')}</span>
+          )},
+          { key: 'quantity', header: 'Qty', render: (r) => `${r.type === 'STOCK_OUT' ? '-' : '+'}${Number(r.quantity)} ${r.inventory_items?.units?.abbreviation}` },
+          { key: 'user', header: 'Staff Member', render: (r) => r.profiles?.username },
+          { key: 'reason', header: 'Reason', render: (r) => r.movement_reasons?.name || '-' }
+        ];
+      default: return [];
+    }
+  };
+
+  const handleExport = async (formatType: 'excel' | 'pdf' | 'csv', selectedOnly: boolean) => {
+    setExporting(true);
+    try {
+      const exportData = selectedOnly ? data.filter(d => selectedRowIds.includes(d.id)) : data;
+      const cols = getColumns();
+      
+      const exportCols: ExportColumn[] = cols.map(c => ({
+        header: c.header,
+        key: c.key
+      }));
+
+      // Map dynamic render values for export
+      const mappedData = exportData.map(row => {
+        const newRow: any = {};
+        cols.forEach(c => {
+          newRow[c.key] = c.render && typeof c.render(row) === 'string' 
+            ? c.render(row) 
+            : c.render && React.isValidElement(c.render(row)) 
+              ? row[c.key] // fallback to raw value if it's a JSX badge
+              : row[c.key];
+              
+          // Fix nested object extraction for export if JSX fallback didn't work
+          if (reportType === 'valuation' && c.key === 'category') newRow[c.key] = row.categories?.name;
+          if (reportType === 'valuation' && c.key === 'unit') newRow[c.key] = row.units?.abbreviation;
+          if (reportType === 'valuation' && c.key === 'total_value') newRow[c.key] = (Number(row.current_stock) * Number(row.cost_price)).toFixed(2);
+          if (reportType === 'expiry' && c.key === 'item') newRow[c.key] = row.inventory_items?.name;
+          if (reportType === 'expiry' && c.key === 'category') newRow[c.key] = row.inventory_items?.categories?.name;
+          if (reportType === 'expiry' && c.key === 'expiry_date') newRow[c.key] = format(new Date(row.expiry_date), 'dd/MM/yyyy');
+          if (reportType === 'movements' && c.key === 'item') newRow[c.key] = row.inventory_items?.name;
+          if (reportType === 'movements' && c.key === 'user') newRow[c.key] = row.profiles?.username;
+          if (reportType === 'movements' && c.key === 'reason') newRow[c.key] = row.movement_reasons?.name;
+          if (reportType === 'movements' && c.key === 'created_at') newRow[c.key] = format(new Date(row.created_at), 'dd/MM/yyyy HH:mm');
+        });
+        return newRow;
+      });
+
+      const title = `Sigiri Catering - ${reportTabs.find(t => t.id === reportType)?.label}`;
+      const filename = `Report_${reportType}_${format(new Date(), 'yyyyMMdd_HHmm')}`;
+
+      if (formatType === 'csv') generateCSV(exportCols, mappedData, filename);
+      if (formatType === 'excel') await generateExcel(exportCols, mappedData, filename, title);
+      if (formatType === 'pdf') generatePDF(exportCols, mappedData, filename, title);
+
+    } catch (err) {
+      console.error(err);
+      alert('Export failed.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const reportTabs = [
+    { id: 'valuation', label: 'Inventory Valuation', icon: <BarChart3 size={18} /> },
+    { id: 'expiry', label: 'Expiry Warning', icon: <Calendar size={18} /> },
+    { id: 'outstanding', label: 'Supplier Balances', icon: <FileText size={18} /> },
+    { id: 'movements', label: 'Stock Movements', icon: <Activity size={18} /> }
+  ];
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 pb-20">
       {/* Header */}
       <div>
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Analytics & Reports</h2>
-        <p className="text-sm text-slate-500">Compile and export active inventory audit files in various formats</p>
+        <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
+          <TrendingUp className="text-primary" />
+          Analytics & Reports
+        </h2>
+        <p className="text-sm text-slate-500 mt-1">Generate, filter, and export comprehensive operational data.</p>
       </div>
 
-      {error && (
-        <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl flex items-start space-x-3 max-w-2xl">
-          <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
-          <div className="text-xs font-semibold text-red-700">{error}</div>
-        </div>
-      )}
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        
-        {/* Left Column: Report Type Selector */}
-        <div className="lg:col-span-2 space-y-4">
-          <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Report Type</h3>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {reportsList.map((rep) => {
-              const isSelected = reportType === rep.id;
-              return (
-                <div
-                  key={rep.id}
-                  onClick={() => setReportType(rep.id)}
-                  className={`
-                    p-6 rounded-2xl border transition-all cursor-pointer card-shadow flex flex-col justify-between h-44
-                    ${isSelected 
-                      ? 'border-primary bg-blue-50/20 ring-2 ring-blue-500/10' 
-                      : 'border-slate-100 bg-white hover:border-slate-200'}
-                  `}
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-3">
-                      <div className="p-2 bg-slate-50 rounded-xl border border-slate-100">{rep.icon}</div>
-                      <h4 className="font-bold text-slate-800 text-sm sm:text-base">{rep.title}</h4>
-                    </div>
-                    <p className="text-xs text-slate-500 leading-relaxed font-medium">{rep.description}</p>
-                  </div>
-                  
-                  <div className="flex items-center space-x-2 text-xs font-semibold text-primary">
-                    <span className={isSelected ? 'underline' : ''}>
-                      {isSelected ? 'Active Selection' : 'Click to Select'}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Right Column: Export properties */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 card-shadow h-fit space-y-6">
-          <h3 className="font-bold text-slate-800">Export Parameters</h3>
-          
-          {/* Format selector */}
-          <div className="space-y-3">
-            <label className="text-xs font-bold text-slate-400 uppercase tracking-wider block">File Format</label>
-            <div className="space-y-2">
-              {[
-                { id: 'excel', label: 'Microsoft Excel (.xlsx)', desc: 'Full spreadsheet layout with auto-sized columns' },
-                { id: 'pdf', label: 'PDF Document (.pdf)', desc: 'Clean, printable layout with branding headers' },
-                { id: 'csv', label: 'CSV Comma Delimited (.csv)', desc: 'Raw data columns encoded in UTF-8 format' }
-              ].map((form) => {
-                const isSelected = format === form.id;
-                return (
-                  <label 
-                    key={form.id}
-                    className={`
-                      flex items-start space-x-3 p-3.5 rounded-xl border cursor-pointer transition-all
-                      ${isSelected 
-                        ? 'border-primary bg-blue-50/10 ring-2 ring-blue-500/5' 
-                        : 'border-slate-100 hover:border-slate-200'}
-                    `}
-                  >
-                    <input
-                      type="radio"
-                      name="format"
-                      checked={isSelected}
-                      onChange={() => setFormat(form.id)}
-                      className="mt-1 h-4 w-4 text-primary focus:ring-primary border-slate-200"
-                    />
-                    <div className="space-y-0.5">
-                      <span className="text-xs font-bold text-slate-800">{form.label}</span>
-                      <p className="text-[10px] text-slate-400 font-medium leading-relaxed">{form.desc}</p>
-                    </div>
-                  </label>
-                );
-              })}
-            </div>
-          </div>
-
+      {/* Report Type Tabs */}
+      <div className="flex overflow-x-auto gap-2 border-b border-slate-200 pb-px hide-scrollbar">
+        {reportTabs.map(tab => (
           <button
-            onClick={handleExport}
-            disabled={downloading}
-            className="w-full flex items-center justify-center space-x-2 py-3 bg-primary text-primary-foreground font-bold rounded-xl text-sm transition-all shadow-md shadow-blue-500/10 hover:bg-opacity-95 disabled:opacity-50 active:scale-98"
+            key={tab.id}
+            onClick={() => { setReportType(tab.id); setFilters({}); }}
+            className={`flex items-center gap-2 px-5 py-3 text-sm font-semibold whitespace-nowrap border-b-2 transition-all ${
+              reportType === tab.id 
+                ? 'border-primary text-primary' 
+                : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+            }`}
           >
-            {downloading ? (
-              <>
-                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                <span>Compiling data streams...</span>
-              </>
-            ) : (
-              <>
-                <FileDown size={18} />
-                <span>Export Report Document</span>
-              </>
-            )}
+            {tab.icon}
+            {tab.label}
           </button>
-        </div>
-
+        ))}
       </div>
+
+      {/* Filter Panel */}
+      <FilterPanel 
+        reportType={reportType}
+        filters={filters}
+        setFilters={setFilters}
+        onApply={fetchReportData}
+        onReset={() => { setFilters({}); setTimeout(fetchReportData, 0); }}
+        categories={categories}
+        suppliers={suppliers}
+        users={users}
+      />
+
+      {/* Data Table */}
+      <ReportTable 
+        columns={getColumns()}
+        data={data}
+        loading={loading}
+        selectedIds={selectedRowIds}
+        onSelectionChange={setSelectedRowIds}
+      />
+
+      {/* Export Panel (Sticky Bottom) */}
+      <ExportPanel 
+        selectedCount={selectedRowIds.length}
+        totalCount={data.length}
+        onSelectAllPages={() => setSelectedRowIds(data.map(d => d.id))}
+        onExport={handleExport}
+        exporting={exporting}
+      />
     </div>
   );
 };
