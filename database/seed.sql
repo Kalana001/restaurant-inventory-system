@@ -33,7 +33,11 @@ INSERT INTO permissions (code, description) VALUES
 ('settings:read', 'View system configuration parameters'),
 ('settings:update', 'Modify system configuration parameters'),
 ('users:read', 'View user accounts'),
-('users:manage', 'Create, update, delete user accounts and assign roles')
+('users:manage', 'Create, update, delete user accounts and assign roles'),
+('activity:read', 'View activity logs and audit trails'),
+('roles:read', 'View roles and their permissions'),
+('roles:manage', 'Create and modify roles and permissions'),
+('security:manage', 'Manage system security settings')
 ON CONFLICT (code) DO NOTHING;
 
 -- ==========================================

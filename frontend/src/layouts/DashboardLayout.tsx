@@ -68,11 +68,13 @@ export const DashboardLayout: React.FC = () => {
   ];
 
   const adminNavItems = [
-    { label: 'Activity Log', path: '/activity-log', icon: <Activity size={16} /> },
-    { label: 'User Management', path: '/users',  icon: <Users size={16} /> },
-    { label: 'Role Management', path: '/roles',  icon: <ShieldCheck size={16} /> },
-    { label: 'Security Settings', path: '/settings/security', icon: <Shield size={16} /> },
+    { label: 'Activity Log', path: '/activity-log', icon: <Activity size={16} />, permission: 'activity:read' },
+    { label: 'User Management', path: '/users',  icon: <Users size={16} />, permission: 'users:manage' },
+    { label: 'Role Management', path: '/roles',  icon: <ShieldCheck size={16} />, permission: 'roles:read' },
+    { label: 'Security Settings', path: '/settings/security', icon: <Shield size={16} />, permission: 'security:manage' },
   ];
+
+  const filteredAdminNav = adminNavItems.filter(item => !item.permission || permissions.includes(item.permission));
 
   // Filter based on permissions
   const filteredMainNav = mainNavItems.map(item => {
@@ -84,8 +86,6 @@ export const DashboardLayout: React.FC = () => {
     }
     return item;
   }).filter(item => !item.permission || permissions.includes(item.permission));
-
-  const isAdmin = user?.role?.name?.toLowerCase() === 'admin';
 
   return (
     <div className="h-screen overflow-hidden bg-gray-50 flex">
@@ -200,7 +200,7 @@ export const DashboardLayout: React.FC = () => {
             <div className="h-6 w-px bg-gray-200 hidden md:block" />
 
             {/* Admin Dropdown */}
-            {isAdmin && (
+            {filteredAdminNav.length > 0 && (
               <div className="relative">
                 <button 
                   onClick={() => { setAdminOpen(!adminOpen); setProfileOpen(false); }}
@@ -218,7 +218,7 @@ export const DashboardLayout: React.FC = () => {
                       <div className="px-3 py-2 border-b border-slate-50 bg-slate-50/50">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Administration</p>
                       </div>
-                      {adminNavItems.map(item => (
+                      {filteredAdminNav.map(item => (
                         <Link
                           key={item.path}
                           to={item.path}
