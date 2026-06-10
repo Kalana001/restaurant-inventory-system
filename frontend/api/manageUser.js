@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { withAuth } from './lib/withAuth.js';
+import { withAuth } from './_lib/withAuth.js';
 
 async function handler(req, res) {
   // CORS headers
