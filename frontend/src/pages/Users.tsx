@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { createUserSchema, updateUserSchema, formatZodError } from '../lib/validation';
 import { Users as UsersIcon, Plus, Edit3, ShieldCheck, Mail, AlertCircle } from 'lucide-react';
 
 export const Users: React.FC = () => {
@@ -72,14 +73,14 @@ export const Users: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    if (!email.trim() || !username.trim() || !roleId) {
-      setFormError('Please fill out all required fields.');
-      return;
-    }
 
-    if (!editingUser && (!password || password.length < 6)) {
-      setFormError('Password must be at least 6 characters for new accounts.');
-      return;
+    // Zod validation
+    if (editingUser) {
+      const result = updateUserSchema.safeParse({ username, password, roleId, status });
+      if (!result.success) { setFormError(formatZodError(result)); return; }
+    } else {
+      const result = createUserSchema.safeParse({ email, username, password, roleId, status });
+      if (!result.success) { setFormError(formatZodError(result)); return; }
     }
 
     setIsSaving(true);

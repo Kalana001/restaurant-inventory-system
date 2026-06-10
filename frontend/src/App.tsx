@@ -16,6 +16,7 @@ import Reports from './pages/Reports';
 import Users from './pages/Users';
 import Roles from './pages/Roles';
 import Unauthorized from './pages/Unauthorized';
+import SecuritySettings from './pages/SecuritySettings';
 
 function App() {
   return (
@@ -62,6 +63,11 @@ function App() {
             <Route element={<ProtectedRoute requiredRole="Admin" />}>
               <Route path="/users" element={<Users />} />
               <Route path="/roles" element={<Roles />} />
+            </Route>
+
+            {/* Security settings - all authenticated users */}
+            <Route element={<ProtectedRoute />}>
+              <Route path="/settings/security" element={<SecuritySettings />} />
             </Route>
           </Route>
         </Routes>
