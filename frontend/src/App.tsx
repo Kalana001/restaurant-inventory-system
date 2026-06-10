@@ -63,10 +63,6 @@ function App() {
             <Route element={<ProtectedRoute requiredRole="Admin" />}>
               <Route path="/users" element={<Users />} />
               <Route path="/roles" element={<Roles />} />
-            </Route>
-
-            {/* Security settings - all authenticated users */}
-            <Route element={<ProtectedRoute />}>
               <Route path="/settings/security" element={<SecuritySettings />} />
             </Route>
           </Route>

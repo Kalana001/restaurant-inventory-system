@@ -24,23 +24,6 @@ function resetRateLimit() {
   sessionStorage.removeItem('_login_rl');
 }
 
-// --- Password strength helper ---
-function getPasswordStrength(pwd: string) {
-  if (!pwd) return { score: 0, label: '', color: '' };
-  let score = 0;
-  if (pwd.length >= 8) score++;
-  if (pwd.length >= 12) score++;
-  if (/[A-Z]/.test(pwd)) score++;
-  if (/[0-9]/.test(pwd)) score++;
-  if (/[^A-Za-z0-9]/.test(pwd)) score++;
-
-  if (score <= 1) return { score, label: 'Very Weak', color: 'bg-red-500' };
-  if (score === 2) return { score, label: 'Weak', color: 'bg-orange-500' };
-  if (score === 3) return { score, label: 'Fair', color: 'bg-yellow-500' };
-  if (score === 4) return { score, label: 'Strong', color: 'bg-blue-500' };
-  return { score, label: 'Very Strong', color: 'bg-green-500' };
-}
-
 export const Login: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -49,7 +32,6 @@ export const Login: React.FC = () => {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
 
   // Honeypot field — bots fill this, humans don't see it
@@ -57,7 +39,6 @@ export const Login: React.FC = () => {
 
   if (user) return <Navigate to="/" replace />;
 
-  const strength = getPasswordStrength(password);
 
   const getLockoutRemaining = () => {
     if (!lockedUntil) return '';
@@ -219,22 +200,7 @@ export const Login: React.FC = () => {
                 </button>
               </div>
 
-              {/* Password strength indicator */}
-              {password.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map(i => (
-                      <div
-                        key={i}
-                        className={`h-1 flex-1 rounded-full transition-all duration-300 ${i <= strength.score ? strength.color : 'bg-slate-200'}`}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-500">
-                    Password strength: <span className="font-semibold">{strength.label}</span>
-                  </p>
-                </div>
-              )}
+              {/* Password strength indicator removed from login — only needed on account creation */}
             </div>
 
             {/* Submit */}
