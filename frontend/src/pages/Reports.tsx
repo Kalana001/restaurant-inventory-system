@@ -163,7 +163,7 @@ export const Reports: React.FC = () => {
           { key: 'batch_number', header: 'Batch No.' },
           { key: 'category', header: 'Category', render: (r) => r.inventory_items?.categories?.name },
           { key: 'available_qty', header: 'Qty Remaining' },
-          { key: 'expiry_date', header: 'Expiry Date', render: (r) => format(new Date(r.expiry_date), 'dd/MM/yyyy'), sortable: true },
+          { key: 'expiry_date', header: 'Expiry Date', render: (r) => r.expiry_date ? format(new Date(r.expiry_date), 'dd/MM/yyyy') : '-', sortable: true },
           { key: 'days', header: 'Days Until Expiry', render: (r) => {
               const diff = Math.ceil((new Date(r.expiry_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
               return diff < 0 ? 'Expired' : `${diff} days`;
@@ -187,7 +187,7 @@ export const Reports: React.FC = () => {
         ];
       case 'movements':
         return [
-          { key: 'created_at', header: 'Date & Time', render: (r) => format(new Date(r.created_at), 'dd/MM/yyyy HH:mm'), sortable: true },
+          { key: 'created_at', header: 'Date & Time', render: (r) => r.created_at ? format(new Date(r.created_at), 'dd/MM/yyyy HH:mm') : '-', sortable: true },
           { key: 'item', header: 'Item Name', render: (r) => r.inventory_items?.name },
           { key: 'type', header: 'Movement Type', render: (r) => (
             <span className={`px-2 py-1 rounded text-xs font-bold ${
@@ -232,11 +232,11 @@ export const Reports: React.FC = () => {
           if (reportType === 'valuation' && c.key === 'total_value') newRow[c.key] = (Number(row.current_stock) * Number(row.cost_price)).toFixed(2);
           if (reportType === 'expiry' && c.key === 'item') newRow[c.key] = row.inventory_items?.name;
           if (reportType === 'expiry' && c.key === 'category') newRow[c.key] = row.inventory_items?.categories?.name;
-          if (reportType === 'expiry' && c.key === 'expiry_date') newRow[c.key] = format(new Date(row.expiry_date), 'dd/MM/yyyy');
+          if (reportType === 'expiry' && c.key === 'expiry_date') newRow[c.key] = row.expiry_date ? format(new Date(row.expiry_date), 'dd/MM/yyyy') : '-';
           if (reportType === 'movements' && c.key === 'item') newRow[c.key] = row.inventory_items?.name;
           if (reportType === 'movements' && c.key === 'user') newRow[c.key] = row.profiles?.username;
           if (reportType === 'movements' && c.key === 'reason') newRow[c.key] = row.movement_reasons?.name;
-          if (reportType === 'movements' && c.key === 'created_at') newRow[c.key] = format(new Date(row.created_at), 'dd/MM/yyyy HH:mm');
+          if (reportType === 'movements' && c.key === 'created_at') newRow[c.key] = row.created_at ? format(new Date(row.created_at), 'dd/MM/yyyy HH:mm') : '-';
         });
         return newRow;
       });

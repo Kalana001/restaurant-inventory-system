@@ -26,7 +26,14 @@ export const ExportPanel: React.FC<ExportPanelProps> = ({
 
   // Sync columns if report type changes and new columns are passed
   React.useEffect(() => {
-    setSelectedCols(columns.map(c => c.key));
+    setSelectedCols(prev => {
+      const next = columns.map(c => c.key);
+      // Only update if the keys actually changed to prevent infinite render loops
+      if (prev.length === next.length && prev.every((v, i) => v === next[i])) {
+        return prev;
+      }
+      return next;
+    });
   }, [columns]);
 
   return (
