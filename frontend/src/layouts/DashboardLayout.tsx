@@ -4,20 +4,17 @@ import { useAuth } from '../contexts/AuthContext';
 import { 
   LayoutDashboard, 
   Boxes, 
-  Users2, 
-  FileSpreadsheet, 
   ClipboardList, 
-  ArrowLeftRight, 
   TrendingUp, 
   LogOut,
   Menu,
   X,
   UserCheck,
-  FolderOpen,
   Users,
   ShieldCheck,
   Shield,
-  Activity
+  Activity,
+  ChevronDown
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
@@ -25,6 +22,8 @@ export const DashboardLayout: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -69,9 +68,10 @@ export const DashboardLayout: React.FC = () => {
   ];
 
   const adminNavItems = [
-    { label: 'Activity Log', path: '/activity-log', icon: <Activity size={20} /> },
-    { label: 'User Management', path: '/users',  icon: <Users size={20} /> },
-    { label: 'Role Management', path: '/roles',  icon: <ShieldCheck size={20} /> },
+    { label: 'Activity Log', path: '/activity-log', icon: <Activity size={16} /> },
+    { label: 'User Management', path: '/users',  icon: <Users size={16} /> },
+    { label: 'Role Management', path: '/roles',  icon: <ShieldCheck size={16} /> },
+    { label: 'Security Settings', path: '/settings/security', icon: <Shield size={16} /> },
   ];
 
   // Filter based on permissions
@@ -120,14 +120,14 @@ export const DashboardLayout: React.FC = () => {
         <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
           {/* Main Navigation */}
           {filteredMainNav.map((item) => {
-            const isParentActive = location.pathname === item.path;
+            const isParentActive = location.pathname === item.path || (item.path === '/reports' && location.pathname.startsWith('/reports'));
             const isSubActive = item.subItems?.some(sub => location.pathname === sub.path);
             const isExpanded = isParentActive || isSubActive;
 
             return (
               <div key={item.path} className="space-y-1">
                 <Link
-                  to={item.path}
+                  to={item.subItems ? item.subItems[0].path : item.path}
                   className={`
                     flex items-center space-x-3 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200
                     ${isExpanded
@@ -171,76 +171,7 @@ export const DashboardLayout: React.FC = () => {
               </div>
             );
           })}
-
-
-          {/* Admin Section - only for Admin role */}
-          {isAdmin && (
-            <>
-              <div className="pt-4 pb-1 px-2">
-                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Administration</p>
-              </div>
-              <div className="border-t border-gray-100 mb-1" />
-              {adminNavItems.map((item) => {
-                const isActive = location.pathname === item.path;
-                return (
-                  <Link
-                    key={item.path}
-                    to={item.path}
-                    className={`
-                      flex items-center space-x-3 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200
-                      ${isActive
-                        ? 'bg-primary text-white shadow-sm shadow-blue-500/20'
-                        : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'}
-                    `}
-                    onClick={() => setSidebarOpen(false)}
-                  >
-                    {item.icon}
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </>
-          )}
         </nav>
-
-
-        {/* User Card & Logout */}
-        <div className="p-4 border-t border-gray-100 bg-gray-50/50 space-y-4">
-          <div className="flex items-center space-x-3 px-2">
-            <div className="w-9 h-9 rounded-full bg-blue-100 text-primary flex items-center justify-center font-bold">
-              {user?.username.slice(0, 2).toUpperCase()}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-800 truncate">{user?.username}</p>
-              <span className="inline-flex items-center text-[10px] font-medium bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">
-                <UserCheck size={10} className="mr-1" />
-                {user?.role.name}
-              </span>
-            </div>
-          </div>
-          {/* Security Settings link - Admin only */}
-          {isAdmin && (
-            <Link
-              to="/settings/security"
-              onClick={() => setSidebarOpen(false)}
-              className={`w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl border font-medium text-sm transition-all duration-200 ${
-                location.pathname === '/settings/security'
-                  ? 'border-primary bg-blue-50 text-primary'
-                  : 'border-slate-200 text-slate-600 hover:bg-slate-100'
-              }`}
-            >
-              <Shield size={16} />
-              <span>Security Settings</span>
-            </Link>
-          )}
-          <button
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center space-x-2 px-4 py-2.5 rounded-xl border border-red-200 text-red-600 hover:bg-red-50 font-medium text-sm transition-all duration-200"
-          >
-            <LogOut size={16} />
-            <span>Sign Out</span>
-          </button>
-        </div>
       </aside>
 
       {/* Main Content Area */}
@@ -258,15 +189,100 @@ export const DashboardLayout: React.FC = () => {
               {location.pathname === '/' ? 'Overview' : location.pathname.substring(1).replace('-', ' ')}
             </h1>
           </div>
-          <div className="flex items-center space-x-4">
-            <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full uppercase tracking-wider">LKR Currency</span>
-            <div className="h-4 w-px bg-gray-200" />
-            <span className="text-sm text-gray-500 font-medium">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+          
+          <div className="flex items-center space-x-6">
+            <div className="hidden md:flex items-center space-x-4">
+              <span className="text-xs font-semibold text-gray-400 bg-gray-100 px-2.5 py-1 rounded-full uppercase tracking-wider">LKR</span>
+              <div className="h-4 w-px bg-gray-200" />
+              <span className="text-sm text-gray-500 font-medium">{new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+            </div>
+
+            <div className="h-6 w-px bg-gray-200 hidden md:block" />
+
+            {/* Admin Dropdown */}
+            {isAdmin && (
+              <div className="relative">
+                <button 
+                  onClick={() => { setAdminOpen(!adminOpen); setProfileOpen(false); }}
+                  className="flex items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-primary transition-colors"
+                >
+                  <ShieldCheck size={18} />
+                  <span className="hidden sm:inline">Admin</span>
+                  <ChevronDown size={14} className={`transition-transform ${adminOpen ? 'rotate-180' : ''}`} />
+                </button>
+                
+                {adminOpen && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setAdminOpen(false)} />
+                    <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden z-40 py-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                      <div className="px-3 py-2 border-b border-slate-50 bg-slate-50/50">
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Administration</p>
+                      </div>
+                      {adminNavItems.map(item => (
+                        <Link
+                          key={item.path}
+                          to={item.path}
+                          onClick={() => setAdminOpen(false)}
+                          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium transition-colors ${
+                            location.pathname === item.path ? 'bg-blue-50 text-primary' : 'text-slate-600 hover:bg-slate-50 hover:text-primary'
+                          }`}
+                        >
+                          {item.icon}
+                          {item.label}
+                        </Link>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Profile Dropdown */}
+            <div className="relative">
+              <button 
+                onClick={() => { setProfileOpen(!profileOpen); setAdminOpen(false); }}
+                className="flex items-center gap-2 focus:outline-none group"
+              >
+                <div className="w-8 h-8 rounded-full bg-blue-100 text-primary flex items-center justify-center font-bold text-sm ring-2 ring-transparent group-hover:ring-blue-200 transition-all">
+                  {user?.username.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="hidden md:flex flex-col items-start leading-tight">
+                  <span className="text-sm font-bold text-slate-700 group-hover:text-primary transition-colors">{user?.username}</span>
+                  <span className="text-[10px] font-semibold text-slate-400 uppercase">{user?.role.name}</span>
+                </div>
+                <ChevronDown size={14} className={`text-slate-400 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+              </button>
+
+              {profileOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setProfileOpen(false)} />
+                  <div className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-lg border border-slate-100 overflow-hidden z-40 py-1 animate-in fade-in slide-in-from-top-2 duration-200">
+                    <div className="px-4 py-3 border-b border-slate-50">
+                      <p className="text-sm font-bold text-slate-800">{user?.username}</p>
+                      <span className="inline-flex items-center mt-1 text-[10px] font-bold bg-blue-50 text-primary rounded px-1.5 py-0.5 uppercase tracking-wider">
+                        <UserCheck size={10} className="mr-1" />
+                        {user?.role.name}
+                      </span>
+                    </div>
+                    <div className="py-1">
+                      <button
+                        onClick={() => { setProfileOpen(false); handleLogout(); }}
+                        className="w-full flex items-center gap-2 px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50 transition-colors"
+                      >
+                        <LogOut size={16} />
+                        Sign Out
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
           </div>
         </header>
 
         {/* Content Slot */}
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 gradient-bg">
+        <main className="flex-1 overflow-y-auto p-6 lg:p-8 gradient-bg relative">
           <Outlet />
         </main>
       </div>
