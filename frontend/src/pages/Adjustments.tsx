@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useAutoSave, loadDraft } from '../hooks/useAutoSave';
 import {
   Plus, Check, X, AlertCircle, Layers, Trash2,
   PackageOpen, PackagePlus, FileText, Calendar, XCircle, TrendingUp, TrendingDown, Settings
@@ -52,10 +53,19 @@ export const Adjustments: React.FC = () => {
   const [units, setUnits] = useState<any[]>([]);
 
   // Bulk form state
-  const [movementType, setMovementType] = useState<'STOCK_IN' | 'STOCK_OUT'>('STOCK_OUT');
-  const [selectedReasonId, setSelectedReasonId] = useState('');
-  const [movementDate, setMovementDate] = useState(new Date().toISOString().split('T')[0]);
-  const [lines, setLines] = useState<BulkLine[]>([newLine()]);
+  const [movementType, setMovementType] = useState<'STOCK_IN' | 'STOCK_OUT'>(() => loadDraft<'STOCK_IN' | 'STOCK_OUT'>('adj_draft_type') || 'STOCK_OUT');
+  const [selectedReasonId, setSelectedReasonId] = useState(() => loadDraft<string>('adj_draft_reason') || '');
+  const [movementDate, setMovementDate] = useState(() => loadDraft<string>('adj_draft_date') || new Date().toISOString().split('T')[0]);
+  const [lines, setLines] = useState<BulkLine[]>(() => loadDraft<BulkLine[]>('adj_draft_lines') || [newLine()]);
+  
+  const { clearDraft: clearMovementType } = useAutoSave('adj_draft_type', movementType);
+  const { clearDraft: clearReasonId } = useAutoSave('adj_draft_reason', selectedReasonId);
+  const { clearDraft: clearDate } = useAutoSave('adj_draft_date', movementDate);
+  const { clearDraft: clearLinesAutoSave } = useAutoSave('adj_draft_lines', lines);
+
+  const clearAdjDrafts = () => {
+    clearMovementType(); clearReasonId(); clearDate(); clearLinesAutoSave();
+  };
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -199,7 +209,10 @@ export const Adjustments: React.FC = () => {
       if (errors.length > 0) {
         setFormError(`Some items failed:\n${errors.join('\n')}`);
       } else {
+        clearAdjDrafts();
         setModalOpen(false);
+        setLines([newLine()]);
+        setSelectedReasonId('');
         fetchData();
       }
     } finally {
@@ -441,10 +454,15 @@ export const Adjustments: React.FC = () => {
 
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">Bulk Stock Movement</h3>
-                <p className="text-xs text-slate-500 mt-0.5">All items will be grouped under one receipt number</p>
-              </div>
+                <div>
+                  <div className="flex items-center gap-3">
+                    <h3 className="text-lg font-bold text-slate-800">Bulk Stock Movement</h3>
+                    {((lines.length > 1 || (lines[0] && (lines[0].itemId || Number(lines[0].quantity) > 0)))) && (
+                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-widest">Draft Loaded</span>
+                    )}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">All items will be grouped under one receipt number</p>
+                </div>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm font-semibold">âœ• Close</button>
             </div>
 

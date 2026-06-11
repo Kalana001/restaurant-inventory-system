@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
+import { useAutoSave, loadDraft } from '../hooks/useAutoSave';
 import {
   Plus, Search, Eye, AlertCircle, ShoppingCart, Trash2,
   PackageSearch, Banknote, UserPlus, ChevronDown, XCircle,
@@ -20,11 +21,21 @@ export const PurchaseOrders: React.FC = () => {
 
   // ── Create PO States ──────────────────────────────────────────
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [selectedSupplier, setSelectedSupplier] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [poLines, setPoLines] = useState<any[]>([]);
-  const [poDiscount, setPoDiscount] = useState<number>(0);
-  const [poDiscountType, setPoDiscountType] = useState<'fixed' | 'percentage'>('fixed');
+  const [selectedSupplier, setSelectedSupplier] = useState(() => loadDraft<string>('po_draft_supplier') || '');
+  const [remarks, setRemarks] = useState(() => loadDraft<string>('po_draft_remarks') || '');
+  const [poLines, setPoLines] = useState<any[]>(() => loadDraft<any[]>('po_draft_lines') || []);
+  const [poDiscount, setPoDiscount] = useState<number>(() => loadDraft<number>('po_draft_discount') || 0);
+  const [poDiscountType, setPoDiscountType] = useState<'fixed' | 'percentage'>(() => loadDraft<'fixed' | 'percentage'>('po_draft_discount_type') || 'fixed');
+
+  const { clearDraft: clearSupplier } = useAutoSave('po_draft_supplier', selectedSupplier);
+  const { clearDraft: clearRemarks } = useAutoSave('po_draft_remarks', remarks);
+  const { clearDraft: clearLines } = useAutoSave('po_draft_lines', poLines);
+  const { clearDraft: clearDiscount } = useAutoSave('po_draft_discount', poDiscount);
+  const { clearDraft: clearDiscountType } = useAutoSave('po_draft_discount_type', poDiscountType);
+
+  const clearPoDrafts = () => {
+    clearSupplier(); clearRemarks(); clearLines(); clearDiscount(); clearDiscountType();
+  };
   const [formError, setFormError] = useState<string | null>(null);
 
   // ── Item Search States ────────────────────────────────────────
@@ -254,7 +265,9 @@ export const PurchaseOrders: React.FC = () => {
       const { error: linesErr } = await supabase.from('purchase_order_items').insert(poItemsPayload);
       if (linesErr) throw linesErr;
 
+      clearPoDrafts();
       setCreateModalOpen(false);
+      setSelectedSupplier(''); setRemarks(''); setPoLines([]); setPoDiscount(0); setPoDiscountType('fixed');
       fetchPOs();
     } catch (err: any) {
       setFormError(err.message || 'Failed to create Purchase Order.');
@@ -511,8 +524,13 @@ export const PurchaseOrders: React.FC = () => {
           <div className="bg-white rounded-2xl w-full max-w-4xl p-6 space-y-6 card-shadow my-8">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
-                <h3 className="text-lg font-bold text-slate-800">Create Purchase Order</h3>
-                <p className="text-xs text-slate-400">Goods can be received later via GRN</p>
+                <div className="flex items-center gap-3">
+                  <h3 className="text-lg font-bold text-slate-800">Create Purchase Order</h3>
+                  {(poLines.length > 0 || selectedSupplier || remarks) && (
+                    <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-widest">Draft Loaded</span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-400 mt-0.5">Goods can be received later via GRN</p>
               </div>
               <button onClick={() => setCreateModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20}/></button>
             </div>
