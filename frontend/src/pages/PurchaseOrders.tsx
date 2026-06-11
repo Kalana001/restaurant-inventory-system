@@ -131,12 +131,13 @@ export const PurchaseOrders: React.FC = () => {
 
   // ── Open Create PO Modal ──────────────────────────────────────
   const openCreateModal = () => {
-    setSelectedSupplier(suppliers[0]?.id || '');
-    setSupplierSearch(suppliers[0] ? `${suppliers[0].name} (${suppliers[0].code})` : '');
-    setRemarks('');
-    setPoLines([]);
-    setPoDiscount(0);
-    setPoDiscountType('fixed');
+    if (!selectedSupplier) {
+      setSelectedSupplier('');
+      setSupplierSearch('');
+    } else {
+      const s = suppliers.find(sup => sup.id === selectedSupplier);
+      setSupplierSearch(s ? `${s.name} (${s.code})` : '');
+    }
     setFormError(null);
     setItemSearch('');
     setShowSuggestions(false);
