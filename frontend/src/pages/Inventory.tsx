@@ -210,11 +210,6 @@ export const Inventory: React.FC = () => {
         setFormError('Please select or create a category before saving.');
         return;
       }
-      if (!costPrice || Number(costPrice) <= 0) {
-        setFormError('Please enter a valid cost price.');
-        return;
-      }
-
       const totalItemsCount = items.length;
       const finalSku = sku.trim() || `INT-${String(totalItemsCount + 1).padStart(4,'0')}`;
 
@@ -639,7 +634,7 @@ export const Inventory: React.FC = () => {
                 </div>
               </div>
 
-              {/* Base Unit & Supplier */}
+              {/* Base Unit */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Base Unit of Measure</label>
@@ -654,19 +649,6 @@ export const Inventory: React.FC = () => {
                     ))}
                   </select>
                 </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Default Supplier (Optional)</label>
-                  <select
-                    value={supplierId}
-                    onChange={(e) => setSupplierId(e.target.value)}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
-                  >
-                    <option value="">No supplier</option>
-                    {suppliers.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </div>
               </div>
 
               {/* Pricing */}
@@ -674,12 +656,11 @@ export const Inventory: React.FC = () => {
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">💰 Pricing</p>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Cost Price (LKR) <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-bold text-slate-500 uppercase">Cost Price (LKR)</label>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
-                      required
                       value={costPrice}
                       onChange={(e) => setCostPrice(e.target.value)}
                       placeholder="0.00"
@@ -687,52 +668,23 @@ export const Inventory: React.FC = () => {
                     />
                     <p className="text-xs text-slate-400">Price you pay when purchasing this item</p>
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Selling Price (LKR)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      value={sellingPrice}
-                      onChange={(e) => setSellingPrice(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    />
-                    <p className="text-xs text-slate-400">Price charged when issuing this item</p>
-                  </div>
                 </div>
               </div>
 
-              {/* Stock Levels */}
+              {/* Reorder Level */}
               <div className="border-t border-slate-100 pt-4">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">📊 Stock Level Thresholds</p>
-                <div className="grid grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Min Stock</label>
-                    <input
-                      type="number" min="0"
-                      value={minStock}
-                      onChange={(e) => setMinStock(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    />
-                  </div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">📊 Stock Threshold</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-500 uppercase">Reorder Level</label>
                     <input
                       type="number" min="0"
                       value={reorderLevel}
                       onChange={(e) => setReorderLevel(e.target.value)}
+                      placeholder="e.g. 20"
                       className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                     />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-bold text-slate-500 uppercase">Max Stock</label>
-                    <input
-                      type="number" min="0"
-                      value={maxStock}
-                      onChange={(e) => setMaxStock(e.target.value)}
-                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                    />
+                    <p className="text-xs text-slate-400">Alert when stock falls below this level</p>
                   </div>
                 </div>
               </div>
