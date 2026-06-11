@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { 
-  TrendingUp, 
+  TrendingUp,
+  TrendingDown, 
   AlertTriangle, 
   PackageMinus, 
   CalendarDays, 
@@ -164,7 +165,13 @@ export const Dashboard: React.FC = () => {
                     ${move.type === 'STOCK_OUT' ? 'bg-rose-50 text-rose-700' : ''}
                     ${move.type === 'ADJUSTMENT' ? 'bg-amber-50 text-amber-700' : ''}
                   `}>
-                    {move.type === 'STOCK_IN' ? '+' : '-'} {move.quantity} {move.inventory_items?.base_unit?.abbreviation}
+                    {move.type === 'STOCK_IN' ? (
+                      <span className="flex items-center gap-1"><TrendingUp size={12}/> IN: {move.quantity} {move.inventory_items?.base_unit?.abbreviation}</span>
+                    ) : move.type === 'STOCK_OUT' ? (
+                      <span className="flex items-center gap-1"><TrendingDown size={12}/> OUT: {move.quantity} {move.inventory_items?.base_unit?.abbreviation}</span>
+                    ) : (
+                      <span>{move.quantity} {move.inventory_items?.base_unit?.abbreviation}</span>
+                    )}
                   </span>
                 </div>
               </div>

@@ -4,7 +4,7 @@ import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import {
   Plus, Check, X, AlertCircle, Layers, Trash2,
-  PackageOpen, PackagePlus, FileText, Calendar, XCircle
+  PackageOpen, PackagePlus, FileText, Calendar, XCircle, TrendingUp, TrendingDown, Settings
 } from 'lucide-react';
 
 interface BulkLine {
@@ -374,7 +374,11 @@ export const Adjustments: React.FC = () => {
                             ${type === 'STOCK_IN' ? 'bg-green-50 text-green-700' : ''}
                             ${type === 'STOCK_OUT' ? 'bg-rose-50 text-rose-700' : ''}
                           `}>
-                            {type === 'STOCK_IN' ? '▲ IN' : '▼ OUT'}
+                            {type === 'STOCK_IN' ? (
+                              <span className="flex items-center gap-1"><TrendingUp size={12}/> IN</span>
+                            ) : (
+                              <span className="flex items-center gap-1"><TrendingDown size={12}/> OUT</span>
+                            )}
                           </span>
                         </td>
                         <td className="px-6 py-4 text-slate-400 text-xs">â€”</td>
@@ -400,7 +404,13 @@ export const Adjustments: React.FC = () => {
                             ${move.type === 'STOCK_OUT' ? 'bg-rose-50 text-rose-700' : ''}
                             ${move.type === 'ADJUSTMENT' ? 'bg-amber-50 text-amber-700' : ''}
                           `}>
-                            {move.type === 'STOCK_IN' ? '▲ IN' : move.type === 'STOCK_OUT' ? '▼ OUT' : '⚙ ADJ'}
+                            {move.type === 'STOCK_IN' ? (
+                              <span className="flex items-center gap-1"><TrendingUp size={12}/> IN</span>
+                            ) : move.type === 'STOCK_OUT' ? (
+                              <span className="flex items-center gap-1"><TrendingDown size={12}/> OUT</span>
+                            ) : (
+                              <span className="flex items-center gap-1"><Settings size={12}/> ADJ</span>
+                            )}
                           </span>
                         </td>
                         <td className="px-6 py-4 font-semibold">{move.quantity} {move.inventory_items?.base_unit?.abbreviation}</td>
@@ -699,7 +709,11 @@ export const Adjustments: React.FC = () => {
                         <td className="px-4 py-3 font-semibold text-slate-800">{m.inventory_items?.name}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${m.type === 'STOCK_IN' ? 'bg-green-50 text-green-700' : 'bg-rose-50 text-rose-700'}`}>
-                            {m.type === 'STOCK_IN' ? '▲ IN' : '▼ OUT'}
+                            {m.type === 'STOCK_IN' ? (
+                              <span className="flex items-center gap-1"><TrendingUp size={10}/> IN</span>
+                            ) : (
+                              <span className="flex items-center gap-1"><TrendingDown size={10}/> OUT</span>
+                            )}
                           </span>
                         </td>
                         <td className="px-4 py-3 font-semibold text-right">{m.quantity} {m.inventory_items?.base_unit?.abbreviation}</td>
