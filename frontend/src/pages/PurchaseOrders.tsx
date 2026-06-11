@@ -131,13 +131,12 @@ export const PurchaseOrders: React.FC = () => {
 
   // ── Open Create PO Modal ──────────────────────────────────────
   const openCreateModal = () => {
-    if (!selectedSupplier) {
-      setSelectedSupplier('');
-      setSupplierSearch('');
-    } else {
-      const s = suppliers.find(sup => sup.id === selectedSupplier);
-      setSupplierSearch(s ? `${s.name} (${s.code})` : '');
-    }
+    setSelectedSupplier('');
+    setSupplierSearch('');
+    setRemarks('');
+    setPoLines([]);
+    setPoDiscount(0);
+    setPoDiscountType('fixed');
     setFormError(null);
     setItemSearch('');
     setShowSuggestions(false);
@@ -312,7 +311,7 @@ export const PurchaseOrders: React.FC = () => {
     // Load PO items as GRN line items (quantity pre-filled from PO)
     const { data: items } = await supabase
       .from('purchase_order_items')
-      .select(`id, quantity, cost_price, total_cost, item_id, inventory_items ( name, sku, units:units!inventory_items_purchase_unit_id_fkey ( abbreviation ) )`)
+      .select(`id, quantity, unit_price, total_price, item_id, inventory_items ( name, sku, units:units!inventory_items_purchase_unit_id_fkey ( abbreviation ) )`)
       .eq('po_id', po.id);
     if (items) {
       setGrnItems(items.map(i => ({
@@ -320,7 +319,7 @@ export const PurchaseOrders: React.FC = () => {
         name: i.inventory_items?.name,
         unit: i.inventory_items?.units?.abbreviation || 'pcs',
         quantity: i.quantity,
-        costPrice: Number(i.cost_price),
+        costPrice: Number(i.unit_price),
         expiryDate: ''
       })));
     }
@@ -425,7 +424,7 @@ export const PurchaseOrders: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('purchase_order_items')
-        .select(`id, quantity, cost_price, total_cost, item_id, inventory_items ( name, sku, units:units!inventory_items_purchase_unit_id_fkey ( abbreviation ) )`)
+        .select(`id, quantity, unit_price, total_price, item_id, inventory_items ( name, sku, units:units!inventory_items_purchase_unit_id_fkey ( abbreviation ) )`)
         .eq('po_id', po.id);
       if (error) throw error;
       // Initialize with existing data, defaulting to 0 if it was missing/0
