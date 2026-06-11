@@ -155,17 +155,30 @@ export const Categories: React.FC = () => {
   const confirmDelete = async () => {
     if (!deleteTarget) return;
     try {
+      let error: any = null;
       if (deleteTarget.type === 'category') {
-        await supabase.from('categories').delete().eq('id', deleteTarget.id);
+        // Check if any inventory items use this category
+        const { data: usedItems } = await supabase
+          .from('inventory_items')
+          .select('id')
+          .eq('category_id', deleteTarget.id)
+          .limit(1);
+        if (usedItems && usedItems.length > 0) {
+          alert(`Cannot delete "${deleteTarget.name}" — it is used by one or more inventory items. Remove or re-categorise those items first.`);
+          setDeleteModalOpen(false);
+          return;
+        }
+        ({ error } = await supabase.from('categories').delete().eq('id', deleteTarget.id));
       } else {
-        await supabase.from('subcategories').delete().eq('id', deleteTarget.id);
+        ({ error } = await supabase.from('subcategories').delete().eq('id', deleteTarget.id));
       }
+      if (error) throw error;
       setDeleteModalOpen(false);
       setDeleteTarget(null);
       fetchData();
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      alert('Failed to delete item.');
+      alert(`Failed to delete: ${err?.message || 'Unknown error. Check if items are using this category.'}`);
     }
   };
 
