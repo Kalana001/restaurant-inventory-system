@@ -6,7 +6,8 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { BulkImportModal } from '../components/BulkImportModal';
 
 export const Inventory: React.FC = () => {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user } = useAuth();
+  const canCreate = hasPermission('items:create') || ['admin','owner','manager'].includes(user?.role?.name?.toLowerCase() || '');
   
   // Catalog List States
   const [items, setItems] = useState<any[]>([]);
@@ -277,7 +278,7 @@ export const Inventory: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Inventory Catalog</h2>
           <p className="text-sm text-slate-500">Manage ingredients, packaging, and consumables</p>
         </div>
-        {hasPermission('items:create') && (
+        {canCreate && (
           <div className="flex items-center gap-3">
             <button
               onClick={() => setImportModalOpen(true)}
@@ -335,7 +336,7 @@ export const Inventory: React.FC = () => {
                 <th className="px-6 py-4">Item Name</th>
                 <th className="px-6 py-4">Category</th>
                 <th className="px-6 py-4">Sub Category</th>
-                {hasPermission('items:update') && <th className="px-6 py-4 text-right">Actions</th>}
+                {canCreate && <th className="px-6 py-4 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 text-sm">
@@ -362,7 +363,7 @@ export const Inventory: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-slate-500">{item.subcategories?.name || '-'}</td>
-                    {hasPermission('items:update') && (
+                    {canCreate && (
                       <td className="px-6 py-4 text-right space-x-2.5">
                         <button
                           onClick={() => openEditModal(item)}
@@ -370,7 +371,7 @@ export const Inventory: React.FC = () => {
                         >
                           <Edit3 size={16} />
                         </button>
-                        {hasPermission('items:delete') && (
+                        {(hasPermission('items:delete') || ['admin','owner'].includes(user?.role?.name?.toLowerCase() || '')) && (
                           <button
                             onClick={() => handleDeleteClick(item.id)}
                             className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
