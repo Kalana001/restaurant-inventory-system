@@ -38,21 +38,27 @@ export const DashboardLayout: React.FC = () => {
         const notifications: any[] = [];
         
         // Fetch low stock items
-        const { data: lowStock } = await supabase
+        const { data: items } = await supabase
           .from('inventory_items')
-          .select('id, name, current_stock, reorder_level')
+          .select('id, name, reorder_level, batches ( available_qty, status )')
           .eq('status', 'ACTIVE');
           
-        if (lowStock) {
-          lowStock.filter(i => Number(i.current_stock) <= Number(i.reorder_level)).forEach(item => {
-            notifications.push({
-              id: `ls-${item.id}`,
-              type: 'LOW_STOCK',
-              title: 'Low Stock Alert',
-              message: `${item.name} is running low (${item.current_stock} remaining).`,
-              time: new Date().toISOString(),
-              link: '/reports/valuation'
-            });
+        if (items) {
+          items.forEach(item => {
+            const currentStock = item.batches
+              ?.filter((b: any) => b.status === 'ACTIVE')
+              .reduce((sum: number, b: any) => sum + Number(b.available_qty || 0), 0) || 0;
+
+            if (currentStock <= Number(item.reorder_level)) {
+              notifications.push({
+                id: `ls-${item.id}`,
+                type: 'LOW_STOCK',
+                title: 'Low Stock Alert',
+                message: `${item.name} is running low (${currentStock} remaining).`,
+                time: new Date().toISOString(),
+                link: '/reports/valuation'
+              });
+            }
           });
         }
 

@@ -43,7 +43,7 @@ export const Reports: React.FC = () => {
     const loadRefs = async () => {
       const [cats, sups, usrs] = await Promise.all([
         supabase.from('categories').select('id, name').order('name'),
-        supabase.from('suppliers').select('id, name, status').order('name'),
+        supabase.from('suppliers').select('id, name, status').eq('status', 'ACTIVE').order('name'),
         supabase.from('profiles').select('id, username').order('username')
       ]);
       if (cats.data) setCategories(cats.data);
@@ -81,7 +81,7 @@ export const Reports: React.FC = () => {
         }
 
       } else if (reportType === 'outstanding') {
-        query = supabase.from('suppliers').select(`*, supplier_payments(payment_method, created_at)`).order('name');
+        query = supabase.from('suppliers').select(`*, supplier_payments(payment_method, created_at)`).eq('status', 'ACTIVE').order('name');
         if (filters.supplierId) query = query.eq('id', filters.supplierId);
 
       } else if (reportType === 'movements') {
