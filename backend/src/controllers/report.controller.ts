@@ -51,8 +51,8 @@ export const exportReport = async (req: Request, res: Response, next: NextFuncti
           item?.categories?.name || '',
           row.batch_number,
           row.available_qty,
-          Number(item?.cost_price || 0).toFixed(2),
-          totalVal.toFixed(2)
+          Number(item?.cost_price || 0).toFixed(3),
+          totalVal.toFixed(3)
         ];
       });
     } else if (reportType === 'expiry') {
@@ -103,8 +103,8 @@ export const exportReport = async (req: Request, res: Response, next: NextFuncti
         row.code,
         row.name,
         row.phone || 'N/A',
-        Number(row.outstanding_balance).toFixed(2),
-        Number(row.credit_limit).toFixed(2),
+        Number(row.outstanding_balance).toFixed(3),
+        Number(row.credit_limit).toFixed(3),
         row.status
       ]);
     } else if (reportType === 'movements') {
@@ -263,3 +263,4 @@ export const exportReport = async (req: Request, res: Response, next: NextFuncti
     next(error);
   }
 };
+

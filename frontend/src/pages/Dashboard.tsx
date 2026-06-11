@@ -80,7 +80,7 @@ export const Dashboard: React.FC = () => {
     },
     {
       title: 'Total Inventory Value',
-      value: `LKR ${Number(metrics?.total_inventory_value || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      value: `LKR ${Number(metrics?.total_inventory_value || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`,
       icon: <TrendingUp size={24} className="text-green-500" />,
       bg: 'bg-green-50 border-green-100',
     },
@@ -104,7 +104,7 @@ export const Dashboard: React.FC = () => {
     },
     {
       title: 'Supplier Outstanding',
-      value: `LKR ${Number(metrics?.total_supplier_outstanding || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      value: `LKR ${Number(metrics?.total_supplier_outstanding || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`,
       icon: <Wallet size={24} className="text-purple-500" />,
       bg: 'bg-purple-50 border-purple-100',
     },
@@ -176,3 +176,4 @@ export const Dashboard: React.FC = () => {
   );
 };
 export default Dashboard;
+

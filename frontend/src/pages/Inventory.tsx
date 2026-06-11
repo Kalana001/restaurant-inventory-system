@@ -478,7 +478,7 @@ export const Inventory: React.FC = () => {
                     </td>
                     <td className="px-6 py-4 text-slate-500">{item.subcategories?.name || '-'}</td>
                     <td className="px-6 py-4 font-semibold text-slate-700 text-right">
-                      {item.cost_price ? `LKR ${Number(item.cost_price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                      {item.cost_price ? `LKR ${Number(item.cost_price).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}` : '-'}
                     </td>
                     <td className="px-6 py-4 font-semibold text-slate-700 text-right">
                       {item.batches?.reduce((acc: number, b: any) => acc + Number(b.available_qty || 0), 0) || 0}{' '}
@@ -890,3 +890,4 @@ export const Inventory: React.FC = () => {
   );
 };
 export default Inventory;
+
