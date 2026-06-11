@@ -32,6 +32,16 @@ export const createGRN = async (req: Request, res: Response, next: NextFunction)
       throw new BadRequestError(transactionError?.message || 'Failed to process GRN transaction');
     }
 
+    // Update global item cost prices from the GRN items
+    for (const item of items) {
+      if (item.costPrice !== undefined && item.costPrice !== null && item.costPrice !== '') {
+        await supabase
+          .from('inventory_items')
+          .update({ cost_price: Number(item.costPrice) })
+          .eq('id', item.itemId);
+      }
+    }
+
     // Log Audit Action
     await logAudit(
       userId,

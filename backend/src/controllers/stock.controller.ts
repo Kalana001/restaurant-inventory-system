@@ -97,6 +97,14 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
       throw new BadRequestError(dbError.message || 'Failed to process stock movement');
     }
 
+    // Update the global item cost_price if a new price is provided during STOCK_IN
+    if (type === 'STOCK_IN' && price !== undefined && price !== '') {
+      await supabase
+        .from('inventory_items')
+        .update({ cost_price: Number(price) })
+        .eq('id', itemId);
+    }
+
     // 6. Log Audit Trail
     await logAudit(
       userId,
