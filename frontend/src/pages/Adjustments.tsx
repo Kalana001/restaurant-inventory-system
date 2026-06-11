@@ -9,6 +9,7 @@ interface BulkLine {
   itemId: string;
   batchId: string;
   quantity: string;
+  price?: string; // Optional price for STOCK_IN
   batches: any[];
   unitLabel: string;
 }
@@ -18,6 +19,7 @@ const newLine = (): BulkLine => ({
   itemId: '',
   batchId: '',
   quantity: '1',
+  price: '',
   batches: [],
   unitLabel: '',
 });
@@ -110,10 +112,9 @@ export const Adjustments: React.FC = () => {
     const unit = units.find(u => u.id === item?.base_unit_id);
     const { data: itemBatches } = await supabase
       .from('batches')
-      .select('id, batch_number, available_qty')
+      .select('id, batch_number, available_qty, expiry_date')
       .eq('item_id', itemId)
-      .gt('available_qty', 0)
-      .eq('status', 'ACTIVE');
+      .order('received_date', { ascending: false });
 
     setLines(prev => prev.map(l => l.id === lineId ? {
       ...l,
@@ -151,18 +152,19 @@ export const Adjustments: React.FC = () => {
     try {
       for (const line of validLines) {
         const item = catalogItems.find(i => i.id === line.itemId);
-        if (item?.is_batch_tracked && !line.batchId) {
+        if (movementType !== 'STOCK_IN' && item?.is_batch_tracked && !line.batchId) {
           errors.push(`${item.name}: batch-tracked item requires a batch selection.`);
           continue;
         }
         try {
           const payload = {
             itemId: line.itemId,
-            batchId: line.batchId || null,
+            batchId: movementType === 'STOCK_IN' ? null : (line.batchId || null),
             type: movementType,
             quantity: Number(line.quantity),
             unitId: item?.base_unit_id,
             reasonId: selectedReasonId,
+            price: movementType === 'STOCK_IN' && line.price ? Number(line.price) : undefined
           };
           await api.post('/stock/movements', payload);
         } catch (err: any) {
@@ -209,7 +211,7 @@ export const Adjustments: React.FC = () => {
             className="btn-primary flex items-center justify-center space-x-2"
           >
             <Plus size={18} />
-            <span>New Movement</span>
+            <span>Stock Movement</span>
           </button>
         )}
       </div>
@@ -390,7 +392,7 @@ export const Adjustments: React.FC = () => {
                 {/* Header row */}
                 <div className="hidden md:grid grid-cols-12 gap-2 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   <div className="col-span-5">Item</div>
-                  <div className="col-span-3">Batch</div>
+                  <div className="col-span-3">{movementType === 'STOCK_IN' ? 'Price (LKR)' : 'Batch'}</div>
                   <div className="col-span-3">Quantity</div>
                   <div className="col-span-1"></div>
                 </div>
@@ -411,16 +413,29 @@ export const Adjustments: React.FC = () => {
                       </select>
                     </div>
 
-                    {/* Batch Select */}
+                    {/* Batch / Price Select */}
                     <div className="col-span-12 md:col-span-3">
-                      {line.batches.length > 0 ? (
+                      {movementType === 'STOCK_IN' ? (
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="Optional price..."
+                          value={line.price || ''}
+                          onChange={(e) => updateLine(line.id, 'price', e.target.value)}
+                          className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                        />
+                      ) : line.batches.length > 0 ? (
                         <select
                           value={line.batchId}
                           onChange={(e) => updateLine(line.id, 'batchId', e.target.value)}
                           className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
                         >
+                          <option value="">Select batch...</option>
                           {line.batches.map(b => (
-                            <option key={b.id} value={b.id}>{b.batch_number} (avail: {b.available_qty})</option>
+                            <option key={b.id} value={b.id}>
+                              {b.batch_number} (avail: {b.available_qty}){b.expiry_date ? ` [Exp: ${b.expiry_date}]` : ''}
+                            </option>
                           ))}
                         </select>
                       ) : (

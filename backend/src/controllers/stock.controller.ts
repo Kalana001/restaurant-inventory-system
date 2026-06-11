@@ -6,7 +6,7 @@ import { logAudit } from '../services/audit.service';
 
 export const createStockMovement = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { itemId, batchId, type, quantity, unitId, reasonId } = req.body;
+    const { itemId, batchId, type, quantity, unitId, reasonId, price } = req.body;
 
     if (!itemId || !type || !quantity || !unitId || !reasonId) {
       throw new BadRequestError('Item, type, quantity, unit, and reason are required.');
@@ -26,16 +26,41 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
       throw new NotFoundError('Inventory item not found');
     }
 
-    // 2. Check if batch tracking is required for this item
-    if (item.is_batch_tracked && !batchId) {
+    // 2. Check if batch tracking is required for this item (only if type is not STOCK_IN)
+    if (type !== 'STOCK_IN' && item.is_batch_tracked && !batchId) {
       throw new BadRequestError('Batch ID is required for batch-tracked items.');
     }
 
     // 3. Convert quantity to base unit
     const qtyBase = await convertQuantity(Number(quantity), unitId, item.base_unit_id, itemId);
-    const costPriceBase = Number(item.cost_price) / Number(item.purchase_to_base_factor);
+    const customPrice = price !== undefined && price !== '' ? Number(price) : Number(item.cost_price);
+    const costPriceBase = customPrice / Number(item.purchase_to_base_factor);
 
-    // 4. Read system settings for approvals
+    // 4. Create new batch for STOCK_IN
+    let finalBatchId = batchId;
+    if (type === 'STOCK_IN') {
+      const batchNumber = `MAN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const { data: newBatch, error: batchErr } = await supabase
+        .from('batches')
+        .insert({
+          batch_number: batchNumber,
+          item_id: itemId,
+          supplier_id: item.supplier_id || null,
+          received_date: new Date().toISOString().split('T')[0],
+          current_qty: 0, // Starts at 0, process_stock_movement_transaction RPC will add qtyBase
+          available_qty: 0,
+          status: 'ACTIVE'
+        })
+        .select('id')
+        .single();
+      
+      if (batchErr || !newBatch) {
+        throw new BadRequestError(batchErr?.message || 'Failed to create batch for manual Stock In.');
+      }
+      finalBatchId = newBatch.id;
+    }
+
+    // 5. Read system settings for approvals
     const { data: settings } = await supabase
       .from('system_settings')
       .select('value')
@@ -50,12 +75,12 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
       status = 'PENDING';
     }
 
-    // 5. Call PostgreSQL stored function to insert movement and update stock
+    // 6. Call PostgreSQL stored function to insert movement and update stock
     const { data: movementId, error: dbError } = await supabase.rpc(
       'process_stock_movement_transaction',
       {
         p_item_id: itemId,
-        p_batch_id: batchId || null,
+        p_batch_id: finalBatchId || null,
         p_type: type,
         p_qty_base: qtyBase,
         p_cost_base: costPriceBase,
