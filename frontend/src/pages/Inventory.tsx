@@ -80,7 +80,7 @@ export const Inventory: React.FC = () => {
           categories ( name ),
           subcategories ( name ),
           units:units!inventory_items_base_unit_id_fkey ( abbreviation ),
-          batches ( id, batch_number, current_qty, available_qty, received_date, expiry_date, status )
+          batches ( id, batch_number, current_qty, available_qty, received_date, expiry_date, status, stock_movements ( type, cost_price ) )
         `)
         .eq('status', 'ACTIVE');
 
@@ -838,6 +838,7 @@ export const Inventory: React.FC = () => {
                        <th className="px-4 py-3">Batch Number</th>
                        <th className="px-4 py-3">Received Date</th>
                        <th className="px-4 py-3">Expiry Date</th>
+                       <th className="px-4 py-3 text-right">Unit Price</th>
                        <th className="px-4 py-3 text-right">Current Qty</th>
                        <th className="px-4 py-3 text-right">Available Qty</th>
                        <th className="px-4 py-3 text-center">Status</th>
@@ -846,7 +847,7 @@ export const Inventory: React.FC = () => {
                    <tbody className="divide-y divide-slate-100 text-slate-600">
                      {!selectedBatchItem.batches || selectedBatchItem.batches.length === 0 ? (
                        <tr>
-                         <td colSpan={6} className="text-center py-6 text-slate-400 font-medium">
+                         <td colSpan={7} className="text-center py-6 text-slate-400 font-medium">
                            No batches found for this item.
                          </td>
                        </tr>
@@ -856,6 +857,12 @@ export const Inventory: React.FC = () => {
                            <td className="px-4 py-3 font-semibold text-slate-800">{batch.batch_number}</td>
                            <td className="px-4 py-3">{batch.received_date || '-'}</td>
                            <td className="px-4 py-3 text-rose-600">{batch.expiry_date || 'N/A'}</td>
+                           <td className="px-4 py-3 text-right font-medium text-slate-700">
+                             {(() => {
+                               const stockIn = batch.stock_movements?.find((m: any) => m.type === 'STOCK_IN' && m.cost_price > 0);
+                               return stockIn ? Number(stockIn.cost_price).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '-';
+                             })()}
+                           </td>
                            <td className="px-4 py-3 text-right font-medium">{batch.current_qty}</td>
                            <td className="px-4 py-3 text-right font-bold text-slate-800">{batch.available_qty}</td>
                            <td className="px-4 py-3 text-center">
