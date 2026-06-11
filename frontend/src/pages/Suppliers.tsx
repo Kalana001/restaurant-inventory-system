@@ -160,7 +160,7 @@ export const Suppliers: React.FC = () => {
       // Fetch payments
       const { data: payments } = await supabase
         .from('supplier_payments')
-        .select('id, amount, payment_method, notes, created_at, profiles:paid_by(username)')
+        .select('id, amount, payment_method, cheque_realize_date, notes, created_at, profiles:paid_by(username)')
         .eq('supplier_id', sup.id)
         .order('created_at', { ascending: false });
 
@@ -503,6 +503,9 @@ export const Suppliers: React.FC = () => {
                                   <p className="font-bold text-amber-700">Payment Recorded</p>
                                   <p className="text-xs text-slate-600 mt-1">
                                     Method: <span className="font-semibold">{item.data.payment_method}</span>
+                                    {item.data.payment_method === 'Cheque' && item.data.cheque_realize_date && (
+                                      <> · Realizes: <span className="font-semibold">{format(new Date(item.data.cheque_realize_date), 'dd MMM yyyy')}</span></>
+                                    )}
                                     {item.data.profiles?.username && <> · By: <span className="font-semibold">{item.data.profiles.username}</span></>}
                                   </p>
                                   {item.data.notes && <p className="text-xs text-slate-500 mt-1 italic">"{item.data.notes}"</p>}
