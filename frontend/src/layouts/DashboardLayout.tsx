@@ -39,6 +39,7 @@ export const DashboardLayout: React.FC = () => {
       icon: <Boxes size={20} />, 
       permission: 'items:read',
       subItems: [
+        { label: 'Inventory Items', path: '/inventory', permission: 'items:read' },
         { label: 'Categories', path: '/categories', permission: 'items:read' },
         { label: 'Stock Adjustments', path: '/adjustments', permission: 'stock:read' }
       ]
@@ -122,12 +123,12 @@ export const DashboardLayout: React.FC = () => {
           {filteredMainNav.map((item) => {
             const isParentActive = location.pathname === item.path || (item.path === '/reports' && location.pathname.startsWith('/reports'));
             const isSubActive = item.subItems?.some(sub => location.pathname === sub.path);
-            const isExpanded = isParentActive || isSubActive;
+            const isExpanded = isParentActive || isSubActive || (item.path === '/inventory' && location.pathname.startsWith('/inventory'));
 
             return (
               <div key={item.path} className="space-y-1">
                 <Link
-                  to={item.subItems ? item.subItems[0].path : item.path}
+                  to={item.path}
                   className={`
                     flex items-center space-x-3 px-4 py-2.5 rounded-xl font-medium text-sm transition-all duration-200
                     ${isExpanded
