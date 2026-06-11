@@ -169,7 +169,8 @@ export const Adjustments: React.FC = () => {
     setSubmitting(true);
     const errors: string[] = [];
     const receiptNumber = generateReceiptNumber();
-    const createdMovementIds: string[] = [];
+    // Capture timestamp just before posting so we can find new movements after
+    const startTime = new Date().toISOString();
 
     try {
       for (const line of validLines) {
@@ -189,23 +190,29 @@ export const Adjustments: React.FC = () => {
             price: movementType === 'STOCK_IN' && line.price ? Number(line.price) : undefined
           };
           const res = await api.post('/stock/movements', payload);
-          const movementId = res.data?.data?.movementId || res.data?.data?.id;
-          if (movementId) createdMovementIds.push(movementId);
+          void res; // response captured via timestamp query below
         } catch (err: any) {
           const itemName = item?.name || line.itemId;
           errors.push(`${itemName}: ${err.response?.data?.message || 'Failed'}`);
         }
       }
 
-      // Tag all created movements with the shared receipt number and date
-      if (createdMovementIds.length > 0) {
-        await supabase
+      // Tag all new movements created since startTime with the shared receipt number.
+      // Using a time-window query is more reliable than parsing API response IDs.
+      if (errors.length < validLines.length) {
+        const { data: newMovements } = await supabase
           .from('stock_movements')
-          .update({
-            reference_type: receiptNumber,
-            reference_id: null
-          })
-          .in('id', createdMovementIds);
+          .select('id')
+          .eq('created_by', user?.id)
+          .eq('type', movementType)
+          .gte('created_at', startTime);
+
+        if (newMovements && newMovements.length > 0) {
+          await supabase
+            .from('stock_movements')
+            .update({ reference_type: receiptNumber })
+            .in('id', newMovements.map((m: any) => m.id));
+        }
       }
 
       if (errors.length > 0) {
