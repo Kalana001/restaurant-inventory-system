@@ -14,7 +14,6 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  // Columns match the Add New Item form exactly
   const downloadTemplate = async () => {
     const workbook = new ExcelJS.Workbook();
     const ws = workbook.addWorksheet('InventoryImport');
@@ -26,11 +25,12 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
       { header: 'Category',         key: 'Category',         width: 22 },
       { header: 'Subcategory',      key: 'Subcategory',      width: 22 },
       { header: 'BaseUnit',         key: 'BaseUnit',         width: 15 },
+      { header: 'CostPrice',        key: 'CostPrice',        width: 15 },
+      { header: 'ReorderLevel',     key: 'ReorderLevel',     width: 15 },
       { header: 'TrackBatches',     key: 'TrackBatches',     width: 15 },
       { header: 'TrackExpiration',  key: 'TrackExpiration',  width: 17 },
     ];
 
-    // Style header row
     ws.getRow(1).eachCell(cell => {
       cell.font = { bold: true, color: { argb: 'FFFFFFFF' } };
       cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1E40AF' } };
@@ -38,7 +38,6 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
     });
     ws.getRow(1).height = 22;
 
-    // Example row
     ws.addRow({
       SKU: 'ITM-001',
       Name: 'Example Item',
@@ -46,6 +45,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
       Category: 'Beverages',
       Subcategory: 'Cold Drinks',
       BaseUnit: 'Litres',
+      CostPrice: '150.00',
+      ReorderLevel: '20',
       TrackBatches: 'No',
       TrackExpiration: 'No',
     });
@@ -67,14 +68,12 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
     setSuccess(null);
 
     try {
-      // 1. Read and parse workbook
       const arrayBuffer = await file.arrayBuffer();
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load(arrayBuffer);
       const ws = workbook.worksheets[0];
       if (!ws) throw new Error('Could not read the spreadsheet. Is it a valid .xlsx file?');
 
-      // Extract header row
       const headers: string[] = [];
       ws.getRow(1).eachCell(cell => headers.push(String(cell.value || '').trim()));
 
@@ -83,10 +82,9 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
         if (!headers.includes(col)) throw new Error(`Missing required column: "${col}". Please use the provided template.`);
       }
 
-      // Parse data rows
       const rows: Record<string, string>[] = [];
       ws.eachRow((row, idx) => {
-        if (idx === 1) return; // skip header
+        if (idx === 1) return;
         const obj: Record<string, string> = {};
         headers.forEach((h, i) => {
           const cell = row.getCell(i + 1);
@@ -97,7 +95,6 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
 
       if (rows.length === 0) throw new Error('No data rows found. Please add items to the template.');
 
-      // 2. Fetch lookups
       const [catRes, unitRes] = await Promise.all([
         supabase.from('categories').select('id, name, subcategories(id, name)'),
         supabase.from('units').select('id, name, abbreviation'),
@@ -115,25 +112,16 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
         const rowNum = i + 2;
 
         if (!row.Name) { validationErrors.push(`Row ${rowNum}: "Name" is required.`); continue; }
-        if (row.Name.length > 100) { validationErrors.push(`Row ${rowNum}: Name exceeds 100 characters.`); continue; }
 
-        // Unit lookup
-        const unit = units.find(u =>
-          u.name.toLowerCase() === row.BaseUnit.toLowerCase() ||
-          u.abbreviation?.toLowerCase() === row.BaseUnit.toLowerCase()
-        );
-        if (!unit) { validationErrors.push(`Row ${rowNum}: BaseUnit "${row.BaseUnit}" not found in system.`); continue; }
+        const unit = units.find(u => u.name.toLowerCase() === row.BaseUnit.toLowerCase() || u.abbreviation?.toLowerCase() === row.BaseUnit.toLowerCase());
+        if (!unit) { validationErrors.push(`Row ${rowNum}: BaseUnit "${row.BaseUnit}" not found.`); continue; }
 
-        // Category lookup
         const category = categories.find(c => c.name.toLowerCase() === row.Category.toLowerCase());
-        if (!category) { validationErrors.push(`Row ${rowNum}: Category "${row.Category}" not found in system.`); continue; }
+        if (!category) { validationErrors.push(`Row ${rowNum}: Category "${row.Category}" not found.`); continue; }
 
-        // Subcategory (optional)
         let subcatId: string | null = null;
         if (row.Subcategory) {
-          const subcat = (category.subcategories as any[])?.find(
-            (s: any) => s.name.toLowerCase() === row.Subcategory.toLowerCase()
-          );
+          const subcat = (category.subcategories as any[])?.find((s: any) => s.name.toLowerCase() === row.Subcategory.toLowerCase());
           if (!subcat) { validationErrors.push(`Row ${rowNum}: Subcategory "${row.Subcategory}" not found under "${category.name}".`); continue; }
           subcatId = subcat.id;
         }
@@ -151,11 +139,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
           issue_to_base_factor: 1,
           is_batch_tracked: row.TrackBatches?.toLowerCase() === 'yes',
           is_expiry_tracked: row.TrackExpiration?.toLowerCase() === 'yes',
-          min_stock: 0,
-          max_stock: 0,
-          reorder_level: 0,
-          cost_price: 0,
-          selling_price: 0,
+          cost_price: Number(row.CostPrice) || 0,
+          reorder_level: Number(row.ReorderLevel) || 0,
           status: 'ACTIVE',
         });
       }
@@ -163,7 +148,6 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
       if (validationErrors.length > 0) throw new Error('Validation errors:\n' + validationErrors.join('\n'));
       if (itemsToInsert.length === 0) throw new Error('No valid items to import.');
 
-      // 3. Bulk insert
       const { error: insertError } = await supabase.from('inventory_items').insert(itemsToInsert);
       if (insertError) throw insertError;
 
@@ -193,9 +177,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
             <h4 className="font-semibold text-blue-800 text-sm">Import Instructions</h4>
             <ol className="list-decimal pl-4 text-xs text-blue-700 space-y-1">
               <li>Download the Excel template.</li>
-              <li><strong>Category</strong> and <strong>BaseUnit</strong> must exactly match names already in your system.</li>
+              <li><strong>Category</strong> and <strong>BaseUnit</strong> must match exactly.</li>
               <li>Leave <strong>SKU</strong> blank to auto-generate.</li>
-              <li>TrackBatches / TrackExpiration: type <strong>Yes</strong> or <strong>No</strong>.</li>
             </ol>
             <button onClick={downloadTemplate} className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 bg-white border border-blue-200 text-blue-700 rounded-lg text-xs font-semibold hover:bg-blue-50 transition-colors shadow-sm">
               <Download size={14} /> Download Template
@@ -218,17 +201,10 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-700">Upload Excel File</label>
             <div className="relative border-2 border-dashed border-slate-300 rounded-xl p-8 text-center hover:bg-slate-50 transition-colors group cursor-pointer">
-              <input
-                type="file"
-                accept=".xlsx"
-                onChange={(e) => { setFile(e.target.files?.[0] || null); setError(null); }}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-              />
+              <input type="file" accept=".xlsx" onChange={(e) => { setFile(e.target.files?.[0] || null); setError(null); }} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
               <div className="flex flex-col items-center gap-2 pointer-events-none">
                 <Upload size={32} className={`transition-colors ${file ? 'text-primary' : 'text-slate-400 group-hover:text-primary'}`} />
-                {file
-                  ? <p className="text-sm font-semibold text-primary">{file.name}</p>
-                  : <p className="text-sm font-medium text-slate-500">Drag & drop or click to select</p>}
+                {file ? <p className="text-sm font-semibold text-primary">{file.name}</p> : <p className="text-sm font-medium text-slate-500">Drag & drop or click to select</p>}
                 <p className="text-xs text-slate-400">Supports .xlsx only</p>
               </div>
             </div>
@@ -237,12 +213,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
 
         <div className="p-6 border-t border-slate-100 shrink-0 flex justify-end gap-3 bg-slate-50 rounded-b-2xl">
           <button onClick={onClose} className="px-5 py-2.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-sm transition-all shadow-sm">Cancel</button>
-          <button
-            onClick={processImport}
-            disabled={!file || loading || !!success}
-            className="px-6 py-2.5 bg-primary text-white hover:bg-opacity-90 font-semibold rounded-xl text-sm transition-all shadow-sm shadow-blue-500/20 active:scale-95 disabled:opacity-60 flex items-center gap-2"
-          >
-            {loading && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+          <button onClick={processImport} disabled={!file || loading || !!success} className="px-6 py-2.5 bg-primary text-white hover:bg-opacity-90 font-semibold rounded-xl text-sm transition-all shadow-sm active:scale-95 disabled:opacity-60 flex items-center gap-2">
             {loading ? 'Importing...' : 'Upload & Import'}
           </button>
         </div>
