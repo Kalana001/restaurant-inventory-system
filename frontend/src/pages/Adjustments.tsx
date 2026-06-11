@@ -168,6 +168,13 @@ export const Adjustments: React.FC = () => {
   const addLine = () => setLines(prev => [...prev, newLine()]);
   const removeLine = (lineId: string) => setLines(prev => prev.filter(l => l.id !== lineId));
 
+  const handleCancelAdj = () => {
+    clearAdjDrafts();
+    setModalOpen(false);
+    setLines([newLine()]);
+    setSelectedReasonId('');
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -210,7 +217,7 @@ export const Adjustments: React.FC = () => {
         setFormError(`Some items failed:\n${errors.join('\n')}`);
       } else {
         clearAdjDrafts();
-        setModalOpen(false);
+        handleCancelAdj();
         setLines([newLine()]);
         setSelectedReasonId('');
         fetchData();
@@ -463,7 +470,7 @@ export const Adjustments: React.FC = () => {
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">All items will be grouped under one receipt number</p>
                 </div>
-              <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm font-semibold">âœ• Close</button>
+              <button onClick={() => handleCancelAdj()} className="text-slate-400 hover:text-slate-600 text-sm font-semibold">âœ• Close</button>
             </div>
 
             <div className="p-6 space-y-6 overflow-y-auto">
@@ -677,7 +684,7 @@ export const Adjustments: React.FC = () => {
 
             {/* Footer */}
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex items-center justify-end gap-3 shrink-0">
-              <button type="button" onClick={() => setModalOpen(false)} className="px-5 py-2.5 border border-slate-200 hover:bg-white text-slate-700 font-semibold rounded-xl text-sm transition-all">Cancel</button>
+              <button type="button" onClick={() => handleCancelAdj()} className="px-5 py-2.5 border border-slate-200 hover:bg-white text-slate-700 font-semibold rounded-xl text-sm transition-all">Cancel</button>
               <button
                 onClick={handleSubmit}
                 disabled={submitting}

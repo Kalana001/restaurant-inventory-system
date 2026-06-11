@@ -83,6 +83,13 @@ export const PurchaseOrders: React.FC = () => {
   const [payError, setPayError] = useState<string | null>(null);
   const [payLoading, setPayLoading] = useState(false);
 
+  // ── Update Prices States ──────────────────────────────────────────────
+  const [updatePricesModalOpen, setUpdatePricesModalOpen] = useState(false);
+  const [updatePricesPo, setUpdatePricesPo] = useState<any | null>(null);
+  const [updatePricesLines, setUpdatePricesLines] = useState<any[]>([]);
+  const [updatePricesLoading, setUpdatePricesLoading] = useState(false);
+  const [updatePricesError, setUpdatePricesError] = useState<string | null>(null);
+
   // ─────────────────────────────────────────────────────────────
   const fetchPOs = async () => {
     setLoading(true);
@@ -225,6 +232,12 @@ export const PurchaseOrders: React.FC = () => {
   const removePoLine = (idx: number) => setPoLines(poLines.filter((_, i) => i !== idx));
 
   // ── Save PO ───────────────────────────────────────────────────
+  const handleCancelPO = () => {
+    clearPoDrafts();
+    setCreateModalOpen(false);
+    setSelectedSupplier(''); setRemarks(''); setPoLines([]); setPoDiscount(0); setPoDiscountType('fixed');
+  };
+
   const handleSavePO = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
@@ -266,7 +279,7 @@ export const PurchaseOrders: React.FC = () => {
       if (linesErr) throw linesErr;
 
       clearPoDrafts();
-      setCreateModalOpen(false);
+      handleCancelPO();
       setSelectedSupplier(''); setRemarks(''); setPoLines([]); setPoDiscount(0); setPoDiscountType('fixed');
       fetchPOs();
     } catch (err: any) {
@@ -402,9 +415,75 @@ export const PurchaseOrders: React.FC = () => {
   };
 
   // ── Helpers ───────────────────────────────────────────────────
+
+  // ── Update Prices ───────────────────────────────────────────────────────────
+  const handleOpenUpdatePrices = async (po: any) => {
+    setUpdatePricesPo(po);
+    setUpdatePricesError(null);
+    setUpdatePricesModalOpen(true);
+    setUpdatePricesLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('purchase_order_items')
+        .select(`id, quantity, cost_price, total_cost, item_id, inventory_items ( name, sku, units:units!inventory_items_purchase_unit_id_fkey ( abbreviation ) )`)
+        .eq('po_id', po.id);
+      if (error) throw error;
+      // Initialize with existing data, defaulting to 0 if it was missing/0
+      const lines = data.map(d => ({
+        ...d,
+        new_cost_price: d.cost_price || 0
+      }));
+      setUpdatePricesLines(lines);
+    } catch (err: any) {
+      setUpdatePricesError('Failed to load PO items: ' + err.message);
+    } finally {
+      setUpdatePricesLoading(false);
+    }
+  };
+
+  const handleUpdatePrices = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setUpdatePricesError(null);
+    setUpdatePricesLoading(true);
+
+    try {
+      let newTotal = 0;
+      // 1. Update all items
+      for (const line of updatePricesLines) {
+        const costPrice = Number(line.new_cost_price) || 0;
+        const totalCost = costPrice * Number(line.quantity);
+        newTotal += totalCost;
+
+        const { error } = await supabase.from('purchase_order_items')
+          .update({ cost_price: costPrice, total_cost: totalCost })
+          .eq('id', line.id);
+        if (error) throw error;
+      }
+
+      // 2. We keep the discount amount as is or calculate it? 
+      // The user didn't specify, so we will keep the existing discount_amount or zero it if we wanted.
+      // We'll leave discount amount as it was in the DB, but just recalculate grand total.
+      const discountAmount = Number(updatePricesPo.discount_amount || 0);
+      const grandTotal = Math.max(0, newTotal - discountAmount);
+
+      const { error: poErr } = await supabase.from('purchase_orders')
+        .update({ total_amount: grandTotal })
+        .eq('id', updatePricesPo.id);
+      if (poErr) throw poErr;
+
+      setUpdatePricesModalOpen(false);
+      fetchPOs();
+    } catch (err: any) {
+      setUpdatePricesError('Failed to update prices: ' + err.message);
+    } finally {
+      setUpdatePricesLoading(false);
+    }
+  };
+
   const getPaymentStatus = (po: any) => {
     const paid = Number(po.paid_amount || 0);
     const total = Number(po.total_amount);
+    if (total === 0 && paid === 0) return 'UNPAID';
     if (paid >= total) return 'PAID';
     if (paid > 0) return 'PARTIAL';
     return 'UNPAID';
@@ -496,12 +575,21 @@ export const PurchaseOrders: React.FC = () => {
                               <PackageCheck size={12} /> GRN
                             </button>
                           )}
+                          {paymentStatus !== 'PAID' && (
+                            <button
+                              onClick={() => handleOpenUpdatePrices(po)}
+                              className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                              title="Update Prices"
+                            >
+                              <DollarSign size={16} />
+                            </button>
+                          )}
                           {canPay && (
                             <button
                               onClick={() => openPayModal(po)}
-                              className="px-3 py-1 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded text-xs font-bold transition-colors flex items-center gap-1"
-                            >
-                              <DollarSign size={12} /> Pay
+                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              title="Pay"
+                            >  <DollarSign size={12} /> Pay
                             </button>
                           )}
                           <button onClick={() => openDetailModal(po)} className="p-1.5 text-slate-400 hover:text-primary hover:bg-blue-50 rounded-lg transition-all">
@@ -532,7 +620,7 @@ export const PurchaseOrders: React.FC = () => {
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">Goods can be received later via GRN</p>
               </div>
-              <button onClick={() => setCreateModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20}/></button>
+              <button onClick={() => handleCancelPO()} className="text-slate-400 hover:text-slate-600"><XCircle size={20}/></button>
             </div>
 
             {formError && (
@@ -694,7 +782,7 @@ export const PurchaseOrders: React.FC = () => {
               </div>
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
-                <button type="button" onClick={() => setCreateModalOpen(false)} className="px-5 py-2.5 border border-slate-200 text-slate-700 font-semibold rounded-xl text-sm">Cancel</button>
+                <button type="button" onClick={() => handleCancelPO()} className="px-5 py-2.5 border border-slate-200 text-slate-700 font-semibold rounded-xl text-sm">Cancel</button>
                 <button type="submit" className="px-5 py-2.5 bg-primary text-white font-semibold rounded-xl text-sm shadow-sm active:scale-95 flex items-center gap-2">
                   <ShoppingCart size={16} /> Save Purchase Order
                 </button>
