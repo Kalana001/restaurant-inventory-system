@@ -450,7 +450,7 @@ export const PurchaseOrders: React.FC = () => {
                 filteredPos.map((po) => {
                   const paymentStatus = getPaymentStatus(po);
                   const grnDone = po.status === 'COMPLETED';
-                  const canGRN = po.status === 'PENDING';
+                  const canGRN = !['COMPLETED', 'CANCELLED', 'REJECTED'].includes(po.status);
                   const canPay = (Number(po.paid_amount || 0) < Number(po.total_amount));
 
                   return (
