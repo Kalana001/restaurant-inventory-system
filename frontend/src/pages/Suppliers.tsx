@@ -42,10 +42,13 @@ export const Suppliers: React.FC = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [supplierToDelete, setSupplierToDelete] = useState<string | null>(null);
 
+  // Status Filter State
+  const [selectedStatus, setSelectedStatus] = useState<'ACTIVE' | 'INACTIVE'>('ACTIVE');
+
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('suppliers').select('*').eq('status', 'ACTIVE');
+      let query = supabase.from('suppliers').select('*').eq('status', selectedStatus);
       if (search) query = query.ilike('name', `%${search}%`);
       const { data, error } = await query.order('name');
       if (!error && data) setSuppliers(data);
@@ -56,7 +59,7 @@ export const Suppliers: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchSuppliers(); }, [search]);
+  useEffect(() => { fetchSuppliers(); }, [search, selectedStatus]);
 
   const openAddModal = () => {
     setEditingSupplier(null);
@@ -191,6 +194,16 @@ export const Suppliers: React.FC = () => {
     }
   };
 
+  const handleRestoreSupplier = async (id: string) => {
+    try {
+      const { error } = await supabase.from('suppliers').update({ status: 'ACTIVE' }).eq('id', id);
+      if (error) throw error;
+      fetchSuppliers();
+    } catch (err: any) {
+      alert(err.message || 'Failed to restore supplier.');
+    }
+  };
+
   const canWrite = hasPermission('suppliers:create') || hasPermission('suppliers:update') || ['admin','owner','manager'].includes((user?.role?.name || '').toLowerCase());
 
   return (
@@ -206,6 +219,30 @@ export const Suppliers: React.FC = () => {
             <Plus size={18} /><span>Add Supplier</span>
           </button>
         )}
+      </div>
+
+      {/* Tabs for Active/Archived */}
+      <div className="flex border-b border-slate-200 gap-6">
+        <button
+          onClick={() => setSelectedStatus('ACTIVE')}
+          className={`pb-2.5 text-sm font-semibold border-b-2 transition-all ${
+            selectedStatus === 'ACTIVE'
+              ? 'border-primary text-primary font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Active Suppliers
+        </button>
+        <button
+          onClick={() => setSelectedStatus('INACTIVE')}
+          className={`pb-2.5 text-sm font-semibold border-b-2 transition-all ${
+            selectedStatus === 'INACTIVE'
+              ? 'border-primary text-primary font-bold'
+              : 'border-transparent text-slate-500 hover:text-slate-800'
+          }`}
+        >
+          Archived Suppliers
+        </button>
       </div>
 
       {/* Search */}
@@ -273,27 +310,37 @@ export const Suppliers: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 text-right space-x-1">
                         {canWrite && (
-                          <>
+                          selectedStatus === 'ACTIVE' ? (
+                            <>
+                              <button
+                                onClick={() => openSettlementModal(sup)}
+                                title="Record Payment"
+                                className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
+                              >
+                                <CreditCard size={12} /> Pay
+                              </button>
+                              <button
+                                onClick={() => openEditModal(sup)}
+                                className="p-1.5 text-slate-400 hover:text-primary hover:bg-blue-50 rounded-lg transition-all"
+                              >
+                                <Edit3 size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteClick(sup.id)}
+                                className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                title="Archive"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </>
+                          ) : (
                             <button
-                              onClick={() => openSettlementModal(sup)}
-                              title="Record Payment"
-                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-green-50 text-green-700 hover:bg-green-100 border border-green-200 rounded-lg transition-colors"
+                              onClick={() => handleRestoreSupplier(sup.id)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors active:scale-95"
                             >
-                              <CreditCard size={12} /> Pay
+                              Restore Supplier
                             </button>
-                            <button
-                              onClick={() => openEditModal(sup)}
-                              className="p-1.5 text-slate-400 hover:text-primary hover:bg-blue-50 rounded-lg transition-all"
-                            >
-                              <Edit3 size={16} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteClick(sup.id)}
-                              className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          </>
+                          )
                         )}
                       </td>
                     </tr>

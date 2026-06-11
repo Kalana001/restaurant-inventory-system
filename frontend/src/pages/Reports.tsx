@@ -43,7 +43,7 @@ export const Reports: React.FC = () => {
     const loadRefs = async () => {
       const [cats, sups, usrs] = await Promise.all([
         supabase.from('categories').select('id, name').order('name'),
-        supabase.from('suppliers').select('id, name').order('name'),
+        supabase.from('suppliers').select('id, name, status').order('name'),
         supabase.from('profiles').select('id, username').order('username')
       ]);
       if (cats.data) setCategories(cats.data);
@@ -188,7 +188,12 @@ export const Reports: React.FC = () => {
       case 'outstanding':
         return [
           { key: 'name', header: 'Supplier Name', sortable: true, render: (r) => (
-            <button onClick={() => openHistoryModal(r)} className="font-bold text-primary hover:underline">{r.name}</button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => openHistoryModal(r)} className="font-bold text-primary hover:underline">{r.name}</button>
+              {r.status === 'INACTIVE' && (
+                <span className="bg-slate-100 text-slate-500 text-[10px] font-bold px-1.5 py-0.5 rounded border border-slate-200">Archived</span>
+              )}
+            </div>
           )},
           { key: 'code', header: 'Code' },
           { key: 'contact_person', header: 'Contact', render: (r) => r.phone || r.email || '-' },
@@ -248,7 +253,7 @@ export const Reports: React.FC = () => {
           if (reportType === 'expiry' && c.key === 'item') newRow[c.key] = row.inventory_items?.name;
           if (reportType === 'expiry' && c.key === 'category') newRow[c.key] = row.inventory_items?.categories?.name;
           if (reportType === 'expiry' && c.key === 'expiry_date') newRow[c.key] = row.expiry_date ? format(new Date(row.expiry_date), 'dd/MM/yyyy') : '-';
-          if (reportType === 'outstanding' && c.key === 'name') newRow[c.key] = row.name;
+          if (reportType === 'outstanding' && c.key === 'name') newRow[c.key] = row.name + (row.status === 'INACTIVE' ? ' (Archived)' : '');
           if (reportType === 'outstanding' && c.key === 'contact_person') newRow[c.key] = row.phone || row.email || '-';
           if (reportType === 'outstanding' && c.key === 'outstanding_balance') newRow[c.key] = Number(row.outstanding_balance || 0).toFixed(2);
           if (reportType === 'outstanding' && c.key === 'last_payment_method') {

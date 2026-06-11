@@ -129,7 +129,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           className="w-full p-2 border border-slate-200 rounded-lg text-sm"
         >
           <option value="">All Suppliers</option>
-          {suppliers.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+          {suppliers.map(s => (
+            <option key={s.id} value={s.id}>
+              {s.name} {s.status === 'INACTIVE' ? '(Archived)' : ''}
+            </option>
+          ))}
         </select>
       </div>
       <div className="space-y-1">
