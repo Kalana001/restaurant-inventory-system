@@ -177,6 +177,9 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
           is_batch_tracked: row.TrackBatches?.toLowerCase() === 'yes',
           is_expiry_tracked: row.TrackExpiration?.toLowerCase() === 'yes',
           cost_price: Number(row.CostPrice) || 0,
+          selling_price: 0,
+          min_stock: 0,
+          max_stock: 0,
           reorder_level: Number(row.ReorderLevel) || 0,
           status: 'ACTIVE',
         });
