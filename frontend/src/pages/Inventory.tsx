@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Edit3, Trash2, SlidersHorizontal, AlertCircle, Upload } from 'lucide-react';
+import { Plus, Search, Edit3, Trash2, SlidersHorizontal, AlertCircle, Upload, X } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { BulkImportModal } from '../components/BulkImportModal';
 
@@ -56,6 +56,10 @@ export const Inventory: React.FC = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<string | null>(null);
 
+  // Batch Modal States
+  const [selectedBatchItem, setSelectedBatchItem] = useState<any | null>(null);
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+
   // Filtered categories for autocomplete
   const filteredCategories = categoryInput.trim()
     ? categories.filter((c) =>
@@ -72,7 +76,9 @@ export const Inventory: React.FC = () => {
         .select(`
           *,
           categories ( name ),
-          subcategories ( name )
+          subcategories ( name ),
+          units:units!inventory_items_base_unit_id_fkey ( abbreviation ),
+          batches ( id, batch_number, current_qty, available_qty, received_date, expiry_date, status )
         `)
         .eq('status', 'ACTIVE');
 
@@ -419,6 +425,7 @@ export const Inventory: React.FC = () => {
                 <th className="px-6 py-4">Item Name</th>
                 <th className="px-6 py-4">Category</th>
                 <th className="px-6 py-4">Sub Category</th>
+                <th className="px-6 py-4">Total Stock</th>
                 {canCreate && <th className="px-6 py-4 text-right">Actions</th>}
               </tr>
             </thead>
@@ -439,13 +446,27 @@ export const Inventory: React.FC = () => {
                 items.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="px-6 py-4 font-semibold text-slate-800">{item.sku}</td>
-                    <td className="px-6 py-4 font-medium">{item.name}</td>
+                    <td className="px-6 py-4 font-medium">
+                      <button
+                        onClick={() => {
+                          setSelectedBatchItem(item);
+                          setBatchModalOpen(true);
+                        }}
+                        className="text-primary hover:text-blue-700 hover:underline font-semibold text-left focus:outline-none"
+                      >
+                        {item.name}
+                      </button>
+                    </td>
                     <td className="px-6 py-4">
                       <span className="bg-slate-100 text-slate-600 text-xs font-semibold px-2 py-0.5 rounded">
                         {item.categories?.name}
                       </span>
                     </td>
                     <td className="px-6 py-4 text-slate-500">{item.subcategories?.name || '-'}</td>
+                    <td className="px-6 py-4 font-semibold text-slate-700">
+                      {item.batches?.reduce((acc: number, b: any) => acc + Number(b.available_qty || 0), 0) || 0}{' '}
+                      <span className="text-xs text-slate-400 font-normal">{item.units?.abbreviation || ''}</span>
+                    </td>
                     {canCreate && (
                       <td className="px-6 py-4 text-right space-x-2.5">
                         <button
@@ -481,40 +502,6 @@ export const Inventory: React.FC = () => {
             fetchCatalogData();
           }}
         />
-      )}
-
-      {deleteModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 card-shadow">
-            
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-bold text-slate-800">
-                Delete Item
-              </h3>
-              <button 
-                onClick={() => setDeleteModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                Cancel
-              </button>
-            </div>
-            <p className="text-sm text-slate-600">Are you sure you want to archive this item? This action will remove it from active listings.</p>
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setDeleteModalOpen(false)}
-                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="px-4 py-2 text-sm font-semibold text-white bg-rose-600 rounded-xl hover:bg-rose-700"
-              >
-                Archive Item
-              </button>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Catalog Dialog Modal */}
@@ -791,6 +778,93 @@ export const Inventory: React.FC = () => {
           setItemToDelete(null);
         }}
       />
+
+       {/* Batch Details Modal */}
+       {batchModalOpen && selectedBatchItem && (
+         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 backdrop-blur-sm overflow-y-auto">
+           <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-6 card-shadow flex flex-col">
+             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+               <div>
+                 <h3 className="text-lg font-bold text-slate-800">Batch-wise Stock Levels</h3>
+                 <p className="text-xs text-slate-500 mt-1">{selectedBatchItem.name} ({selectedBatchItem.sku})</p>
+               </div>
+               <button 
+                 onClick={() => setBatchModalOpen(false)}
+                 className="text-slate-400 hover:text-slate-600 transition-colors"
+               >
+                 <X size={20} />
+               </button>
+             </div>
+
+             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl text-sm">
+               <div>
+                 <p className="text-slate-400 font-semibold text-[10px] uppercase">Base Unit</p>
+                 <p className="font-bold text-slate-700">{selectedBatchItem.units?.abbreviation || 'N/A'}</p>
+               </div>
+               <div>
+                 <p className="text-slate-400 font-semibold text-[10px] uppercase">Total Available Stock</p>
+                 <p className="font-extrabold text-primary">
+                   {selectedBatchItem.batches?.reduce((acc: number, b: any) => acc + Number(b.available_qty || 0), 0) || 0} {selectedBatchItem.units?.abbreviation || ''}
+                 </p>
+               </div>
+             </div>
+
+             <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+               <div className="overflow-x-auto">
+                 <table className="w-full text-left border-collapse text-xs">
+                   <thead>
+                     <tr className="bg-slate-50 border-b border-slate-100 font-bold text-slate-500 uppercase tracking-wider">
+                       <th className="px-4 py-3">Batch Number</th>
+                       <th className="px-4 py-3">Received Date</th>
+                       <th className="px-4 py-3">Expiry Date</th>
+                       <th className="px-4 py-3 text-right">Current Qty</th>
+                       <th className="px-4 py-3 text-right">Available Qty</th>
+                       <th className="px-4 py-3 text-center">Status</th>
+                     </tr>
+                   </thead>
+                   <tbody className="divide-y divide-slate-100 text-slate-600">
+                     {!selectedBatchItem.batches || selectedBatchItem.batches.length === 0 ? (
+                       <tr>
+                         <td colSpan={6} className="text-center py-6 text-slate-400 font-medium">
+                           No batches found for this item.
+                         </td>
+                       </tr>
+                     ) : (
+                       selectedBatchItem.batches.map((batch: any) => (
+                         <tr key={batch.id} className="hover:bg-slate-50/50 transition-colors">
+                           <td className="px-4 py-3 font-semibold text-slate-800">{batch.batch_number}</td>
+                           <td className="px-4 py-3">{batch.received_date || '-'}</td>
+                           <td className="px-4 py-3 text-rose-600">{batch.expiry_date || 'N/A'}</td>
+                           <td className="px-4 py-3 text-right font-medium">{batch.current_qty}</td>
+                           <td className="px-4 py-3 text-right font-bold text-slate-800">{batch.available_qty}</td>
+                           <td className="px-4 py-3 text-center">
+                             <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                               batch.status === 'ACTIVE' ? 'bg-green-50 text-green-700 border border-green-200' :
+                               batch.status === 'EXPIRED' ? 'bg-red-50 text-red-700 border border-red-200' :
+                               'bg-slate-50 text-slate-500 border border-slate-200'
+                             }`}>
+                               {batch.status}
+                             </span>
+                           </td>
+                         </tr>
+                       ))
+                     )}
+                   </tbody>
+                 </table>
+               </div>
+             </div>
+
+             <div className="flex justify-end pt-2 border-t border-slate-100">
+               <button
+                 onClick={() => setBatchModalOpen(false)}
+                 className="px-5 py-2.5 border border-slate-200 hover:bg-slate-50 text-slate-700 font-semibold rounded-xl text-sm transition-all"
+               >
+                 Close Details
+               </button>
+             </div>
+           </div>
+         </div>
+       )}
     </div>
   );
 };

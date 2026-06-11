@@ -20,6 +20,7 @@ export const PurchaseOrders: React.FC = () => {
   const [remarks, setRemarks] = useState('');
   const [poLines, setPoLines] = useState<any[]>([]);
   const [poDiscount, setPoDiscount] = useState<number>(0);
+  const [poDiscountType, setPoDiscountType] = useState<'fixed' | 'percentage'>('fixed');
   const [formError, setFormError] = useState<string | null>(null);
 
   // Item Search States
@@ -83,6 +84,7 @@ export const PurchaseOrders: React.FC = () => {
     setRemarks('');
     setPoLines([]);
     setPoDiscount(0);
+    setPoDiscountType('fixed');
     setFormError(null);
     setItemSearch('');
     setShowSuggestions(false);
@@ -111,6 +113,7 @@ export const PurchaseOrders: React.FC = () => {
         quantity: 1,
         costPrice: Number(item.cost_price),
         discount: 0,
+        discountType: 'fixed',
         totalCost: Number(item.cost_price)
       }
     ]);
@@ -118,13 +121,32 @@ export const PurchaseOrders: React.FC = () => {
     setShowSuggestions(false);
   };
 
+  const calculateLineTotal = (qty: number, price: number, disc: number, type: 'fixed' | 'percentage') => {
+    const baseCost = qty * price;
+    if (type === 'percentage') {
+      const discAmt = baseCost * (disc / 100);
+      return Math.max(0, baseCost - discAmt);
+    }
+    return Math.max(0, baseCost - disc);
+  };
+
   const updatePoLine = (idx: number, field: 'quantity' | 'costPrice' | 'discount', value: string) => {
     const num = Number(value) || 0;
     setPoLines(prev => {
       const copy = [...prev];
-      copy[idx] = { ...copy[idx], [field]: num };
-      const baseCost = copy[idx].quantity * copy[idx].costPrice;
-      copy[idx].totalCost = Math.max(0, baseCost - copy[idx].discount);
+      const line = { ...copy[idx], [field]: num };
+      line.totalCost = calculateLineTotal(line.quantity, line.costPrice, line.discount, line.discountType || 'fixed');
+      copy[idx] = line;
+      return copy;
+    });
+  };
+
+  const updatePoLineType = (idx: number, type: 'fixed' | 'percentage') => {
+    setPoLines(prev => {
+      const copy = [...prev];
+      const line = { ...copy[idx], discountType: type };
+      line.totalCost = calculateLineTotal(line.quantity, line.costPrice, line.discount, type);
+      copy[idx] = line;
       return copy;
     });
   };
@@ -144,7 +166,10 @@ export const PurchaseOrders: React.FC = () => {
 
     try {
       const subTotal = poLines.reduce((acc, curr) => acc + curr.totalCost, 0);
-      const grandTotal = Math.max(0, subTotal - poDiscount);
+      const calculatedPoDiscountAmount = poDiscountType === 'percentage' 
+        ? subTotal * (poDiscount / 100) 
+        : poDiscount;
+      const grandTotal = Math.max(0, subTotal - calculatedPoDiscountAmount);
       const generatedPoNumber = `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
       const { data: poHeader, error: poErr } = await supabase
@@ -154,7 +179,7 @@ export const PurchaseOrders: React.FC = () => {
           supplier_id: selectedSupplier,
           status: 'PENDING',
           total_amount: grandTotal,
-          discount_amount: poDiscount,
+          discount_amount: calculatedPoDiscountAmount,
           paid_amount: 0,
           remarks: remarks.trim(),
           created_by: user?.id
@@ -164,14 +189,19 @@ export const PurchaseOrders: React.FC = () => {
 
       if (poErr || !poHeader) throw poErr;
 
-      const poItemsPayload = poLines.map(line => ({
-        po_id: poHeader.id,
-        item_id: line.itemId,
-        quantity: line.quantity,
-        cost_price: line.costPrice,
-        discount_amount: line.discount,
-        total_cost: line.totalCost
-      }));
+      const poItemsPayload = poLines.map(line => {
+        const lineDiscountAmount = line.discountType === 'percentage'
+          ? (line.quantity * line.costPrice) * (line.discount / 100)
+          : line.discount;
+        return {
+          po_id: poHeader.id,
+          item_id: line.itemId,
+          quantity: line.quantity,
+          cost_price: line.costPrice,
+          discount_amount: lineDiscountAmount,
+          total_cost: line.totalCost
+        };
+      });
 
       const { error: linesErr } = await supabase.from('purchase_order_items').insert(poItemsPayload);
       if (linesErr) throw linesErr;
@@ -405,7 +435,7 @@ export const PurchaseOrders: React.FC = () => {
                       <th className="px-4 py-2.5">Item Name</th>
                       <th className="px-4 py-2.5">Qty</th>
                       <th className="px-4 py-2.5">Unit Cost</th>
-                      <th className="px-4 py-2.5">Discount (LKR)</th>
+                      <th className="px-4 py-2.5">Discount</th>
                       <th className="px-4 py-2.5 text-right">Line Total</th>
                       <th className="px-4 py-2.5 text-center">Action</th>
                     </tr>
@@ -424,7 +454,17 @@ export const PurchaseOrders: React.FC = () => {
                             <input type="number" min="0" step="0.01" value={line.costPrice || ''} onChange={(e) => updatePoLine(idx, 'costPrice', e.target.value)} className="w-20 px-2 py-1 border border-slate-200 rounded" />
                           </td>
                           <td className="px-4 py-2">
-                            <input type="number" min="0" step="0.01" value={line.discount || ''} onChange={(e) => updatePoLine(idx, 'discount', e.target.value)} className="w-20 px-2 py-1 border border-slate-200 rounded" />
+                            <div className="flex items-center space-x-1">
+                              <input type="number" min="0" step="0.01" value={line.discount || ''} onChange={(e) => updatePoLine(idx, 'discount', e.target.value)} className="w-16 px-1.5 py-1 border border-slate-200 rounded text-right" />
+                              <select
+                                value={line.discountType || 'fixed'}
+                                onChange={(e) => updatePoLineType(idx, e.target.value as 'fixed' | 'percentage')}
+                                className="px-1 py-1 border border-slate-200 rounded bg-white text-xs"
+                              >
+                                <option value="fixed">LKR</option>
+                                <option value="percentage">%</option>
+                              </select>
+                            </div>
                           </td>
                           <td className="px-4 py-3 font-bold text-slate-800 text-right">LKR {line.totalCost.toFixed(2)}</td>
                           <td className="px-4 py-3 text-center">
@@ -444,11 +484,23 @@ export const PurchaseOrders: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-4 text-sm">
                   <span className="font-bold text-slate-600">Overall PO Discount:</span>
-                  <input type="number" min="0" step="0.01" value={poDiscount || ''} onChange={(e) => setPoDiscount(Number(e.target.value) || 0)} className="w-24 text-right px-2 py-1 border border-slate-200 rounded" />
+                  <div className="flex items-center space-x-1">
+                    <input type="number" min="0" step="0.01" value={poDiscount || ''} onChange={(e) => setPoDiscount(Number(e.target.value) || 0)} className="w-20 text-right px-2 py-1 border border-slate-200 rounded" />
+                    <select
+                      value={poDiscountType}
+                      onChange={(e) => setPoDiscountType(e.target.value as 'fixed' | 'percentage')}
+                      className="px-1.5 py-1 border border-slate-200 rounded bg-white text-xs"
+                    >
+                      <option value="fixed">LKR</option>
+                      <option value="percentage">%</option>
+                    </select>
+                  </div>
                 </div>
                 <div className="flex items-center gap-4 text-lg">
                   <span className="font-bold text-slate-800">Grand Total:</span>
-                  <span className="font-extrabold text-primary w-24 text-right">LKR {Math.max(0, poLines.reduce((acc, curr) => acc + curr.totalCost, 0) - poDiscount).toFixed(2)}</span>
+                  <span className="font-extrabold text-primary w-24 text-right">
+                    LKR {Math.max(0, poLines.reduce((acc, curr) => acc + curr.totalCost, 0) - (poDiscountType === 'percentage' ? poLines.reduce((acc, curr) => acc + curr.totalCost, 0) * (poDiscount / 100) : poDiscount)).toFixed(2)}
+                  </span>
                 </div>
               </div>
 

@@ -102,7 +102,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
       if (catRes.error) throw catRes.error;
       if (unitRes.error) throw unitRes.error;
 
-      const categories = catRes.data || [];
+      let localCategories = [...(catRes.data || [])];
       const units = unitRes.data || [];
       const validationErrors: string[] = [];
       const itemsToInsert: any[] = [];
@@ -116,13 +116,50 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
         const unit = units.find(u => u.name.toLowerCase() === row.BaseUnit.toLowerCase() || u.abbreviation?.toLowerCase() === row.BaseUnit.toLowerCase());
         if (!unit) { validationErrors.push(`Row ${rowNum}: BaseUnit "${row.BaseUnit}" not found.`); continue; }
 
-        const category = categories.find(c => c.name.toLowerCase() === row.Category.toLowerCase());
-        if (!category) { validationErrors.push(`Row ${rowNum}: Category "${row.Category}" not found.`); continue; }
+        // Find or create category on the fly
+        const categoryName = (row.Category || '').trim();
+        if (!categoryName) { validationErrors.push(`Row ${rowNum}: "Category" is required.`); continue; }
+
+        let category = localCategories.find(c => c.name.toLowerCase() === categoryName.toLowerCase());
+        if (!category) {
+          try {
+            const { data: newCat, error: catError } = await supabase
+              .from('categories')
+              .insert({ name: categoryName })
+              .select('id, name')
+              .single();
+            if (catError) throw catError;
+            category = { id: newCat.id, name: newCat.name, subcategories: [] };
+            localCategories.push(category);
+          } catch (err: any) {
+            validationErrors.push(`Row ${rowNum}: Failed to create category "${categoryName}" (${err.message}).`);
+            continue;
+          }
+        }
 
         let subcatId: string | null = null;
-        if (row.Subcategory) {
-          const subcat = (category.subcategories as any[])?.find((s: any) => s.name.toLowerCase() === row.Subcategory.toLowerCase());
-          if (!subcat) { validationErrors.push(`Row ${rowNum}: Subcategory "${row.Subcategory}" not found under "${category.name}".`); continue; }
+        if (row.Subcategory && row.Subcategory.trim()) {
+          const subcatName = row.Subcategory.trim();
+          let subcat = (category.subcategories as any[])?.find((s: any) => s.name.toLowerCase() === subcatName.toLowerCase());
+          
+          if (!subcat) {
+            try {
+              const { data: newSub, error: subError } = await supabase
+                .from('subcategories')
+                .insert({ name: subcatName, category_id: category.id })
+                .select('id, name')
+                .single();
+              if (subError) throw subError;
+              subcat = { id: newSub.id, name: newSub.name };
+              if (!category.subcategories) {
+                category.subcategories = [];
+              }
+              (category.subcategories as any[]).push(subcat);
+            } catch (err: any) {
+              validationErrors.push(`Row ${rowNum}: Failed to create subcategory "${subcatName}" under "${category.name}" (${err.message}).`);
+              continue;
+            }
+          }
           subcatId = subcat.id;
         }
 
