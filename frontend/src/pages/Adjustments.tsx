@@ -23,7 +23,7 @@ const newLine = (): BulkLine => ({
   id: Math.random().toString(36).slice(2),
   itemId: '',
   batchId: '',
-  quantity: '1',
+  quantity: '',
   price: '',
   batches: [],
   unitLabel: '',
@@ -730,3 +730,4 @@ export const Adjustments: React.FC = () => {
   );
 };
 export default Adjustments;
+

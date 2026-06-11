@@ -312,11 +312,11 @@ export const PurchaseOrders: React.FC = () => {
         totalAmount: Number(grnPo.total_amount),
         remarks: grnRemarks.trim(),
         items: grnItems.map(i => ({
-          itemId: i.itemId,
+          item_id: i.itemId,
           quantity: Number(i.quantity),
-          costPrice: Number(i.costPrice),
-          expiryDate: i.expiryDate || null,
-          batchNumber: `GRN-${Date.now()}-${i.itemId.slice(0, 6)}`
+          cost_price: Number(i.costPrice),
+          expiry_date: i.expiryDate || null,
+          batch_number: `GRN-${Date.now()}-${i.itemId.slice(0, 6)}`
         }))
       };
       const response = await api.post('/grns', payload);
