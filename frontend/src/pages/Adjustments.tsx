@@ -2,18 +2,21 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Check, X, AlertCircle, Layers, Trash2, PackageOpen, PackagePlus } from 'lucide-react';
+import {
+  Plus, Check, X, AlertCircle, Layers, Trash2,
+  PackageOpen, PackagePlus, FileText, Calendar, XCircle
+} from 'lucide-react';
 
 interface BulkLine {
-  id: string; // temp local id
+  id: string;
   itemId: string;
   batchId: string;
   quantity: string;
-  price?: string; // Optional price for STOCK_IN
+  price?: string;
   batches: any[];
   unitLabel: string;
-  searchQuery: string; // Added searchable autocomplete
-  showDropdown?: boolean; // Toggle dropdown suggestion visibility
+  searchQuery: string;
+  showDropdown?: boolean;
 }
 
 const newLine = (): BulkLine => ({
@@ -27,6 +30,12 @@ const newLine = (): BulkLine => ({
   searchQuery: '',
   showDropdown: false,
 });
+
+const generateReceiptNumber = () => {
+  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const rand = Math.floor(1000 + Math.random() * 9000);
+  return `RCP-${date}-${rand}`;
+};
 
 export const Adjustments: React.FC = () => {
   const { user, hasPermission } = useAuth();
@@ -45,9 +54,16 @@ export const Adjustments: React.FC = () => {
   // Bulk form state
   const [movementType, setMovementType] = useState<'STOCK_IN' | 'STOCK_OUT'>('STOCK_OUT');
   const [selectedReasonId, setSelectedReasonId] = useState('');
+  const [movementDate, setMovementDate] = useState(new Date().toISOString().split('T')[0]);
   const [lines, setLines] = useState<BulkLine[]>([newLine()]);
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Receipt Detail Modal
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [receiptMovements, setReceiptMovements] = useState<any[]>([]);
+  const [selectedReceiptNum, setSelectedReceiptNum] = useState('');
+  const [receiptLoading, setReceiptLoading] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -55,7 +71,7 @@ export const Adjustments: React.FC = () => {
       const { data: moves } = await supabase
         .from('stock_movements')
         .select(`
-          id, movement_number, type, quantity, status, created_at,
+          id, movement_number, type, quantity, status, created_at, reference_id, reference_type,
           inventory_items ( name, sku, base_unit:units!inventory_items_base_unit_id_fkey ( abbreviation ) ),
           movement_reasons ( name ),
           profiles:created_by ( username )
@@ -92,7 +108,6 @@ export const Adjustments: React.FC = () => {
 
   useEffect(() => { fetchData(); }, []);
 
-  // When movement type changes, auto-select first matching reason
   useEffect(() => {
     const match = reasons.find(r => r.type === movementType);
     if (match) setSelectedReasonId(match.id);
@@ -101,6 +116,7 @@ export const Adjustments: React.FC = () => {
   const handleOpenModal = () => {
     setLines([newLine()]);
     setMovementType('STOCK_OUT');
+    setMovementDate(new Date().toISOString().split('T')[0]);
     setFormError(null);
     const firstOut = reasons.find(r => r.type === 'STOCK_OUT');
     if (firstOut) setSelectedReasonId(firstOut.id);
@@ -118,6 +134,7 @@ export const Adjustments: React.FC = () => {
       .from('batches')
       .select('id, batch_number, available_qty, expiry_date')
       .eq('item_id', itemId)
+      .gt('available_qty', 0)
       .order('received_date', { ascending: false });
 
     setLines(prev => prev.map(l => l.id === lineId ? {
@@ -141,17 +158,13 @@ export const Adjustments: React.FC = () => {
     setFormError(null);
 
     const validLines = lines.filter(l => l.itemId && Number(l.quantity) > 0);
-    if (validLines.length === 0) {
-      setFormError('Please add at least one item with a valid quantity.');
-      return;
-    }
-    if (!selectedReasonId) {
-      setFormError('Please select a reason.');
-      return;
-    }
+    if (validLines.length === 0) { setFormError('Please add at least one item with a valid quantity.'); return; }
+    if (!selectedReasonId) { setFormError('Please select a reason.'); return; }
 
     setSubmitting(true);
     const errors: string[] = [];
+    const receiptNumber = generateReceiptNumber();
+    const createdMovementIds: string[] = [];
 
     try {
       for (const line of validLines) {
@@ -170,11 +183,24 @@ export const Adjustments: React.FC = () => {
             reasonId: selectedReasonId,
             price: movementType === 'STOCK_IN' && line.price ? Number(line.price) : undefined
           };
-          await api.post('/stock/movements', payload);
+          const res = await api.post('/stock/movements', payload);
+          const movementId = res.data?.data?.movementId || res.data?.data?.id;
+          if (movementId) createdMovementIds.push(movementId);
         } catch (err: any) {
           const itemName = item?.name || line.itemId;
           errors.push(`${itemName}: ${err.response?.data?.message || 'Failed'}`);
         }
+      }
+
+      // Tag all created movements with the shared receipt number and date
+      if (createdMovementIds.length > 0) {
+        await supabase
+          .from('stock_movements')
+          .update({
+            reference_type: receiptNumber,
+            reference_id: null
+          })
+          .in('id', createdMovementIds);
       }
 
       if (errors.length > 0) {
@@ -197,6 +223,48 @@ export const Adjustments: React.FC = () => {
     }
   };
 
+  // Open receipt detail popup
+  const openReceiptModal = async (receiptNum: string) => {
+    setSelectedReceiptNum(receiptNum);
+    setReceiptLoading(true);
+    setReceiptModalOpen(true);
+    const { data } = await supabase
+      .from('stock_movements')
+      .select(`
+        id, movement_number, type, quantity, status, created_at, reference_type,
+        inventory_items ( name, sku, base_unit:units!inventory_items_base_unit_id_fkey ( abbreviation ) ),
+        movement_reasons ( name ),
+        profiles:created_by ( username )
+      `)
+      .eq('reference_type', receiptNum)
+      .order('created_at', { ascending: true });
+    if (data) setReceiptMovements(data);
+    setReceiptLoading(false);
+  };
+
+  // Build receipt-grouped list for display
+  const groupedView = (() => {
+    const receipts: Record<string, any[]> = {};
+    const nonReceipt: any[] = [];
+    movements.forEach(m => {
+      const rt = m.reference_type;
+      if (rt && rt.startsWith('RCP-')) {
+        if (!receipts[rt]) receipts[rt] = [];
+        receipts[rt].push(m);
+      } else {
+        nonReceipt.push(m);
+      }
+    });
+    // Build rows: one row per receipt (collapsed) + individual non-receipt rows
+    const rows: any[] = [];
+    Object.entries(receipts).forEach(([rnum, mvs]) => {
+      rows.push({ isReceipt: true, receiptNum: rnum, movements: mvs, created_at: mvs[0]?.created_at });
+    });
+    nonReceipt.forEach(m => rows.push({ isReceipt: false, movement: m, created_at: m.created_at }));
+    rows.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    return rows;
+  })();
+
   const filteredReasons = reasons.filter(r => r.type === movementType).sort((a, b) => {
     if (movementType === 'STOCK_OUT') {
       const aName = (a.name || '').toLowerCase();
@@ -213,7 +281,7 @@ export const Adjustments: React.FC = () => {
     return (a.name || '').localeCompare(b.name || '');
   });
 
-  const canAdjust = hasPermission('stock:adjust') || ['admin','owner','manager'].includes((user?.role?.name || '').toLowerCase());
+  const canAdjust = hasPermission('stock:adjust') || ['admin', 'owner', 'manager'].includes((user?.role?.name || '').toLowerCase());
 
   return (
     <div className="space-y-8">
@@ -224,12 +292,8 @@ export const Adjustments: React.FC = () => {
           <p className="text-sm text-slate-500">Record bulk stock in / stock out across multiple items at once</p>
         </div>
         {canAdjust && (
-          <button
-            onClick={handleOpenModal}
-            className="btn-primary flex items-center justify-center space-x-2"
-          >
-            <Plus size={18} />
-            <span>Stock Movement</span>
+          <button onClick={handleOpenModal} className="btn-primary flex items-center justify-center space-x-2">
+            <Plus size={18} /><span>Stock Movement</span>
           </button>
         )}
       </div>
@@ -239,19 +303,15 @@ export const Adjustments: React.FC = () => {
         <div className="bg-amber-50/50 border border-amber-200 rounded-2xl p-6 space-y-4">
           <div className="flex items-center justify-between border-b border-amber-200/50 pb-3">
             <h3 className="text-amber-800 font-bold flex items-center space-x-2">
-              <Layers size={18} />
-              <span>Pending Stock Approvals Queue</span>
+              <Layers size={18} /><span>Pending Stock Approvals Queue</span>
             </h3>
-            <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">
-              {pendingMovements.length} pending
-            </span>
+            <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded-full">{pendingMovements.length} pending</span>
           </div>
           <div className="space-y-3">
             {pendingMovements.map((item) => (
               <div key={item.id} className="bg-white p-4 rounded-xl border border-amber-100 flex flex-col md:flex-row md:items-center justify-between gap-4 card-shadow">
                 <div className="text-xs sm:text-sm text-slate-700 space-y-1.5">
-                  <p>
-                    User <span className="font-bold text-slate-800">{item.profiles?.username}</span> requested a{' '}
+                  <p>User <span className="font-bold text-slate-800">{item.profiles?.username}</span> requested a{' '}
                     <span className="font-bold text-amber-600">{item.type?.toLowerCase()}</span> of{' '}
                     <span className="font-bold text-slate-900">{item.quantity} {item.inventory_items?.base_unit?.abbreviation}</span> for{' '}
                     <span className="font-bold text-primary">{item.inventory_items?.name}</span>.
@@ -280,55 +340,98 @@ export const Adjustments: React.FC = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                <th className="px-6 py-4">STK Number</th>
-                <th className="px-6 py-4">Item Name</th>
+                <th className="px-6 py-4">Receipt / STK No.</th>
+                <th className="px-6 py-4">Item(s)</th>
                 <th className="px-6 py-4">Type</th>
                 <th className="px-6 py-4">Qty</th>
                 <th className="px-6 py-4">Reason</th>
                 <th className="px-6 py-4">By</th>
+                <th className="px-6 py-4">Date</th>
                 <th className="px-6 py-4">Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 text-sm">
               {loading ? (
-                <tr><td colSpan={7} className="text-center py-8 text-slate-400">Loading stock logs...</td></tr>
-              ) : movements.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-8 text-slate-400">No stock movements found.</td></tr>
+                <tr><td colSpan={8} className="text-center py-8 text-slate-400">Loading stock logs...</td></tr>
+              ) : groupedView.length === 0 ? (
+                <tr><td colSpan={8} className="text-center py-8 text-slate-400">No stock movements found.</td></tr>
               ) : (
-                movements.map((move) => (
-                  <tr key={move.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="px-6 py-4 font-semibold text-slate-800 font-mono text-xs">{move.movement_number}</td>
-                    <td className="px-6 py-4 font-medium">{move.inventory_items?.name}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold uppercase
-                        ${move.type === 'STOCK_IN' ? 'bg-green-50 text-green-700' : ''}
-                        ${move.type === 'STOCK_OUT' ? 'bg-rose-50 text-rose-700' : ''}
-                        ${move.type === 'ADJUSTMENT' ? 'bg-amber-50 text-amber-700' : ''}
-                      `}>
-                        {move.type === 'STOCK_IN' ? '▲ IN' : move.type === 'STOCK_OUT' ? '▼ OUT' : '⇄ ADJ'}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 font-semibold">{move.quantity} {move.inventory_items?.base_unit?.abbreviation}</td>
-                    <td className="px-6 py-4 text-slate-500 font-medium">{move.movement_reasons?.name}</td>
-                    <td className="px-6 py-4 text-slate-400">{move.profiles?.username || 'System'}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase
-                        ${move.status === 'APPROVED' ? 'bg-green-50 text-green-700' : ''}
-                        ${move.status === 'PENDING' ? 'bg-amber-50 text-amber-600 animate-pulse' : ''}
-                        ${move.status === 'REJECTED' ? 'bg-red-50 text-red-600' : ''}
-                      `}>
-                        {move.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
+                groupedView.map((row, idx) => {
+                  if (row.isReceipt) {
+                    const mvs: any[] = row.movements;
+                    const type = mvs[0]?.type;
+                    const allApproved = mvs.every(m => m.status === 'APPROVED');
+                    return (
+                      <tr key={`rcp-${idx}`} className="hover:bg-blue-50/30 transition-colors bg-blue-50/10">
+                        <td className="px-6 py-4">
+                          <button
+                            onClick={() => openReceiptModal(row.receiptNum)}
+                            className="text-primary hover:text-blue-700 hover:underline font-mono text-xs font-bold flex items-center gap-1.5"
+                          >
+                            <FileText size={13} className="shrink-0" />
+                            {row.receiptNum}
+                          </button>
+                        </td>
+                        <td className="px-6 py-4 text-slate-600 font-medium">
+                          {mvs.length} item{mvs.length !== 1 ? 's' : ''}{' '}
+                          <span className="text-slate-400 text-xs">({mvs.map(m => m.inventory_items?.name).join(', ').slice(0, 40)}{mvs.map(m => m.inventory_items?.name).join(', ').length > 40 ? '...' : ''})</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold uppercase
+                            ${type === 'STOCK_IN' ? 'bg-green-50 text-green-700' : ''}
+                            ${type === 'STOCK_OUT' ? 'bg-rose-50 text-rose-700' : ''}
+                          `}>
+                            {type === 'STOCK_IN' ? '▲ IN' : '▼ OUT'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-slate-400 text-xs">—</td>
+                        <td className="px-6 py-4 text-slate-500 font-medium">{mvs[0]?.movement_reasons?.name}</td>
+                        <td className="px-6 py-4 text-slate-400">{mvs[0]?.profiles?.username || 'System'}</td>
+                        <td className="px-6 py-4 text-slate-400 text-xs">{new Date(row.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${allApproved ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
+                            {allApproved ? 'APPROVED' : 'PARTIAL'}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  } else {
+                    const move = row.movement;
+                    return (
+                      <tr key={move.id} className="hover:bg-slate-50/50 transition-colors">
+                        <td className="px-6 py-4 font-semibold text-slate-800 font-mono text-xs">{move.movement_number}</td>
+                        <td className="px-6 py-4 font-medium">{move.inventory_items?.name}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-bold uppercase
+                            ${move.type === 'STOCK_IN' ? 'bg-green-50 text-green-700' : ''}
+                            ${move.type === 'STOCK_OUT' ? 'bg-rose-50 text-rose-700' : ''}
+                            ${move.type === 'ADJUSTMENT' ? 'bg-amber-50 text-amber-700' : ''}
+                          `}>
+                            {move.type === 'STOCK_IN' ? '▲ IN' : move.type === 'STOCK_OUT' ? '▼ OUT' : '⇄ ADJ'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 font-semibold">{move.quantity} {move.inventory_items?.base_unit?.abbreviation}</td>
+                        <td className="px-6 py-4 text-slate-500 font-medium">{move.movement_reasons?.name}</td>
+                        <td className="px-6 py-4 text-slate-400">{move.profiles?.username || 'System'}</td>
+                        <td className="px-6 py-4 text-slate-400 text-xs">{new Date(move.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase
+                            ${move.status === 'APPROVED' ? 'bg-green-50 text-green-700' : ''}
+                            ${move.status === 'PENDING' ? 'bg-amber-50 text-amber-600 animate-pulse' : ''}
+                            ${move.status === 'REJECTED' ? 'bg-red-50 text-red-600' : ''}
+                          `}>{move.status}</span>
+                        </td>
+                      </tr>
+                    );
+                  }
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* Bulk Movement Modal */}
+      {/* ── Bulk Movement Modal ──────────────────────────────────── */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900 bg-opacity-50 overflow-y-auto">
           <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-3xl my-6 card-shadow flex flex-col">
@@ -337,7 +440,7 @@ export const Adjustments: React.FC = () => {
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">Bulk Stock Movement</h3>
-                <p className="text-xs text-slate-500 mt-0.5">Add multiple items to a single stock in / stock out entry</p>
+                <p className="text-xs text-slate-500 mt-0.5">All items will be grouped under one receipt number</p>
               </div>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm font-semibold">✕ Close</button>
             </div>
@@ -351,37 +454,38 @@ export const Adjustments: React.FC = () => {
                 </div>
               )}
 
-              {/* Movement Type + Reason Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Type Selector */}
+              {/* Type + Date + Reason */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Type */}
                 <div className="space-y-2">
                   <label className="text-xs font-bold text-slate-500 uppercase">Movement Type</label>
                   <div className="flex rounded-xl overflow-hidden border border-slate-200">
                     <button
                       type="button"
                       onClick={() => setMovementType('STOCK_OUT')}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold transition-all ${
-                        movementType === 'STOCK_OUT'
-                          ? 'bg-rose-600 text-white'
-                          : 'bg-white text-slate-500 hover:bg-slate-50'
-                      }`}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold transition-all ${movementType === 'STOCK_OUT' ? 'bg-rose-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                     >
-                      <PackageOpen size={16} />
-                      Stock OUT
+                      <PackageOpen size={16} /> OUT
                     </button>
                     <button
                       type="button"
                       onClick={() => setMovementType('STOCK_IN')}
-                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold transition-all ${
-                        movementType === 'STOCK_IN'
-                          ? 'bg-green-600 text-white'
-                          : 'bg-white text-slate-500 hover:bg-slate-50'
-                      }`}
+                      className={`flex-1 flex items-center justify-center gap-2 py-2.5 text-sm font-bold transition-all ${movementType === 'STOCK_IN' ? 'bg-green-600 text-white' : 'bg-white text-slate-500 hover:bg-slate-50'}`}
                     >
-                      <PackagePlus size={16} />
-                      Stock IN
+                      <PackagePlus size={16} /> IN
                     </button>
                   </div>
+                </div>
+
+                {/* Date */}
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Calendar size={11} /> Movement Date</label>
+                  <input
+                    type="date"
+                    value={movementDate}
+                    onChange={e => setMovementDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
+                  />
                 </div>
 
                 {/* Reason */}
@@ -389,7 +493,7 @@ export const Adjustments: React.FC = () => {
                   <label className="text-xs font-bold text-slate-500 uppercase">Reason <span className="text-red-500">*</span></label>
                   <select
                     value={selectedReasonId}
-                    onChange={(e) => setSelectedReasonId(e.target.value)}
+                    onChange={e => setSelectedReasonId(e.target.value)}
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
                   >
                     <option value="">Select reason...</option>
@@ -407,7 +511,6 @@ export const Adjustments: React.FC = () => {
                   <span className="text-xs text-slate-400">{lines.length} line{lines.length !== 1 ? 's' : ''}</span>
                 </div>
 
-                {/* Header row */}
                 <div className="hidden md:grid grid-cols-12 gap-2 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   <div className="col-span-5">Item</div>
                   <div className="col-span-3">{movementType === 'STOCK_IN' ? 'Price (LKR)' : 'Batch'}</div>
@@ -415,79 +518,77 @@ export const Adjustments: React.FC = () => {
                   <div className="col-span-1"></div>
                 </div>
 
-                {lines.map((line, idx) => (
+                {lines.map((line) => (
                   <div key={line.id} className="grid grid-cols-12 gap-2 items-start bg-slate-50 rounded-xl p-3 border border-slate-100">
-                     {/* Item Search & Select Autocomplete */}
-                     <div className="col-span-12 md:col-span-5 relative">
-                       <input
-                         type="text"
-                         placeholder="Type item name or SKU..."
-                         value={line.searchQuery}
-                         onChange={(e) => {
-                           const val = e.target.value;
-                           updateLine(line.id, 'searchQuery', val);
-                           updateLine(line.id, 'showDropdown', true);
-                           if (val.trim() === '') {
-                             updateLine(line.id, 'itemId', '');
-                             updateLine(line.id, 'batchId', '');
-                             updateLine(line.id, 'batches', []);
-                             updateLine(line.id, 'unitLabel', '');
-                           }
-                         }}
-                         onFocus={() => updateLine(line.id, 'showDropdown', true)}
-                         onBlur={() => setTimeout(() => updateLine(line.id, 'showDropdown', false), 200)}
-                         className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
-                         autoComplete="off"
-                       />
-                       {line.showDropdown && (
-                         <ul className="absolute z-[60] left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                           {catalogItems
-                             .filter(item => 
-                               item.name.toLowerCase().includes(line.searchQuery.toLowerCase()) ||
-                               item.sku.toLowerCase().includes(line.searchQuery.toLowerCase())
-                             )
-                             .slice(0, 10)
-                             .map(item => (
-                               <li
-                                 key={item.id}
-                                 onMouseDown={() => {
-                                   updateLine(line.id, 'itemId', item.id);
-                                   updateLine(line.id, 'searchQuery', item.name);
-                                   updateLine(line.id, 'showDropdown', false);
-                                   loadBatchesForLine(line.id, item.id);
-                                 }}
-                                 className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-primary transition-colors border-b border-slate-50 last:border-0"
-                               >
-                                 <span className="font-semibold">{item.name}</span>{' '}
-                                 <span className="text-xs text-slate-400">({item.sku})</span>
-                               </li>
-                             ))}
-                           {catalogItems.filter(item => 
-                             item.name.toLowerCase().includes(line.searchQuery.toLowerCase()) ||
-                             item.sku.toLowerCase().includes(line.searchQuery.toLowerCase())
-                           ).length === 0 && (
-                             <li className="px-3 py-2 text-xs text-slate-400 text-center italic">No items found</li>
-                           )}
-                         </ul>
-                       )}
-                     </div>
+                    {/* Item Search */}
+                    <div className="col-span-12 md:col-span-5 relative">
+                      <input
+                        type="text"
+                        placeholder="Type item name or SKU..."
+                        value={line.searchQuery}
+                        onChange={e => {
+                          const val = e.target.value;
+                          updateLine(line.id, 'searchQuery', val);
+                          updateLine(line.id, 'showDropdown', true);
+                          if (val.trim() === '') {
+                            updateLine(line.id, 'itemId', '');
+                            updateLine(line.id, 'batchId', '');
+                            updateLine(line.id, 'batches', []);
+                            updateLine(line.id, 'unitLabel', '');
+                          }
+                        }}
+                        onFocus={() => updateLine(line.id, 'showDropdown', true)}
+                        onBlur={() => setTimeout(() => updateLine(line.id, 'showDropdown', false), 200)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
+                        autoComplete="off"
+                      />
+                      {line.showDropdown && (
+                        <ul className="absolute z-[60] left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {catalogItems
+                            .filter(item =>
+                              item.name.toLowerCase().includes(line.searchQuery.toLowerCase()) ||
+                              item.sku.toLowerCase().includes(line.searchQuery.toLowerCase())
+                            )
+                            .slice(0, 10)
+                            .map(item => (
+                              <li
+                                key={item.id}
+                                onMouseDown={() => {
+                                  updateLine(line.id, 'itemId', item.id);
+                                  updateLine(line.id, 'searchQuery', item.name);
+                                  updateLine(line.id, 'showDropdown', false);
+                                  loadBatchesForLine(line.id, item.id);
+                                }}
+                                className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-primary transition-colors border-b border-slate-50 last:border-0"
+                              >
+                                <span className="font-semibold">{item.name}</span>{' '}
+                                <span className="text-xs text-slate-400">({item.sku})</span>
+                              </li>
+                            ))}
+                          {catalogItems.filter(item =>
+                            item.name.toLowerCase().includes(line.searchQuery.toLowerCase()) ||
+                            item.sku.toLowerCase().includes(line.searchQuery.toLowerCase())
+                          ).length === 0 && (
+                            <li className="px-3 py-2 text-xs text-slate-400 text-center italic">No items found</li>
+                          )}
+                        </ul>
+                      )}
+                    </div>
 
-                    {/* Batch / Price Select */}
+                    {/* Batch / Price */}
                     <div className="col-span-12 md:col-span-3">
                       {movementType === 'STOCK_IN' ? (
                         <input
-                          type="number"
-                          step="0.001"
-                          min="0"
+                          type="number" step="0.001" min="0"
                           placeholder="Optional price..."
                           value={line.price || ''}
-                          onChange={(e) => updateLine(line.id, 'price', e.target.value)}
+                          onChange={e => updateLine(line.id, 'price', e.target.value)}
                           className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                         />
                       ) : line.batches.length > 0 ? (
                         <select
                           value={line.batchId}
-                          onChange={(e) => updateLine(line.id, 'batchId', e.target.value)}
+                          onChange={e => updateLine(line.id, 'batchId', e.target.value)}
                           className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
                         >
                           <option value="">Select batch...</option>
@@ -507,17 +608,13 @@ export const Adjustments: React.FC = () => {
                     {/* Quantity */}
                     <div className="col-span-10 md:col-span-3 flex items-center gap-2">
                       <input
-                        type="number"
-                        min="0.001"
-                        step="any"
+                        type="number" min="0.001" step="any"
                         value={line.quantity}
-                        onChange={(e) => updateLine(line.id, 'quantity', e.target.value)}
+                        onChange={e => updateLine(line.id, 'quantity', e.target.value)}
                         placeholder="Qty"
                         className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
                       />
-                      {line.unitLabel && (
-                        <span className="text-xs font-bold text-slate-400 shrink-0">{line.unitLabel}</span>
-                      )}
+                      {line.unitLabel && <span className="text-xs font-bold text-slate-400 shrink-0">{line.unitLabel}</span>}
                     </div>
 
                     {/* Remove */}
@@ -539,49 +636,103 @@ export const Adjustments: React.FC = () => {
                   onClick={addLine}
                   className="w-full py-2.5 border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary hover:text-primary rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
                 >
-                  <Plus size={16} />
-                  Add Another Item
+                  <Plus size={16} /> Add Another Item
                 </button>
               </div>
 
               {/* Summary */}
               {lines.some(l => l.itemId && Number(l.quantity) > 0) && (
-                <div className={`rounded-xl p-4 border text-sm font-semibold flex items-center gap-3 ${
-                  movementType === 'STOCK_OUT' ? 'bg-rose-50 border-rose-100 text-rose-700' : 'bg-green-50 border-green-100 text-green-700'
-                }`}>
+                <div className={`rounded-xl p-4 border text-sm font-semibold flex items-center gap-3 ${movementType === 'STOCK_OUT' ? 'bg-rose-50 border-rose-100 text-rose-700' : 'bg-green-50 border-green-100 text-green-700'}`}>
                   {movementType === 'STOCK_OUT' ? <PackageOpen size={18} /> : <PackagePlus size={18} />}
                   <span>
                     {movementType === 'STOCK_OUT' ? 'Removing' : 'Adding'}{' '}
                     {lines.filter(l => l.itemId).length} item line{lines.filter(l => l.itemId).length !== 1 ? 's' : ''} from stock
                     {selectedReasonId ? ` · Reason: ${reasons.find(r => r.id === selectedReasonId)?.name}` : ''}
+                    {' · Date: '}{movementDate}
                   </span>
                 </div>
               )}
             </div>
 
-            {/* Footer Buttons */}
+            {/* Footer */}
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 rounded-b-2xl flex items-center justify-end gap-3 shrink-0">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="px-5 py-2.5 border border-slate-200 hover:bg-white text-slate-700 font-semibold rounded-xl text-sm transition-all"
-              >
-                Cancel
-              </button>
+              <button type="button" onClick={() => setModalOpen(false)} className="px-5 py-2.5 border border-slate-200 hover:bg-white text-slate-700 font-semibold rounded-xl text-sm transition-all">Cancel</button>
               <button
                 onClick={handleSubmit}
                 disabled={submitting}
-                className={`px-6 py-2.5 text-white font-bold rounded-xl text-sm transition-all shadow-sm active:scale-95 disabled:opacity-50 ${
-                  movementType === 'STOCK_OUT' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-green-600 hover:bg-green-700'
-                }`}
+                className={`px-6 py-2.5 text-white font-bold rounded-xl text-sm transition-all shadow-sm active:scale-95 disabled:opacity-50 ${movementType === 'STOCK_OUT' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-green-600 hover:bg-green-700'}`}
               >
                 {submitting ? 'Processing...' : `Post ${movementType === 'STOCK_OUT' ? 'Stock Out' : 'Stock In'}`}
               </button>
             </div>
-
           </div>
         </div>
       )}
+
+      {/* ── Receipt Detail Modal ──────────────────────────────── */}
+      {receiptModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 space-y-5 card-shadow max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-blue-50 rounded-xl"><FileText size={18} className="text-primary" /></div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">Receipt Details</h3>
+                  <p className="text-xs text-slate-400 font-mono">{selectedReceiptNum}</p>
+                </div>
+              </div>
+              <button onClick={() => setReceiptModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20} /></button>
+            </div>
+
+            <div className="overflow-y-auto flex-1">
+              {receiptLoading ? (
+                <div className="text-center py-8 text-slate-400">Loading receipt...</div>
+              ) : (
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">
+                      <th className="px-4 py-3">STK Number</th>
+                      <th className="px-4 py-3">Item</th>
+                      <th className="px-4 py-3">Type</th>
+                      <th className="px-4 py-3 text-right">Qty</th>
+                      <th className="px-4 py-3">Reason</th>
+                      <th className="px-4 py-3">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {receiptMovements.map(m => (
+                      <tr key={m.id} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-mono text-xs text-slate-600">{m.movement_number}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-800">{m.inventory_items?.name}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${m.type === 'STOCK_IN' ? 'bg-green-50 text-green-700' : 'bg-rose-50 text-rose-700'}`}>
+                            {m.type === 'STOCK_IN' ? '▲ IN' : '▼ OUT'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-right">{m.quantity} {m.inventory_items?.base_unit?.abbreviation}</td>
+                        <td className="px-4 py-3 text-slate-500">{m.movement_reasons?.name}</td>
+                        <td className="px-4 py-3">
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${m.status === 'APPROVED' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
+                            {m.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            {receiptMovements.length > 0 && (
+              <div className="pt-3 border-t border-slate-100 shrink-0 flex justify-between text-xs text-slate-400">
+                <span>{receiptMovements[0]?.profiles?.username || 'System'} · {new Date(receiptMovements[0]?.created_at).toLocaleString()}</span>
+                <span>{receiptMovements.length} line{receiptMovements.length !== 1 ? 's' : ''}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
