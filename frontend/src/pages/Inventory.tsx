@@ -481,7 +481,7 @@ export const Inventory: React.FC = () => {
                       {item.cost_price ? `LKR ${Number(item.cost_price).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 })}` : '-'}
                     </td>
                     <td className="px-6 py-4 font-semibold text-slate-700 text-right">
-                      {item.batches?.reduce((acc: number, b: any) => acc + Number(b.available_qty || 0), 0) || 0}{' '}
+                      {Number((item.batches?.reduce((acc: number, b: any) => acc + Number(b.available_qty || 0), 0) || 0).toFixed(3))}{' '}
                       <span className="text-xs text-slate-400 font-normal">{item.units?.abbreviation || ''}</span>
                     </td>
                     {canCreate && (
@@ -825,7 +825,7 @@ export const Inventory: React.FC = () => {
                <div>
                  <p className="text-slate-400 font-semibold text-[10px] uppercase">Total Available Stock</p>
                  <p className="font-extrabold text-primary">
-                   {selectedBatchItem.batches?.reduce((acc: number, b: any) => acc + Number(b.available_qty || 0), 0) || 0} {selectedBatchItem.units?.abbreviation || ''}
+                    {Number((selectedBatchItem.batches?.reduce((acc: number, b: any) => acc + Number(b.available_qty || 0), 0) || 0).toFixed(3))} {selectedBatchItem.units?.abbreviation || ''}
                  </p>
                </div>
              </div>
