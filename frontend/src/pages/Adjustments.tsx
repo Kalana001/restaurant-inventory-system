@@ -168,9 +168,8 @@ export const Adjustments: React.FC = () => {
 
     setSubmitting(true);
     const errors: string[] = [];
+    // One receipt number for the whole bulk submission - sent to backend in each payload
     const receiptNumber = generateReceiptNumber();
-    // Capture timestamp just before posting so we can find new movements after
-    const startTime = new Date().toISOString();
 
     try {
       for (const line of validLines) {
@@ -187,31 +186,13 @@ export const Adjustments: React.FC = () => {
             quantity: Number(line.quantity),
             unitId: item?.base_unit_id,
             reasonId: selectedReasonId,
-            price: movementType === 'STOCK_IN' && line.price ? Number(line.price) : undefined
+            price: movementType === 'STOCK_IN' && line.price ? Number(line.price) : undefined,
+            receiptNumber
           };
-          const res = await api.post('/stock/movements', payload);
-          void res; // response captured via timestamp query below
+          await api.post('/stock/movements', payload);
         } catch (err: any) {
           const itemName = item?.name || line.itemId;
           errors.push(`${itemName}: ${err.response?.data?.message || 'Failed'}`);
-        }
-      }
-
-      // Tag all new movements created since startTime with the shared receipt number.
-      // Using a time-window query is more reliable than parsing API response IDs.
-      if (errors.length < validLines.length) {
-        const { data: newMovements } = await supabase
-          .from('stock_movements')
-          .select('id')
-          .eq('created_by', user?.id)
-          .eq('type', movementType)
-          .gte('created_at', startTime);
-
-        if (newMovements && newMovements.length > 0) {
-          await supabase
-            .from('stock_movements')
-            .update({ reference_type: receiptNumber })
-            .in('id', newMovements.map((m: any) => m.id));
         }
       }
 
@@ -393,10 +374,10 @@ export const Adjustments: React.FC = () => {
                             ${type === 'STOCK_IN' ? 'bg-green-50 text-green-700' : ''}
                             ${type === 'STOCK_OUT' ? 'bg-rose-50 text-rose-700' : ''}
                           `}>
-                            {type === 'STOCK_IN' ? '▲ IN' : '▼ OUT'}
+                            {type === 'STOCK_IN' ? 'â–² IN' : 'â–¼ OUT'}
                           </span>
                         </td>
-                        <td className="px-6 py-4 text-slate-400 text-xs">—</td>
+                        <td className="px-6 py-4 text-slate-400 text-xs">â€”</td>
                         <td className="px-6 py-4 text-slate-500 font-medium">{mvs[0]?.movement_reasons?.name}</td>
                         <td className="px-6 py-4 text-slate-400">{mvs[0]?.profiles?.username || 'System'}</td>
                         <td className="px-6 py-4 text-slate-400 text-xs">{new Date(row.created_at).toLocaleDateString()}</td>
@@ -419,7 +400,7 @@ export const Adjustments: React.FC = () => {
                             ${move.type === 'STOCK_OUT' ? 'bg-rose-50 text-rose-700' : ''}
                             ${move.type === 'ADJUSTMENT' ? 'bg-amber-50 text-amber-700' : ''}
                           `}>
-                            {move.type === 'STOCK_IN' ? '▲ IN' : move.type === 'STOCK_OUT' ? '▼ OUT' : '⇄ ADJ'}
+                            {move.type === 'STOCK_IN' ? 'â–² IN' : move.type === 'STOCK_OUT' ? 'â–¼ OUT' : 'â‡„ ADJ'}
                           </span>
                         </td>
                         <td className="px-6 py-4 font-semibold">{move.quantity} {move.inventory_items?.base_unit?.abbreviation}</td>
@@ -443,7 +424,7 @@ export const Adjustments: React.FC = () => {
         </div>
       </div>
 
-      {/* ── Bulk Movement Modal ──────────────────────────────────── */}
+      {/* â”€â”€ Bulk Movement Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900 bg-opacity-50 overflow-y-auto">
           <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-3xl my-6 card-shadow flex flex-col">
@@ -454,7 +435,7 @@ export const Adjustments: React.FC = () => {
                 <h3 className="text-lg font-bold text-slate-800">Bulk Stock Movement</h3>
                 <p className="text-xs text-slate-500 mt-0.5">All items will be grouped under one receipt number</p>
               </div>
-              <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm font-semibold">✕ Close</button>
+              <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm font-semibold">âœ• Close</button>
             </div>
 
             <div className="p-6 space-y-6 overflow-y-auto">
@@ -659,8 +640,8 @@ export const Adjustments: React.FC = () => {
                   <span>
                     {movementType === 'STOCK_OUT' ? 'Removing' : 'Adding'}{' '}
                     {lines.filter(l => l.itemId).length} item line{lines.filter(l => l.itemId).length !== 1 ? 's' : ''} from stock
-                    {selectedReasonId ? ` · Reason: ${reasons.find(r => r.id === selectedReasonId)?.name}` : ''}
-                    {' · Date: '}{movementDate}
+                    {selectedReasonId ? ` Â· Reason: ${reasons.find(r => r.id === selectedReasonId)?.name}` : ''}
+                    {' Â· Date: '}{movementDate}
                   </span>
                 </div>
               )}
@@ -681,7 +662,7 @@ export const Adjustments: React.FC = () => {
         </div>
       )}
 
-      {/* ── Receipt Detail Modal ──────────────────────────────── */}
+      {/* â”€â”€ Receipt Detail Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {receiptModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
           <div className="bg-white rounded-2xl w-full max-w-2xl p-6 space-y-5 card-shadow max-h-[90vh] flex flex-col">
@@ -718,7 +699,7 @@ export const Adjustments: React.FC = () => {
                         <td className="px-4 py-3 font-semibold text-slate-800">{m.inventory_items?.name}</td>
                         <td className="px-4 py-3">
                           <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase ${m.type === 'STOCK_IN' ? 'bg-green-50 text-green-700' : 'bg-rose-50 text-rose-700'}`}>
-                            {m.type === 'STOCK_IN' ? '▲ IN' : '▼ OUT'}
+                            {m.type === 'STOCK_IN' ? 'â–² IN' : 'â–¼ OUT'}
                           </span>
                         </td>
                         <td className="px-4 py-3 font-semibold text-right">{m.quantity} {m.inventory_items?.base_unit?.abbreviation}</td>
@@ -737,7 +718,7 @@ export const Adjustments: React.FC = () => {
 
             {receiptMovements.length > 0 && (
               <div className="pt-3 border-t border-slate-100 shrink-0 flex justify-between text-xs text-slate-400">
-                <span>{receiptMovements[0]?.profiles?.username || 'System'} · {new Date(receiptMovements[0]?.created_at).toLocaleString()}</span>
+                <span>{receiptMovements[0]?.profiles?.username || 'System'} Â· {new Date(receiptMovements[0]?.created_at).toLocaleString()}</span>
                 <span>{receiptMovements.length} line{receiptMovements.length !== 1 ? 's' : ''}</span>
               </div>
             )}

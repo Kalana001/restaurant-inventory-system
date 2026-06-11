@@ -6,7 +6,7 @@ import { logAudit } from '../services/audit.service';
 
 export const createStockMovement = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { itemId, batchId, type, quantity, unitId, reasonId, price } = req.body;
+    const { itemId, batchId, type, quantity, unitId, reasonId, price, receiptNumber } = req.body;
 
     if (!itemId || !type || !quantity || !unitId || !reasonId) {
       throw new BadRequestError('Item, type, quantity, unit, and reason are required.');
@@ -88,7 +88,7 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
         p_created_by: userId,
         p_status: status,
         p_reference_id: null,
-        p_reference_type: 'MANUAL'
+        p_reference_type: receiptNumber || 'MANUAL'
       }
     );
 
