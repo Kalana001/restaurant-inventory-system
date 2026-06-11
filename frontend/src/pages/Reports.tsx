@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { FilterPanel } from '../components/reports/FilterPanel';
@@ -8,12 +8,12 @@ import { ExportPanel } from '../components/reports/ExportPanel';
 import { generateCSV, generateExcel, generatePDF } from '../lib/exportUtils';
 import type { ExportColumn } from '../lib/exportUtils';
 import { format } from 'date-fns';
-import { TrendingUp, BarChart3, Calendar, FileText, Activity } from 'lucide-react';
+import { TrendingUp, Clock, Package, DollarSign, X } from 'lucide-react';
 
 export const Reports: React.FC = () => {
   const { type } = useParams<{ type: string }>();
   const navigate = useNavigate();
-  const reportType = type || 'valuation'; // fallback
+  const reportType = type || 'valuation';
 
   const [filters, setFilters] = useState<any>({});
   
@@ -27,15 +27,19 @@ export const Reports: React.FC = () => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
 
+  // History Modal States
+  const [historyOpen, setHistoryOpen] = useState(false);
+  const [historySupplier, setHistorySupplier] = useState<any | null>(null);
+  const [historyData, setHistoryData] = useState<any[]>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+
   useEffect(() => {
-    // If no type in URL, redirect to valuation so the sidebar highlights properly
     if (!type) {
       navigate('/reports/valuation', { replace: true });
     }
   }, [type, navigate]);
 
   useEffect(() => {
-    // Load filter reference data
     const loadRefs = async () => {
       const [cats, sups, usrs] = await Promise.all([
         supabase.from('categories').select('id, name').order('name'),
@@ -57,25 +61,18 @@ export const Reports: React.FC = () => {
       if (reportType === 'valuation') {
         query = supabase
           .from('inventory_items')
-          .select(`
-            *,
-            categories(name),
-            units:units!inventory_items_base_unit_id_fkey(abbreviation)
-          `)
+          .select(`*, categories(name), units:units!inventory_items_base_unit_id_fkey(abbreviation)`)
           .eq('status', 'ACTIVE');
           
         if (filters.categoryId) query = query.eq('category_id', filters.categoryId);
         if (filters.stockStatus === 'in_stock') query = query.gt('current_stock', 0);
         if (filters.stockStatus === 'out_of_stock') query = query.lte('current_stock', 0);
-        if (filters.stockStatus === 'low_stock') query = query.lte('current_stock', 10); // Simple threshold for demo
+        if (filters.stockStatus === 'low_stock') query = query.lte('current_stock', 10);
 
       } else if (reportType === 'expiry') {
         query = supabase
           .from('batches')
-          .select(`
-            *,
-            inventory_items(name, category_id, categories(name))
-          `)
+          .select(`*, inventory_items(name, category_id, categories(name))`)
           .gt('available_qty', 0)
           .not('expiry_date', 'is', null);
 
@@ -84,26 +81,19 @@ export const Reports: React.FC = () => {
         }
 
       } else if (reportType === 'outstanding') {
-        // Mocking Supplier Balances
-        query = supabase.from('suppliers').select('*');
+        query = supabase.from('suppliers').select(`*, supplier_payments(payment_method, created_at)`).order('name');
         if (filters.supplierId) query = query.eq('id', filters.supplierId);
 
       } else if (reportType === 'movements') {
         query = supabase
           .from('stock_movements')
-          .select(`
-            *,
-            profiles:created_by (username),
-            inventory_items (name, units:units!inventory_items_base_unit_id_fkey(abbreviation)),
-            movement_reasons (name)
-          `)
+          .select(`*, profiles:created_by (username), inventory_items (name, units:units!inventory_items_base_unit_id_fkey(abbreviation)), movement_reasons (name)`)
           .order('created_at', { ascending: false })
           .limit(1000);
 
         if (filters.userId) query = query.eq('created_by', filters.userId);
         if (filters.type) query = query.eq('type', filters.type);
       } else {
-        // Fallback
         setData([]);
         return;
       }
@@ -113,7 +103,6 @@ export const Reports: React.FC = () => {
 
       let finalData = result || [];
 
-      // Additional client-side filtering
       if (reportType === 'expiry' && filters.days && filters.days !== 'all') {
         const thresholdDate = new Date();
         thresholdDate.setDate(thresholdDate.getDate() + parseInt(filters.days));
@@ -134,19 +123,37 @@ export const Reports: React.FC = () => {
   };
 
   useEffect(() => {
-    // Reset filters when tab changes, then fetch
     setFilters({});
-    // We need to wait for state to update, or just pass empty object to fetch
-    // But since fetch reads from state, let's let the next render trigger it via a separate effect or just call it directly with empty filters
   }, [reportType]);
 
-  // Use a separate effect to fetch when reportType changes to ensure fresh state
   useEffect(() => {
     fetchReportData();
-  }, [reportType]); // fetch on mount and on reportType change
+  }, [reportType]);
 
-  // --- COLUMNS DEFINITION ---
-  const getColumns = (): ColumnDef[] => {
+  const openHistoryModal = async (sup: any) => {
+    setHistorySupplier(sup);
+    setHistoryOpen(true);
+    setHistoryLoading(true);
+    setHistoryData([]);
+    try {
+      const { data: pos } = await supabase.from('purchase_orders').select('id, po_number, status, total_amount, created_at').eq('supplier_id', sup.id).order('created_at', { ascending: false });
+      const { data: grns } = await supabase.from('grns').select('id, grn_number, total_amount, received_date').eq('supplier_id', sup.id).order('received_date', { ascending: false });
+      const { data: payments } = await supabase.from('supplier_payments').select('id, amount, payment_method, notes, created_at, profiles:paid_by(username)').eq('supplier_id', sup.id).order('created_at', { ascending: false });
+
+      const timeline: any[] = [];
+      (pos || []).forEach(p => timeline.push({ type: 'PO', date: p.created_at, data: p }));
+      (grns || []).forEach(g => timeline.push({ type: 'GRN', date: g.received_date, data: g }));
+      (payments || []).forEach(p => timeline.push({ type: 'PAYMENT', date: p.created_at, data: p }));
+      timeline.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      setHistoryData(timeline);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const columns = useMemo((): ColumnDef[] => {
     switch (reportType) {
       case 'valuation':
         return [
@@ -180,9 +187,21 @@ export const Reports: React.FC = () => {
         ];
       case 'outstanding':
         return [
-          { key: 'name', header: 'Supplier Name', sortable: true },
+          { key: 'name', header: 'Supplier Name', sortable: true, render: (r) => (
+            <button onClick={() => openHistoryModal(r)} className="font-bold text-primary hover:underline">{r.name}</button>
+          )},
           { key: 'code', header: 'Code' },
-          { key: 'contact_person', header: 'Contact' },
+          { key: 'contact_person', header: 'Contact', render: (r) => r.phone || r.email || '-' },
+          { key: 'outstanding_balance', header: 'Outstanding Balance', render: (r) => (
+            <span className={`font-bold ${Number(r.outstanding_balance) > 0 ? 'text-rose-600' : 'text-green-600'}`}>
+              LKR {Number(r.outstanding_balance || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+            </span>
+          )},
+          { key: 'last_payment_method', header: 'Last Payment Method', render: (r) => {
+            if (!r.supplier_payments || r.supplier_payments.length === 0) return '-';
+            const sorted = [...r.supplier_payments].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+            return sorted[0].payment_method;
+          }},
           { key: 'status', header: 'Status', render: (r) => <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">Active</span> }
         ];
       case 'movements':
@@ -202,37 +221,43 @@ export const Reports: React.FC = () => {
         ];
       default: return [];
     }
-  };
+  }, [reportType]);
 
   const handleExport = async (formatType: 'excel' | 'pdf' | 'csv', selectedCols: string[]) => {
     setExporting(true);
     try {
-      const allCols = getColumns();
-      // Filter columns based on user selection in the export panel
-      const exportCols: ExportColumn[] = allCols
+      const exportCols: ExportColumn[] = columns
         .filter(c => selectedCols.includes(c.key))
         .map(c => ({
           header: c.header,
           key: c.key
         }));
 
-      // Map dynamic render values for export
       const mappedData = data.map(row => {
         const newRow: any = {};
-        allCols.filter(c => selectedCols.includes(c.key)).forEach(c => {
+        columns.filter(c => selectedCols.includes(c.key)).forEach(c => {
           newRow[c.key] = c.render && typeof c.render(row) === 'string' 
             ? c.render(row) 
             : c.render && React.isValidElement(c.render(row)) 
-              ? row[c.key] // fallback to raw value if it's a JSX badge
+              ? row[c.key] 
               : row[c.key];
               
-          // Fix nested object extraction for export if JSX fallback didn't work
           if (reportType === 'valuation' && c.key === 'category') newRow[c.key] = row.categories?.name;
           if (reportType === 'valuation' && c.key === 'unit') newRow[c.key] = row.units?.abbreviation;
           if (reportType === 'valuation' && c.key === 'total_value') newRow[c.key] = (Number(row.current_stock) * Number(row.cost_price)).toFixed(2);
           if (reportType === 'expiry' && c.key === 'item') newRow[c.key] = row.inventory_items?.name;
           if (reportType === 'expiry' && c.key === 'category') newRow[c.key] = row.inventory_items?.categories?.name;
           if (reportType === 'expiry' && c.key === 'expiry_date') newRow[c.key] = row.expiry_date ? format(new Date(row.expiry_date), 'dd/MM/yyyy') : '-';
+          if (reportType === 'outstanding' && c.key === 'name') newRow[c.key] = row.name;
+          if (reportType === 'outstanding' && c.key === 'contact_person') newRow[c.key] = row.phone || row.email || '-';
+          if (reportType === 'outstanding' && c.key === 'outstanding_balance') newRow[c.key] = Number(row.outstanding_balance || 0).toFixed(2);
+          if (reportType === 'outstanding' && c.key === 'last_payment_method') {
+            if (!row.supplier_payments || row.supplier_payments.length === 0) newRow[c.key] = '-';
+            else {
+              const sorted = [...row.supplier_payments].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+              newRow[c.key] = sorted[0].payment_method;
+            }
+          }
           if (reportType === 'movements' && c.key === 'item') newRow[c.key] = row.inventory_items?.name;
           if (reportType === 'movements' && c.key === 'user') newRow[c.key] = row.profiles?.username;
           if (reportType === 'movements' && c.key === 'reason') newRow[c.key] = row.movement_reasons?.name;
@@ -258,7 +283,6 @@ export const Reports: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
-      {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2 capitalize">
           <TrendingUp className="text-primary" />
@@ -267,7 +291,6 @@ export const Reports: React.FC = () => {
         <p className="text-sm text-slate-500 mt-1">Generate, filter, and export comprehensive operational data.</p>
       </div>
 
-      {/* Filter Panel */}
       <FilterPanel 
         reportType={reportType}
         filters={filters}
@@ -279,20 +302,104 @@ export const Reports: React.FC = () => {
         users={users}
       />
 
-      {/* Data Table */}
       <ReportTable 
-        columns={getColumns()}
+        columns={columns}
         data={data}
         loading={loading}
       />
 
-      {/* Export Panel (Sticky Bottom) */}
       <ExportPanel 
         totalCount={data.length}
-        columns={getColumns()}
+        columns={columns}
         onExport={handleExport}
         exporting={exporting}
       />
+
+      {/* Supplier History Modal */}
+      {historyOpen && historySupplier && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900/50 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl my-6 card-shadow flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">{historySupplier.name}</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Full transaction history · Outstanding: <span className="font-bold text-rose-600">LKR {Number(historySupplier.outstanding_balance).toLocaleString()}</span></p>
+              </div>
+              <button onClick={() => setHistoryOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[70vh]">
+              {historyLoading ? (
+                <div className="flex items-center justify-center py-12 text-slate-400">
+                  <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
+                  Loading history...
+                </div>
+              ) : historyData.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <Clock size={40} className="mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No transaction history yet.</p>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div className="absolute left-4 top-0 bottom-0 w-px bg-slate-100" />
+                  <div className="space-y-4">
+                    {historyData.map((item, idx) => (
+                      <div key={idx} className="flex gap-4 relative">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ${
+                          item.type === 'PO' ? 'bg-blue-100' :
+                          item.type === 'GRN' ? 'bg-green-100' : 'bg-amber-100'
+                        }`}>
+                          {item.type === 'PO' && <Package size={14} className="text-blue-600" />}
+                          {item.type === 'GRN' && <Package size={14} className="text-green-600" />}
+                          {item.type === 'PAYMENT' && <DollarSign size={14} className="text-amber-600" />}
+                        </div>
+                        <div className={`flex-1 rounded-xl p-4 border text-sm ${
+                          item.type === 'PO' ? 'bg-blue-50/50 border-blue-100' :
+                          item.type === 'GRN' ? 'bg-green-50/50 border-green-100' : 'bg-amber-50/50 border-amber-100'
+                        }`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              {item.type === 'PO' && (
+                                <>
+                                  <p className="font-bold text-blue-700">Purchase Order Raised</p>
+                                  <p className="text-xs text-slate-600 mt-1">PO# <span className="font-mono font-semibold">{item.data.po_number}</span> · Status: <span className="font-semibold">{item.data.status}</span></p>
+                                  <p className="text-xs font-bold text-slate-700 mt-1">LKR {Number(item.data.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                                </>
+                              )}
+                              {item.type === 'GRN' && (
+                                <>
+                                  <p className="font-bold text-green-700">Goods Received (GRN)</p>
+                                  <p className="text-xs text-slate-600 mt-1">GRN# <span className="font-mono font-semibold">{item.data.grn_number}</span></p>
+                                  <p className="text-xs font-bold text-slate-700 mt-1">LKR {Number(item.data.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                                </>
+                              )}
+                              {item.type === 'PAYMENT' && (
+                                <>
+                                  <p className="font-bold text-amber-700">Payment Recorded</p>
+                                  <p className="text-xs text-slate-600 mt-1">
+                                    Method: <span className="font-semibold">{item.data.payment_method}</span>
+                                    {item.data.profiles?.username && <> · By: <span className="font-semibold">{item.data.profiles.username}</span></>}
+                                  </p>
+                                  {item.data.notes && <p className="text-xs text-slate-500 mt-1 italic">"{item.data.notes}"</p>}
+                                  <p className="text-sm font-bold text-green-700 mt-1">− LKR {Number(item.data.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                                </>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 font-medium shrink-0 whitespace-nowrap">
+                              {format(new Date(item.date), 'dd MMM yyyy')}
+                              <br/>{format(new Date(item.date), 'hh:mm a')}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
