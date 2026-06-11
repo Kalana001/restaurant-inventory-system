@@ -4,8 +4,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Edit3, Trash2, SlidersHorizontal, AlertCircle, Upload, X } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { BulkImportModal } from '../components/BulkImportModal';
+import { useSearchParams } from 'react-router-dom';
 
 export const Inventory: React.FC = () => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const { hasPermission, user } = useAuth();
   // Allow create/edit for admins, owners and managers; also for anyone with explicit permission
   const isAdminOrManager = ['admin','owner','manager'].includes((user?.role?.name || '').toLowerCase());
@@ -115,9 +117,20 @@ export const Inventory: React.FC = () => {
     }
   };
 
+  useEffect(() => { fetchCatalogData(); }, [search, selectedCategory]);
+
   useEffect(() => {
-    fetchCatalogData();
-  }, [search, selectedCategory]);
+    const batchId = searchParams.get('openBatchId');
+    if (batchId && items.length > 0) {
+      const targetItem = items.find(i => i.id === batchId);
+      if (targetItem) {
+        setSelectedBatchItem(targetItem);
+        setBatchModalOpen(true);
+        searchParams.delete('openBatchId');
+        setSearchParams(searchParams, { replace: true });
+      }
+    }
+  }, [searchParams, items, setSearchParams]);
 
   const openAddModal = () => {
     setEditingItem(null);
@@ -796,10 +809,14 @@ export const Inventory: React.FC = () => {
                </button>
              </div>
 
-             <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl text-sm">
+             <div className="grid grid-cols-3 gap-4 bg-slate-50 p-4 rounded-xl text-sm">
                <div>
                  <p className="text-slate-400 font-semibold text-[10px] uppercase">Base Unit</p>
                  <p className="font-bold text-slate-700">{selectedBatchItem.units?.abbreviation || 'N/A'}</p>
+               </div>
+               <div>
+                 <p className="text-slate-400 font-semibold text-[10px] uppercase">Reorder Level</p>
+                 <p className="font-bold text-rose-600">{selectedBatchItem.reorder_level || 0} {selectedBatchItem.units?.abbreviation || ''}</p>
                </div>
                <div>
                  <p className="text-slate-400 font-semibold text-[10px] uppercase">Total Available Stock</p>

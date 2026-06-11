@@ -56,7 +56,7 @@ export const DashboardLayout: React.FC = () => {
                 title: 'Low Stock Alert',
                 message: `${item.name} is running low (${currentStock} remaining).`,
                 time: new Date().toISOString(),
-                link: '/reports/valuation'
+                link: `/inventory?openBatchId=${item.id}`
               });
             }
           });
