@@ -137,7 +137,7 @@ export const Adjustments: React.FC = () => {
     const unit = units.find(u => u.id === item?.base_unit_id);
     const { data: itemBatches } = await supabase
       .from('batches')
-      .select('id, batch_number, available_qty, cost_price, expiry_date')
+      .select('id, batch_number, available_qty, expiry_date, inventory_items ( cost_price )')
       .eq('item_id', itemId)
       .gt('available_qty', 0)
       .order('received_date', { ascending: false });
@@ -587,7 +587,7 @@ export const Adjustments: React.FC = () => {
                           <option value="">Select batch...</option>
                           {line.batches.map(b => (
                             <option key={b.id} value={b.id}>
-                              {b.batch_number} (LKR {Number(b.cost_price || 0).toFixed(3)}){b.expiry_date ? ` [Exp: ${b.expiry_date}]` : ''}
+                              {b.batch_number} (LKR {Number((b.inventory_items as any)?.cost_price || 0).toFixed(3)}){b.expiry_date ? ` [Exp: ${b.expiry_date}]` : ''}
                             </option>
                           ))}
                         </select>
