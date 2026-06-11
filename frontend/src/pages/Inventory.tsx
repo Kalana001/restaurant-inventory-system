@@ -7,7 +7,10 @@ import { BulkImportModal } from '../components/BulkImportModal';
 
 export const Inventory: React.FC = () => {
   const { hasPermission, user } = useAuth();
-  const canCreate = hasPermission('items:create') || ['admin','owner','manager'].includes(user?.role?.name?.toLowerCase() || '');
+  // Allow create/edit for admins, owners and managers; also for anyone with explicit permission
+  const isAdminOrManager = ['admin','owner','manager'].includes((user?.role?.name || '').toLowerCase());
+  const canCreate = isAdminOrManager || hasPermission('items:create');
+  const canDelete = isAdminOrManager || hasPermission('items:delete');
   
   // Catalog List States
   const [items, setItems] = useState<any[]>([]);
@@ -371,7 +374,7 @@ export const Inventory: React.FC = () => {
                         >
                           <Edit3 size={16} />
                         </button>
-                        {(hasPermission('items:delete') || ['admin','owner'].includes(user?.role?.name?.toLowerCase() || '')) && (
+                        {canDelete && (
                           <button
                             onClick={() => handleDeleteClick(item.id)}
                             className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
