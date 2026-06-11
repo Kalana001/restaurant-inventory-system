@@ -111,7 +111,7 @@ export const Reports: React.FC = () => {
 
       if (reportType === 'movements' && filters.search) {
         const s = filters.search.toLowerCase();
-        finalData = finalData.filter((m: any) => m.inventory_items?.name?.toLowerCase().includes(s));
+        finalData = finalData.filter((m: any) => m.inventory_items?.name?.toLowerCase()?.includes(s));
       }
 
       setData(finalData);
@@ -213,7 +213,7 @@ export const Reports: React.FC = () => {
               r.type === 'STOCK_IN' ? 'bg-green-100 text-green-700' :
               r.type === 'STOCK_OUT' ? 'bg-orange-100 text-orange-700' :
               'bg-blue-100 text-blue-700'
-            }`}>{r.type.replace('_', ' ')}</span>
+            }`}>{r.type?.replace('_', ' ') || '-'}</span>
           )},
           { key: 'quantity', header: 'Qty', render: (r) => `${r.type === 'STOCK_OUT' ? '-' : '+'}${Number(r.quantity)} ${r.inventory_items?.units?.abbreviation}` },
           { key: 'user', header: 'Staff Member', render: (r) => r.profiles?.username },
