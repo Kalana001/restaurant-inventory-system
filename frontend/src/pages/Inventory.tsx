@@ -647,7 +647,7 @@ export const Inventory: React.FC = () => {
                     <input
                       type="number"
                       min="0"
-                      step="0.01"
+                      step="0.001"
                       value={costPrice}
                       onChange={(e) => setCostPrice(e.target.value)}
                       placeholder="0.00"
@@ -665,7 +665,7 @@ export const Inventory: React.FC = () => {
                   <div className="space-y-1.5">
                     <label className="text-xs font-bold text-slate-500 uppercase">Reorder Level</label>
                     <input
-                      type="number" min="0"
+                      type="number" min="0" step="0.001"
                       value={reorderLevel}
                       onChange={(e) => setReorderLevel(e.target.value)}
                       placeholder="e.g. 20"
@@ -709,7 +709,7 @@ export const Inventory: React.FC = () => {
                       <input
                         type="number"
                         min="0"
-                        step="0.01"
+                        step="0.001"
                         value={openingQty}
                         onChange={(e) => setOpeningQty(e.target.value)}
                         placeholder="e.g. 50"

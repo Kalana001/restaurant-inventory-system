@@ -126,7 +126,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const hasPermission = (code: string) => permissions.includes(code);
+  const hasPermission = (code: string) => {
+    const roleName = user?.role?.name?.toUpperCase();
+    if (roleName === 'ADMIN' || roleName === 'OWNER') return true;
+    return permissions.includes(code);
+  };
 
   const logout = async () => {
     await supabase.auth.signOut();

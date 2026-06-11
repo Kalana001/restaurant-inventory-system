@@ -448,7 +448,7 @@ export const PurchaseOrders: React.FC = () => {
                         <tr key={idx} className="hover:bg-slate-50/50">
                           <td className="px-4 py-3 font-medium text-slate-800">{line.name}</td>
                           <td className="px-4 py-2">
-                            <input type="number" min="1" value={line.quantity || ''} onChange={(e) => updatePoLine(idx, 'quantity', e.target.value)} className="w-20 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg text-center font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" /> <span className="text-slate-500 font-medium ml-1">{line.unit}</span>
+                            <input type="number" min="0.001" step="0.001" value={line.quantity || ''} onChange={(e) => updatePoLine(idx, 'quantity', e.target.value)} className="w-20 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg text-center font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" /> <span className="text-slate-500 font-medium ml-1">{line.unit}</span>
                           </td>
                           <td className="px-4 py-2">
                             <input type="number" min="0" step="0.01" value={line.costPrice || ''} onChange={(e) => updatePoLine(idx, 'costPrice', e.target.value)} className="w-24 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" />

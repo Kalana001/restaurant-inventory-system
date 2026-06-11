@@ -477,7 +477,7 @@ export const Adjustments: React.FC = () => {
                       {movementType === 'STOCK_IN' ? (
                         <input
                           type="number"
-                          step="0.01"
+                          step="0.001"
                           min="0"
                           placeholder="Optional price..."
                           value={line.price || ''}
@@ -508,7 +508,7 @@ export const Adjustments: React.FC = () => {
                     <div className="col-span-10 md:col-span-3 flex items-center gap-2">
                       <input
                         type="number"
-                        min="0.01"
+                        min="0.001"
                         step="any"
                         value={line.quantity}
                         onChange={(e) => updateLine(line.id, 'quantity', e.target.value)}
