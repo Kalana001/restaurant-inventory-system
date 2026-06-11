@@ -319,7 +319,7 @@ export const PurchaseOrders: React.FC = () => {
           batchNumber: `GRN-${Date.now()}-${i.itemId.slice(0, 6)}`
         }))
       };
-      const response = await api.post('/grn', payload);
+      const response = await api.post('/grns', payload);
       if (response.data.status === 'success') {
         // Mark PO as COMPLETED
         await supabase.from('purchase_orders').update({ status: 'COMPLETED' }).eq('id', grnPo.id);
