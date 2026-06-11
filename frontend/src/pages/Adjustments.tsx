@@ -197,7 +197,21 @@ export const Adjustments: React.FC = () => {
     }
   };
 
-  const filteredReasons = reasons.filter(r => r.type === movementType);
+  const filteredReasons = reasons.filter(r => r.type === movementType).sort((a, b) => {
+    if (movementType === 'STOCK_OUT') {
+      const aName = (a.name || '').toLowerCase();
+      const bName = (b.name || '').toLowerCase();
+      const aIsTop = aName === 'jat' || aName === 'kitchen usage';
+      const bIsTop = bName === 'jat' || bName === 'kitchen usage';
+      if (aIsTop && !bIsTop) return -1;
+      if (!aIsTop && bIsTop) return 1;
+      if (aIsTop && bIsTop) {
+        if (aName === 'kitchen usage') return -1;
+        if (bName === 'kitchen usage') return 1;
+      }
+    }
+    return (a.name || '').localeCompare(b.name || '');
+  });
 
   const canAdjust = hasPermission('stock:adjust') || ['admin','owner','manager'].includes((user?.role?.name || '').toLowerCase());
 
