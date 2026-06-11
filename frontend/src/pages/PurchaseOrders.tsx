@@ -926,6 +926,86 @@ export const PurchaseOrders: React.FC = () => {
       )}
 
       {/* ── Pay Modal ──────────────────────────────────────────── */}
+      {/* UPDATE PRICES MODAL */}
+      {updatePricesModalOpen && updatePricesPo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 space-y-6 card-shadow my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <h3 className="text-lg font-bold text-slate-800">Update Prices for {updatePricesPo.po_number}</h3>
+              <button onClick={() => setUpdatePricesModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20}/></button>
+            </div>
+
+            {updatePricesError && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl flex items-start gap-3">
+                <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
+                <p className="text-sm font-medium text-red-800">{updatePricesError}</p>
+              </div>
+            )}
+
+            <form onSubmit={handleUpdatePrices} className="space-y-4">
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
+                    <tr>
+                      <th className="px-4 py-3 font-semibold">Item</th>
+                      <th className="px-4 py-3 font-semibold text-center">Qty</th>
+                      <th className="px-4 py-3 font-semibold text-right">Cost Price</th>
+                      <th className="px-4 py-3 font-semibold text-right">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {updatePricesLines.map((line, idx) => {
+                      const cost = Number(line.new_cost_price) || 0;
+                      const total = cost * Number(line.quantity);
+                      return (
+                        <tr key={line.id} className="hover:bg-slate-50/50">
+                          <td className="px-4 py-3 font-medium text-slate-800">{line.inventory_items?.name}</td>
+                          <td className="px-4 py-3 text-center">{line.quantity} {line.inventory_items?.units?.abbreviation}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex justify-end">
+                              <input
+                                type="number"
+                                step="0.001"
+                                required
+                                min="0"
+                                className="input-field text-right w-32 py-1.5"
+                                value={line.new_cost_price}
+                                onChange={e => {
+                                  const newLines = [...updatePricesLines];
+                                  newLines[idx].new_cost_price = e.target.value;
+                                  setUpdatePricesLines(newLines);
+                                }}
+                              />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right font-semibold text-slate-700">
+                            {total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="bg-slate-50 p-4 rounded-xl flex justify-between items-center">
+                <span className="font-semibold text-slate-600">New Grand Total:</span>
+                <span className="text-lg font-bold text-slate-800">
+                  LKR {Math.max(0, updatePricesLines.reduce((acc, line) => acc + (Number(line.new_cost_price) || 0) * Number(line.quantity), 0) - Number(updatePricesPo.discount_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
+                <button type="button" onClick={() => setUpdatePricesModalOpen(false)} className="px-5 py-2.5 border border-slate-200 text-slate-700 font-semibold rounded-xl text-sm hover:bg-slate-50">Cancel</button>
+                <button type="submit" disabled={updatePricesLoading} className="px-5 py-2.5 bg-blue-600 text-white font-semibold rounded-xl text-sm shadow-sm hover:bg-blue-700 disabled:opacity-50">
+                  {updatePricesLoading ? 'Saving...' : 'Save Prices'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {payModalOpen && payPo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-6 card-shadow">
