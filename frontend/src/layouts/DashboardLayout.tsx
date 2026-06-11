@@ -118,7 +118,7 @@ export const DashboardLayout: React.FC = () => {
       icon: <ClipboardList size={20} />, 
       permission: 'po:read',
       subItems: [
-        { label: 'Receive Goods (GRN)', path: '/grns', permission: 'grn:read' },
+
         { label: 'Suppliers Catalog', path: '/suppliers', permission: 'suppliers:read' }
       ]
     },
