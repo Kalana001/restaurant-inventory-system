@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import api from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Edit3, Trash2, CreditCard, AlertCircle, X, Clock, Package, DollarSign } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
@@ -102,46 +101,70 @@ export const Suppliers: React.FC = () => {
     setTargetSupplier(sup);
     setPaymentAmount(''); setPaymentMethod('By Restaurant'); setPaymentNotes('');
     setFormError(null); setSettling(false); setSettlementOpen(true);
-    
+    setUnpaidPOs([]); setSelectedPOs({});
     try {
-      const { data: pos } = await supabase
+      const { data, error } = await supabase
         .from('purchase_orders')
-        .select('id, po_number, total_amount, paid_amount, payment_status, created_at')
+        .select('*')
         .eq('supplier_id', sup.id)
-        .neq('payment_status', 'PAID')
-        .order('created_at', { ascending: false });
-      setUnpaidPOs(pos || []);
-      setSelectedPOs({});
+        .neq('status', 'CANCELLED')
+        .neq('status', 'REJECTED')
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      if (data) {
+        const unpaid = data.filter(po => {
+          const total = Number(po.total_amount);
+          const paid = Number(po.paid_amount || 0);
+          return paid < total;
+        });
+        setUnpaidPOs(unpaid);
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Failed to fetch unpaid POs:', err);
     }
   };
 
   const handleSettle = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
-    if (Number(paymentAmount) <= 0) { setFormError('Payment amount must be greater than zero.'); return; }
+    const amount = Number(paymentAmount);
+    if (amount <= 0) { setFormError('Payment amount must be greater than zero.'); return; }
     
-    const allocations = Object.entries(selectedPOs)
-      .map(([po_id, amount]) => ({ po_id, amount: Number(amount) }))
-      .filter(a => a.amount > 0);
+    const allocations = Object.keys(selectedPOs).map(poId => ({
+      po_id: poId,
+      amount_allocated: selectedPOs[poId]
+    }));
+    
+    const totalAllocated = allocations.reduce((sum, a) => sum + a.amount_allocated, 0);
+    if (totalAllocated > amount) {
+      setFormError('Allocated amount cannot exceed total payment amount.');
+      return;
+    }
 
     setSettling(true);
     try {
-      const payload = {
-        supplierId: targetSupplier.id,
-        amount: Number(paymentAmount),
-        paymentMethod,
-        paymentDate: new Date().toISOString().split('T')[0],
-        remarks: paymentNotes.trim() || undefined,
-        allocations
-      };
+      const response = await fetch('http://localhost:3000/api/payments/supplier', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          supplierId: targetSupplier.id,
+          amount: amount,
+          paymentMethod: paymentMethod,
+          notes: paymentNotes,
+          allocations: allocations,
+          userId: user?.id
+        })
+      });
 
-      await api.post('/payments/supplier', payload);
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Payment failed');
+      }
+
       setSettlementOpen(false);
       fetchSuppliers();
     } catch (err: any) {
-      setFormError(err.response?.data?.message || err.message || 'Failed to record payment settlement.');
+      setFormError(err.message || 'Failed to record payment settlement.');
     } finally {
       setSettling(false);
     }
@@ -334,69 +357,17 @@ export const Suppliers: React.FC = () => {
               <h3 className="text-lg font-bold text-slate-800">{editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}</h3>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
             </div>
-                          {formError && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl flex items-start gap-2">
-                  <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={16} />
-                  <p className="text-xs font-semibold text-red-700">{formError}</p>
-                </div>
-              )}
-
-              <form onSubmit={handleSettle} className="space-y-4">
+            {formError && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl flex items-start gap-2">
+                <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={16} />
+                <p className="text-xs font-semibold text-red-700">{formError}</p>
+              </div>
+            )}
+            <form onSubmit={handleSave} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Select POs to Pay</label>
-                  <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl divide-y">
-                    {unpaidPOs.length === 0 ? (
-                      <div className="p-4 text-center text-sm text-slate-500">No unpaid POs found.</div>
-                    ) : (
-                      unpaidPOs.map(po => {
-                        const balance = Number(po.total_amount) - Number(po.paid_amount || 0);
-                        const isSelected = selectedPOs[po.id] !== undefined;
-                        return (
-                          <div key={po.id} className="p-3 flex items-center justify-between hover:bg-slate-50 transition-colors">
-                            <div className="flex items-center gap-3">
-                              <input 
-                                type="checkbox" 
-                                checked={isSelected}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedPOs(prev => ({ ...prev, [po.id]: balance }));
-                                  } else {
-                                    const next = { ...prev };
-                                    delete next[po.id];
-                                    setSelectedPOs(next);
-                                  }
-                                }}
-                                className="w-4 h-4 text-primary rounded border-slate-300 focus:ring-primary" 
-                              />
-                              <div>
-                                <p className="text-sm font-semibold text-slate-700">{po.po_number}</p>
-                                <p className="text-xs text-slate-500">Balance: LKR {balance.toLocaleString()}</p>
-                              </div>
-                            </div>
-                            {isSelected && (
-                              <input 
-                                type="number" min="0.01" max={balance} step="0.01" required
-                                value={selectedPOs[po.id] || ''}
-                                onChange={e => setSelectedPOs(prev => ({ ...prev, [po.id]: Number(e.target.value) }))}
-                                className="w-24 px-2 py-1 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
-                              />
-                            )}
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Total Payment Amount (LKR) *</label>
-                  <input
-                    type="number" min="0.01" step="0.01" required
-                    value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)}
-                    placeholder="0.00"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary"
-                  />
-                  <p className="text-xs text-slate-400">Allocated: LKR {Object.values(selectedPOs).reduce((a,b)=>a+b, 0).toLocaleString()}</p>
+                  <label className="text-xs font-bold text-slate-500 uppercase">Supplier Name *</label>
+                  <input required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Fresh Farm Supplies" className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Supplier Code *</label>
@@ -449,14 +420,14 @@ export const Suppliers: React.FC = () => {
               <span className="text-lg font-bold text-rose-600">LKR {Number(targetSupplier.outstanding_balance).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
             </div>
 
-                          {formError && (
-                <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl flex items-start gap-2">
-                  <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={16} />
-                  <p className="text-xs font-semibold text-red-700">{formError}</p>
-                </div>
-              )}
+            {formError && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl flex items-start gap-2">
+                <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={16} />
+                <p className="text-xs font-semibold text-red-700">{formError}</p>
+              </div>
+            )}
 
-              <form onSubmit={handleSettle} className="space-y-4">
+            <form onSubmit={handleSettle} className="space-y-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Select POs to Pay</label>
                   <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-xl divide-y">
@@ -661,4 +632,3 @@ export const Suppliers: React.FC = () => {
   );
 };
 export default Suppliers;
-
