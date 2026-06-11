@@ -438,7 +438,8 @@ export const Inventory: React.FC = () => {
                 <th className="px-6 py-4">Item Name</th>
                 <th className="px-6 py-4">Category</th>
                 <th className="px-6 py-4">Sub Category</th>
-                <th className="px-6 py-4">Total Stock</th>
+                <th className="px-6 py-4 text-right">Cost Price</th>
+                <th className="px-6 py-4 text-right">Total Stock</th>
                 {canCreate && <th className="px-6 py-4 text-right">Actions</th>}
               </tr>
             </thead>
@@ -476,7 +477,10 @@ export const Inventory: React.FC = () => {
                       </span>
                     </td>
                     <td className="px-6 py-4 text-slate-500">{item.subcategories?.name || '-'}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-700">
+                    <td className="px-6 py-4 font-semibold text-slate-700 text-right">
+                      {item.cost_price ? `LKR ${Number(item.cost_price).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : '-'}
+                    </td>
+                    <td className="px-6 py-4 font-semibold text-slate-700 text-right">
                       {item.batches?.reduce((acc: number, b: any) => acc + Number(b.available_qty || 0), 0) || 0}{' '}
                       <span className="text-xs text-slate-400 font-normal">{item.units?.abbreviation || ''}</span>
                     </td>
