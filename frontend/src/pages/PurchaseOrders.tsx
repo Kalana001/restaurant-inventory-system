@@ -386,7 +386,6 @@ export const PurchaseOrders: React.FC = () => {
         po_id: payPo.id,
         amount,
         payment_method: payMethod,
-        payment_date: payDate,
         cheque_realize_date: payMethod === 'Cheque' ? chequeDate : null,
         notes: `Payment for ${payPo.po_number}`,
         paid_by: user?.id
