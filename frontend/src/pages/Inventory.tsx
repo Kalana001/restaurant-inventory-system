@@ -41,11 +41,16 @@ export const Inventory: React.FC = () => {
   const [minStock, setMinStock] = useState('10');
   const [maxStock, setMaxStock] = useState('100');
   const [reorderLevel, setReorderLevel] = useState('20');
-  const [costPrice, setCostPrice] = useState('0.00');
-  const [sellingPrice, setSellingPrice] = useState('0.00');
+  const [costPrice, setCostPrice] = useState('');
+  const [sellingPrice, setSellingPrice] = useState('');
   const [isBatchTracked, setIsBatchTracked] = useState(false);
   const [isExpiryTracked, setIsExpiryTracked] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+
+  // Opening stock states (only shown on Add, not Edit)
+  const [openingQty, setOpeningQty] = useState('');
+  const [openingBatchNo, setOpeningBatchNo] = useState('');
+  const [openingExpiryDate, setOpeningExpiryDate] = useState('');
 
   // Confirm Modal States
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -121,11 +126,14 @@ export const Inventory: React.FC = () => {
     setMinStock('10');
     setMaxStock('100');
     setReorderLevel('20');
-    setCostPrice('0.00');
-    setSellingPrice('0.00');
+    setCostPrice('');
+    setSellingPrice('');
     setBaseUnitId(units[0]?.id || '');
     setIsBatchTracked(false);
     setIsExpiryTracked(false);
+    setOpeningQty('');
+    setOpeningBatchNo('');
+    setOpeningExpiryDate('');
     setFormError(null);
     setCategoryDropdownOpen(false);
     setModalOpen(true);
@@ -202,19 +210,21 @@ export const Inventory: React.FC = () => {
         setFormError('Please select or create a category before saving.');
         return;
       }
+      if (!costPrice || Number(costPrice) <= 0) {
+        setFormError('Please enter a valid cost price.');
+        return;
+      }
 
-      const selectedCat = categories.find(c => c.id === categoryId);
       const totalItemsCount = items.length;
-      const finalSku = sku.trim() || `INT-${totalItemsCount + 1}`;
-      const usedCategoryId = categoryId;
+      const finalSku = sku.trim() || `INT-${String(totalItemsCount + 1).padStart(4,'0')}`;
 
       const itemPayload = {
         sku: finalSku,
         name: name.trim(),
         description: description.trim(),
-        category_id: usedCategoryId,
+        category_id: categoryId,
         subcategory_id: subcategoryId || null,
-        supplier_id: supplierId,
+        supplier_id: supplierId || null,
         
         base_unit_id: baseUnitId || units[0]?.id,
         purchase_unit_id: baseUnitId || units[0]?.id,
@@ -222,15 +232,17 @@ export const Inventory: React.FC = () => {
         purchase_to_base_factor: 1,
         issue_to_base_factor: 1,
 
-        min_stock: Number(minStock),
-        max_stock: Number(maxStock),
-        reorder_level: Number(reorderLevel),
+        min_stock: Number(minStock) || 0,
+        max_stock: Number(maxStock) || 0,
+        reorder_level: Number(reorderLevel) || 0,
         cost_price: Number(costPrice),
-        selling_price: Number(sellingPrice),
+        selling_price: Number(sellingPrice) || 0,
         is_batch_tracked: isBatchTracked,
         is_expiry_tracked: isExpiryTracked,
         status: 'ACTIVE'
       };
+
+      let savedItemId: string | null = null;
 
       if (editingItem) {
         const { error } = await supabase
@@ -238,11 +250,84 @@ export const Inventory: React.FC = () => {
           .update(itemPayload)
           .eq('id', editingItem.id);
         if (error) throw error;
+        savedItemId = editingItem.id;
       } else {
-        const { error } = await supabase
+        const { data: newItem, error } = await supabase
           .from('inventory_items')
-          .insert(itemPayload);
+          .insert(itemPayload)
+          .select('id')
+          .single();
         if (error) throw error;
+        savedItemId = newItem.id;
+
+        // If opening stock is provided, create a batch + stock movement
+        if (savedItemId && openingQty && Number(openingQty) > 0) {
+          const qty = Number(openingQty);
+          const batchNo = openingBatchNo.trim() || `INIT-${finalSku}`;
+
+          // 1. Create the batch
+          const { data: batch, error: batchErr } = await supabase
+            .from('batches')
+            .insert({
+              batch_number: batchNo,
+              item_id: savedItemId,
+              supplier_id: supplierId || null,
+              received_date: new Date().toISOString().split('T')[0],
+              expiry_date: openingExpiryDate || null,
+              current_qty: qty,
+              available_qty: qty,
+              status: 'ACTIVE'
+            })
+            .select('id')
+            .single();
+          if (batchErr) throw batchErr;
+
+          // 2. Find or use the "Opening Stock" reason
+          let reasonId: string | null = null;
+          const { data: reasons } = await supabase
+            .from('movement_reasons')
+            .select('id, name')
+            .ilike('name', '%opening%')
+            .limit(1);
+          if (reasons && reasons.length > 0) {
+            reasonId = reasons[0].id;
+          } else {
+            // Fallback to "Correction In"
+            const { data: fallback } = await supabase
+              .from('movement_reasons')
+              .select('id')
+              .ilike('name', '%correction in%')
+              .limit(1);
+            reasonId = fallback?.[0]?.id || null;
+          }
+
+          if (!reasonId) {
+            // Create opening stock reason if none exists
+            const { data: newReason, error: rErr } = await supabase
+              .from('movement_reasons')
+              .insert({ name: 'Opening Stock', type: 'STOCK_IN', is_system: true })
+              .select('id')
+              .single();
+            if (!rErr && newReason) reasonId = newReason.id;
+          }
+
+          if (reasonId && batch?.id) {
+            // 3. Create stock movement
+            const movNum = `STK-OPEN-${finalSku}-${Date.now()}`;
+            await supabase.from('stock_movements').insert({
+              movement_number: movNum,
+              item_id: savedItemId,
+              batch_id: batch.id,
+              type: 'STOCK_IN',
+              quantity: qty,
+              cost_price: Number(costPrice),
+              reason_id: reasonId,
+              created_by: user?.id,
+              reference_type: 'OPENING_STOCK',
+              status: 'APPROVED'
+            });
+          }
+        }
       }
 
       setModalOpen(false);
@@ -554,10 +639,10 @@ export const Inventory: React.FC = () => {
                 </div>
               </div>
 
-              {/* Base Unit */}
+              {/* Base Unit & Supplier */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-4">
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Base Unit</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase">Base Unit of Measure</label>
                   <select
                     value={baseUnitId}
                     onChange={(e) => setBaseUnitId(e.target.value)}
@@ -569,11 +654,90 @@ export const Inventory: React.FC = () => {
                     ))}
                   </select>
                 </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Default Supplier (Optional)</label>
+                  <select
+                    value={supplierId}
+                    onChange={(e) => setSupplierId(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
+                  >
+                    <option value="">No supplier</option>
+                    {suppliers.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
-              {/* Default prices and stock levels removed as requested */}
+              {/* Pricing */}
+              <div className="border-t border-slate-100 pt-4">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">💰 Pricing</p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Cost Price (LKR) <span className="text-red-500">*</span></label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      required
+                      value={costPrice}
+                      onChange={(e) => setCostPrice(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                    <p className="text-xs text-slate-400">Price you pay when purchasing this item</p>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Selling Price (LKR)</label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={sellingPrice}
+                      onChange={(e) => setSellingPrice(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                    <p className="text-xs text-slate-400">Price charged when issuing this item</p>
+                  </div>
+                </div>
+              </div>
 
-              {/* Toggles */}
+              {/* Stock Levels */}
+              <div className="border-t border-slate-100 pt-4">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-3">📊 Stock Level Thresholds</p>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Min Stock</label>
+                    <input
+                      type="number" min="0"
+                      value={minStock}
+                      onChange={(e) => setMinStock(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Reorder Level</label>
+                    <input
+                      type="number" min="0"
+                      value={reorderLevel}
+                      onChange={(e) => setReorderLevel(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Max Stock</label>
+                    <input
+                      type="number" min="0"
+                      value={maxStock}
+                      onChange={(e) => setMaxStock(e.target.value)}
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Tracking Toggles */}
               <div className="flex items-center space-x-6 border-t border-slate-100 pt-4">
                 <label className="flex items-center space-x-2 cursor-pointer">
                   <input
@@ -594,6 +758,53 @@ export const Inventory: React.FC = () => {
                   <span className="text-sm font-semibold text-slate-700">Track Expiration</span>
                 </label>
               </div>
+
+              {/* Opening Stock — only for new items */}
+              {!editingItem && (
+                <div className="border-t border-slate-100 pt-4 bg-green-50/50 rounded-xl p-4 -mx-1">
+                  <p className="text-xs font-bold text-green-700 uppercase tracking-widest mb-1">📦 Opening Stock (Optional)</p>
+                  <p className="text-xs text-green-600 mb-4">Add the current stock you have on hand. Leave blank if you'll receive stock via a Purchase Order later.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase">Quantity</label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={openingQty}
+                        onChange={(e) => setOpeningQty(e.target.value)}
+                        placeholder="e.g. 50"
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400 text-sm bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase">Batch No. (Optional)</label>
+                      <input
+                        type="text"
+                        value={openingBatchNo}
+                        onChange={(e) => setOpeningBatchNo(e.target.value)}
+                        placeholder="Auto-generated if blank"
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400 text-sm bg-white"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-bold text-slate-500 uppercase">Expiry Date (Optional)</label>
+                      <input
+                        type="date"
+                        value={openingExpiryDate}
+                        onChange={(e) => setOpeningExpiryDate(e.target.value)}
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-green-400 text-sm bg-white"
+                      />
+                    </div>
+                  </div>
+                  {openingQty && Number(openingQty) > 0 && (
+                    <div className="mt-3 flex items-center gap-2 text-xs font-semibold text-green-700 bg-green-100 px-3 py-2 rounded-lg">
+                      <span>✓</span>
+                      <span>{openingQty} units will be added to stock at LKR {costPrice || '0'} per unit</span>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Submit Buttons */}
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
