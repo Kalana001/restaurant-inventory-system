@@ -12,6 +12,8 @@ interface BulkLine {
   price?: string; // Optional price for STOCK_IN
   batches: any[];
   unitLabel: string;
+  searchQuery: string; // Added searchable autocomplete
+  showDropdown?: boolean; // Toggle dropdown suggestion visibility
 }
 
 const newLine = (): BulkLine => ({
@@ -22,6 +24,8 @@ const newLine = (): BulkLine => ({
   price: '',
   batches: [],
   unitLabel: '',
+  searchQuery: '',
+  showDropdown: false,
 });
 
 export const Adjustments: React.FC = () => {
@@ -399,19 +403,60 @@ export const Adjustments: React.FC = () => {
 
                 {lines.map((line, idx) => (
                   <div key={line.id} className="grid grid-cols-12 gap-2 items-start bg-slate-50 rounded-xl p-3 border border-slate-100">
-                    {/* Item Select */}
-                    <div className="col-span-12 md:col-span-5">
-                      <select
-                        value={line.itemId}
-                        onChange={(e) => loadBatchesForLine(line.id, e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
-                      >
-                        <option value="">Select item...</option>
-                        {catalogItems.map(item => (
-                          <option key={item.id} value={item.id}>{item.name}</option>
-                        ))}
-                      </select>
-                    </div>
+                     {/* Item Search & Select Autocomplete */}
+                     <div className="col-span-12 md:col-span-5 relative">
+                       <input
+                         type="text"
+                         placeholder="Type item name or SKU..."
+                         value={line.searchQuery}
+                         onChange={(e) => {
+                           const val = e.target.value;
+                           updateLine(line.id, 'searchQuery', val);
+                           updateLine(line.id, 'showDropdown', true);
+                           if (val.trim() === '') {
+                             updateLine(line.id, 'itemId', '');
+                             updateLine(line.id, 'batchId', '');
+                             updateLine(line.id, 'batches', []);
+                             updateLine(line.id, 'unitLabel', '');
+                           }
+                         }}
+                         onFocus={() => updateLine(line.id, 'showDropdown', true)}
+                         onBlur={() => setTimeout(() => updateLine(line.id, 'showDropdown', false), 200)}
+                         className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
+                         autoComplete="off"
+                       />
+                       {line.showDropdown && (
+                         <ul className="absolute z-[60] left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                           {catalogItems
+                             .filter(item => 
+                               item.name.toLowerCase().includes(line.searchQuery.toLowerCase()) ||
+                               item.sku.toLowerCase().includes(line.searchQuery.toLowerCase())
+                             )
+                             .slice(0, 10)
+                             .map(item => (
+                               <li
+                                 key={item.id}
+                                 onMouseDown={() => {
+                                   updateLine(line.id, 'itemId', item.id);
+                                   updateLine(line.id, 'searchQuery', item.name);
+                                   updateLine(line.id, 'showDropdown', false);
+                                   loadBatchesForLine(line.id, item.id);
+                                 }}
+                                 className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-primary transition-colors border-b border-slate-50 last:border-0"
+                               >
+                                 <span className="font-semibold">{item.name}</span>{' '}
+                                 <span className="text-xs text-slate-400">({item.sku})</span>
+                               </li>
+                             ))}
+                           {catalogItems.filter(item => 
+                             item.name.toLowerCase().includes(line.searchQuery.toLowerCase()) ||
+                             item.sku.toLowerCase().includes(line.searchQuery.toLowerCase())
+                           ).length === 0 && (
+                             <li className="px-3 py-2 text-xs text-slate-400 text-center italic">No items found</li>
+                           )}
+                         </ul>
+                       )}
+                     </div>
 
                     {/* Batch / Price Select */}
                     <div className="col-span-12 md:col-span-3">
