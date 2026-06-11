@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Eye, CheckCircle2, XCircle, AlertCircle, ShoppingCart, Trash2, PackageSearch, Banknote } from 'lucide-react';
+import { Plus, Search, Eye, CheckCircle2, XCircle, AlertCircle, ShoppingCart, Trash2, PackageSearch, Banknote, UserPlus, ChevronDown } from 'lucide-react';
 
 export const PurchaseOrders: React.FC = () => {
   const { user, hasPermission } = useAuth();
@@ -27,6 +27,21 @@ export const PurchaseOrders: React.FC = () => {
   const [itemSearch, setItemSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Supplier Search States
+  const [supplierSearch, setSupplierSearch] = useState('');
+  const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
+  const supplierRef = useRef<HTMLDivElement>(null);
+
+  // Quick Create Supplier Modal States
+  const [createSupplierOpen, setCreateSupplierOpen] = useState(false);
+  const [newSupplierName, setNewSupplierName] = useState('');
+  const [newSupplierCode, setNewSupplierCode] = useState('');
+  const [newSupplierPhone, setNewSupplierPhone] = useState('');
+  const [newSupplierEmail, setNewSupplierEmail] = useState('');
+  const [newSupplierAddress, setNewSupplierAddress] = useState('');
+  const [supplierSaving, setSupplierSaving] = useState(false);
+  const [supplierError, setSupplierError] = useState<string | null>(null);
 
   // Detail View States
   const [detailModalOpen, setDetailModalOpen] = useState(false);
@@ -74,6 +89,9 @@ export const PurchaseOrders: React.FC = () => {
       if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
         setShowSuggestions(false);
       }
+      if (supplierRef.current && !supplierRef.current.contains(e.target as Node)) {
+        setShowSupplierDropdown(false);
+      }
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -81,6 +99,7 @@ export const PurchaseOrders: React.FC = () => {
 
   const openCreateModal = () => {
     setSelectedSupplier(suppliers[0]?.id || '');
+    setSupplierSearch(suppliers[0] ? `${suppliers[0].name} (${suppliers[0].code})` : '');
     setRemarks('');
     setPoLines([]);
     setPoDiscount(0);
@@ -88,7 +107,38 @@ export const PurchaseOrders: React.FC = () => {
     setFormError(null);
     setItemSearch('');
     setShowSuggestions(false);
+    setShowSupplierDropdown(false);
     setCreateModalOpen(true);
+  };
+
+  const handleCreateSupplier = async () => {
+    setSupplierError(null);
+    if (!newSupplierName.trim() || !newSupplierCode.trim()) {
+      setSupplierError('Supplier name and code are required.');
+      return;
+    }
+    setSupplierSaving(true);
+    try {
+      const { data, error } = await supabase.from('suppliers').insert({
+        name: newSupplierName.trim(),
+        code: newSupplierCode.trim().toUpperCase(),
+        phone: newSupplierPhone.trim() || null,
+        email: newSupplierEmail.trim() || null,
+        address: newSupplierAddress.trim() || null,
+        status: 'ACTIVE'
+      }).select('*').single();
+      if (error) throw error;
+      setSuppliers(prev => [...prev, data]);
+      setSelectedSupplier(data.id);
+      setSupplierSearch(`${data.name} (${data.code})`);
+      setCreateSupplierOpen(false);
+      setNewSupplierName(''); setNewSupplierCode(''); setNewSupplierPhone('');
+      setNewSupplierEmail(''); setNewSupplierAddress('');
+    } catch (err: any) {
+      setSupplierError(err.message || 'Failed to create supplier.');
+    } finally {
+      setSupplierSaving(false);
+    }
   };
 
   const filteredSuggestions = itemSearch.trim() === '' ? [] : catalogItems.filter(item => 
@@ -396,9 +446,66 @@ export const PurchaseOrders: React.FC = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Vendor Supplier</label>
-                  <select value={selectedSupplier} onChange={(e) => setSelectedSupplier(e.target.value)} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white">
-                    {suppliers.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
-                  </select>
+                  <div ref={supplierRef} className="relative">
+                    <div
+                      className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary cursor-text"
+                      onClick={() => setShowSupplierDropdown(true)}
+                    >
+                      <Search size={14} className="text-slate-400 shrink-0" />
+                      <input
+                        type="text"
+                        value={supplierSearch}
+                        onChange={(e) => { setSupplierSearch(e.target.value); setShowSupplierDropdown(true); }}
+                        onFocus={() => setShowSupplierDropdown(true)}
+                        placeholder="Search supplier..."
+                        className="flex-1 text-sm outline-none bg-transparent"
+                        autoComplete="off"
+                      />
+                      <ChevronDown size={14} className="text-slate-400 shrink-0" />
+                    </div>
+                    {showSupplierDropdown && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
+                        {suppliers
+                          .filter(s =>
+                            supplierSearch.trim() === '' ||
+                            s.name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+                            s.code.toLowerCase().includes(supplierSearch.toLowerCase())
+                          )
+                          .map(s => (
+                            <button
+                              key={s.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedSupplier(s.id);
+                                setSupplierSearch(`${s.name} (${s.code})`);
+                                setShowSupplierDropdown(false);
+                              }}
+                              className={`w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-50 transition-colors text-sm ${
+                                selectedSupplier === s.id ? 'bg-blue-50 font-semibold text-primary' : 'text-slate-700'
+                              }`}
+                            >
+                              <span className="font-semibold">{s.name}</span>
+                              <span className="text-slate-400 text-xs ml-2">({s.code})</span>
+                            </button>
+                          ))
+                        }
+                        {suppliers.filter(s =>
+                          supplierSearch.trim() === '' ||
+                          s.name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
+                          s.code.toLowerCase().includes(supplierSearch.toLowerCase())
+                        ).length === 0 && (
+                          <div className="px-4 py-2 text-xs text-slate-400 text-center italic">No suppliers found</div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => { setShowSupplierDropdown(false); setCreateSupplierOpen(true); setSupplierError(null); }}
+                          className="w-full text-left px-4 py-3 flex items-center gap-2 text-primary font-semibold text-sm hover:bg-blue-50 border-t border-slate-100 transition-colors"
+                        >
+                          <UserPlus size={14} /> Create New Supplier
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Remarks / Instructions</label>
@@ -612,6 +719,95 @@ export const PurchaseOrders: React.FC = () => {
                 {payLoading ? 'Processing...' : 'Record Payment'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Quick Create Supplier Modal */}
+      {createSupplierOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-2">
+                <div className="p-2 bg-primary/10 rounded-lg"><UserPlus size={18} className="text-primary" /></div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">Create New Supplier</h3>
+                  <p className="text-xs text-slate-400">Add supplier and auto-select in PO</p>
+                </div>
+              </div>
+              <button onClick={() => setCreateSupplierOpen(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">✕</button>
+            </div>
+
+            {supplierError && (
+              <div className="bg-red-50 border-l-4 border-red-400 p-3 rounded-r-lg text-xs text-red-700 font-semibold flex items-center gap-2">
+                <AlertCircle size={14} /> {supplierError}
+              </div>
+            )}
+
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase">Supplier Name *</label>
+                  <input
+                    type="text" value={newSupplierName} onChange={e => setNewSupplierName(e.target.value)}
+                    placeholder="e.g. ABC Traders"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase">Supplier Code *</label>
+                  <input
+                    type="text" value={newSupplierCode} onChange={e => setNewSupplierCode(e.target.value)}
+                    placeholder="e.g. ABC001"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm uppercase"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase">Phone</label>
+                  <input
+                    type="text" value={newSupplierPhone} onChange={e => setNewSupplierPhone(e.target.value)}
+                    placeholder="e.g. 0771234567"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase">Email</label>
+                  <input
+                    type="email" value={newSupplierEmail} onChange={e => setNewSupplierEmail(e.target.value)}
+                    placeholder="e.g. info@abc.com"
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Address</label>
+                <input
+                  type="text" value={newSupplierAddress} onChange={e => setNewSupplierAddress(e.target.value)}
+                  placeholder="Supplier address (optional)"
+                  className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+                />
+              </div>
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button"
+                onClick={() => setCreateSupplierOpen(false)}
+                className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl text-sm hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleCreateSupplier}
+                disabled={supplierSaving}
+                className="flex-1 py-2.5 bg-primary text-white font-bold rounded-xl text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
+              >
+                {supplierSaving ? 'Saving...' : <><UserPlus size={14} /> Create & Select</>}
+              </button>
+            </div>
           </div>
         </div>
       )}
