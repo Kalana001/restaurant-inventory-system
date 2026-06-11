@@ -109,7 +109,11 @@ export const Adjustments: React.FC = () => {
   useEffect(() => { fetchData(); }, []);
 
   useEffect(() => {
-    const match = reasons.find(r => r.type === movementType);
+    if (reasons.length === 0) return;
+    const preferredName = movementType === 'STOCK_OUT' ? 'kitchen usage' : 'opening stock';
+    const preferred = reasons.find(r => r.type === movementType && r.name.toLowerCase() === preferredName);
+    const fallback = reasons.find(r => r.type === movementType);
+    const match = preferred || fallback;
     if (match) setSelectedReasonId(match.id);
   }, [movementType, reasons]);
 
@@ -118,8 +122,9 @@ export const Adjustments: React.FC = () => {
     setMovementType('STOCK_OUT');
     setMovementDate(new Date().toISOString().split('T')[0]);
     setFormError(null);
+    const kitchenUsage = reasons.find(r => r.type === 'STOCK_OUT' && r.name.toLowerCase() === 'kitchen usage');
     const firstOut = reasons.find(r => r.type === 'STOCK_OUT');
-    if (firstOut) setSelectedReasonId(firstOut.id);
+    if (kitchenUsage || firstOut) setSelectedReasonId((kitchenUsage || firstOut)!.id);
     setModalOpen(true);
   };
 
