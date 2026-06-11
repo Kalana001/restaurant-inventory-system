@@ -2,11 +2,15 @@ import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Eye, CheckCircle2, XCircle, AlertCircle, ShoppingCart, Trash2, PackageSearch, Banknote, UserPlus, ChevronDown } from 'lucide-react';
+import {
+  Plus, Search, Eye, AlertCircle, ShoppingCart, Trash2,
+  PackageSearch, Banknote, UserPlus, ChevronDown, XCircle,
+  PackageCheck, Clock, CheckCircle2, DollarSign
+} from 'lucide-react';
 
 export const PurchaseOrders: React.FC = () => {
   const { user, hasPermission } = useAuth();
-  
+
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -14,7 +18,7 @@ export const PurchaseOrders: React.FC = () => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [catalogItems, setCatalogItems] = useState<any[]>([]);
 
-  // Create PO Form States
+  // ── Create PO States ──────────────────────────────────────────
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [selectedSupplier, setSelectedSupplier] = useState('');
   const [remarks, setRemarks] = useState('');
@@ -23,17 +27,17 @@ export const PurchaseOrders: React.FC = () => {
   const [poDiscountType, setPoDiscountType] = useState<'fixed' | 'percentage'>('fixed');
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Item Search States
+  // ── Item Search States ────────────────────────────────────────
   const [itemSearch, setItemSearch] = useState('');
   const [showSuggestions, setShowSuggestions] = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
 
-  // Supplier Search States
+  // ── Supplier Search States ────────────────────────────────────
   const [supplierSearch, setSupplierSearch] = useState('');
   const [showSupplierDropdown, setShowSupplierDropdown] = useState(false);
   const supplierRef = useRef<HTMLDivElement>(null);
 
-  // Quick Create Supplier Modal States
+  // ── Quick Create Supplier States ──────────────────────────────
   const [createSupplierOpen, setCreateSupplierOpen] = useState(false);
   const [newSupplierName, setNewSupplierName] = useState('');
   const [newSupplierCode, setNewSupplierCode] = useState('');
@@ -43,21 +47,32 @@ export const PurchaseOrders: React.FC = () => {
   const [supplierSaving, setSupplierSaving] = useState(false);
   const [supplierError, setSupplierError] = useState<string | null>(null);
 
-  // Detail View States
+  // ── Detail View States ────────────────────────────────────────
   const [detailModalOpen, setDetailModalOpen] = useState(false);
   const [selectedPo, setSelectedPo] = useState<any | null>(null);
   const [poItems, setPoItems] = useState<any[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
-  // Pay Modal States
+  // ── GRN States ────────────────────────────────────────────────
+  const [grnModalOpen, setGrnModalOpen] = useState(false);
+  const [grnPo, setGrnPo] = useState<any | null>(null);
+  const [grnInvoiceNumber, setGrnInvoiceNumber] = useState('');
+  const [grnRemarks, setGrnRemarks] = useState('');
+  const [grnLoading, setGrnLoading] = useState(false);
+  const [grnError, setGrnError] = useState<string | null>(null);
+  const [grnItems, setGrnItems] = useState<any[]>([]);
+
+  // ── Pay Modal States ──────────────────────────────────────────
   const [payModalOpen, setPayModalOpen] = useState(false);
   const [payPo, setPayPo] = useState<any | null>(null);
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payMethod, setPayMethod] = useState<string>('Cash');
+  const [payDate, setPayDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [chequeDate, setChequeDate] = useState<string>('');
   const [payError, setPayError] = useState<string | null>(null);
   const [payLoading, setPayLoading] = useState(false);
 
+  // ─────────────────────────────────────────────────────────────
   const fetchPOs = async () => {
     setLoading(true);
     try {
@@ -72,7 +87,10 @@ export const PurchaseOrders: React.FC = () => {
         const { data: sups } = await supabase.from('suppliers').select('*').eq('status', 'ACTIVE');
         if (sups) setSuppliers(sups);
 
-        const { data: items } = await supabase.from('inventory_items').select('*, units:units!inventory_items_purchase_unit_id_fkey(abbreviation)').eq('status', 'ACTIVE');
+        const { data: items } = await supabase
+          .from('inventory_items')
+          .select('*, units:units!inventory_items_purchase_unit_id_fkey(abbreviation)')
+          .eq('status', 'ACTIVE');
         if (items) setCatalogItems(items);
       }
     } catch (err) {
@@ -86,17 +104,14 @@ export const PurchaseOrders: React.FC = () => {
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
-      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
-        setShowSuggestions(false);
-      }
-      if (supplierRef.current && !supplierRef.current.contains(e.target as Node)) {
-        setShowSupplierDropdown(false);
-      }
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) setShowSuggestions(false);
+      if (supplierRef.current && !supplierRef.current.contains(e.target as Node)) setShowSupplierDropdown(false);
     };
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  // ── Open Create PO Modal ──────────────────────────────────────
   const openCreateModal = () => {
     setSelectedSupplier(suppliers[0]?.id || '');
     setSupplierSearch(suppliers[0] ? `${suppliers[0].name} (${suppliers[0].code})` : '');
@@ -111,6 +126,7 @@ export const PurchaseOrders: React.FC = () => {
     setCreateModalOpen(true);
   };
 
+  // ── Quick Create Supplier ─────────────────────────────────────
   const handleCreateSupplier = async () => {
     setSupplierError(null);
     if (!newSupplierName.trim() || !newSupplierCode.trim()) {
@@ -141,8 +157,9 @@ export const PurchaseOrders: React.FC = () => {
     }
   };
 
-  const filteredSuggestions = itemSearch.trim() === '' ? [] : catalogItems.filter(item => 
-    item.name.toLowerCase().includes(itemSearch.toLowerCase()) || 
+  // ── Item Search Helpers ───────────────────────────────────────
+  const filteredSuggestions = itemSearch.trim() === '' ? [] : catalogItems.filter(item =>
+    item.name.toLowerCase().includes(itemSearch.toLowerCase()) ||
     item.sku.toLowerCase().includes(itemSearch.toLowerCase())
   );
 
@@ -152,31 +169,24 @@ export const PurchaseOrders: React.FC = () => {
       setFormError('Item already added. Adjust quantity below.');
       return;
     }
-    
-    setPoLines([
-      ...poLines,
-      {
-        itemId: item.id,
-        sku: item.sku,
-        name: item.name,
-        unit: item.units?.abbreviation || 'pcs',
-        quantity: 1,
-        costPrice: Number(item.cost_price),
-        discount: 0,
-        discountType: 'fixed',
-        totalCost: Number(item.cost_price)
-      }
-    ]);
+    setPoLines([...poLines, {
+      itemId: item.id,
+      sku: item.sku,
+      name: item.name,
+      unit: item.units?.abbreviation || 'pcs',
+      quantity: 1,
+      costPrice: Number(item.cost_price),
+      discount: 0,
+      discountType: 'fixed',
+      totalCost: Number(item.cost_price)
+    }]);
     setItemSearch('');
     setShowSuggestions(false);
   };
 
   const calculateLineTotal = (qty: number, price: number, disc: number, type: 'fixed' | 'percentage') => {
     const baseCost = qty * price;
-    if (type === 'percentage') {
-      const discAmt = baseCost * (disc / 100);
-      return Math.max(0, baseCost - discAmt);
-    }
+    if (type === 'percentage') return Math.max(0, baseCost - baseCost * (disc / 100));
     return Math.max(0, baseCost - disc);
   };
 
@@ -201,41 +211,29 @@ export const PurchaseOrders: React.FC = () => {
     });
   };
 
-  const removePoLine = (idx: number) => {
-    setPoLines(poLines.filter((_, i) => i !== idx));
-  };
+  const removePoLine = (idx: number) => setPoLines(poLines.filter((_, i) => i !== idx));
 
+  // ── Save PO ───────────────────────────────────────────────────
   const handleSavePO = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
-
-    if (poLines.length === 0) {
-      setFormError('Please add at least one line item to the PO.');
-      return;
-    }
-
+    if (poLines.length === 0) { setFormError('Please add at least one line item to the PO.'); return; }
     try {
       const subTotal = poLines.reduce((acc, curr) => acc + curr.totalCost, 0);
-      const calculatedPoDiscountAmount = poDiscountType === 'percentage' 
-        ? subTotal * (poDiscount / 100) 
-        : poDiscount;
-      const grandTotal = Math.max(0, subTotal - calculatedPoDiscountAmount);
+      const discountAmount = poDiscountType === 'percentage' ? subTotal * (poDiscount / 100) : poDiscount;
+      const grandTotal = Math.max(0, subTotal - discountAmount);
       const generatedPoNumber = `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-      const { data: poHeader, error: poErr } = await supabase
-        .from('purchase_orders')
-        .insert({
-          po_number: generatedPoNumber,
-          supplier_id: selectedSupplier,
-          status: 'PENDING',
-          total_amount: grandTotal,
-          discount_amount: calculatedPoDiscountAmount,
-          paid_amount: 0,
-          remarks: remarks.trim(),
-          created_by: user?.id
-        })
-        .select('*')
-        .single();
+      const { data: poHeader, error: poErr } = await supabase.from('purchase_orders').insert({
+        po_number: generatedPoNumber,
+        supplier_id: selectedSupplier,
+        status: 'PENDING',
+        total_amount: grandTotal,
+        discount_amount: discountAmount,
+        paid_amount: 0,
+        remarks: remarks.trim(),
+        created_by: user?.id
+      }).select('*').single();
 
       if (poErr || !poHeader) throw poErr;
 
@@ -263,43 +261,84 @@ export const PurchaseOrders: React.FC = () => {
     }
   };
 
+  // ── Detail Modal ──────────────────────────────────────────────
   const openDetailModal = async (po: any) => {
     setSelectedPo(po);
     setDetailLoading(true);
     setDetailModalOpen(true);
-
     try {
       const { data: items, error } = await supabase
         .from('purchase_order_items')
         .select(`id, quantity, cost_price, discount_amount, total_cost, inventory_items ( name, sku, units:units!inventory_items_purchase_unit_id_fkey ( abbreviation ) )`)
         .eq('po_id', po.id);
       if (!error && items) setPoItems(items);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setDetailLoading(false);
-    }
+    } catch (err) { console.error(err); }
+    finally { setDetailLoading(false); }
   };
 
-  const handleUpdateStatus = async (status: 'APPROVED' | 'REJECTED') => {
+  // ── Open GRN Modal ────────────────────────────────────────────
+  const openGrnModal = async (po: any) => {
+    setGrnPo(po);
+    setGrnInvoiceNumber('');
+    setGrnRemarks('');
+    setGrnError(null);
+    // Load PO items as GRN line items (quantity pre-filled from PO)
+    const { data: items } = await supabase
+      .from('purchase_order_items')
+      .select(`id, quantity, cost_price, total_cost, item_id, inventory_items ( name, sku, units:units!inventory_items_purchase_unit_id_fkey ( abbreviation ) )`)
+      .eq('po_id', po.id);
+    if (items) {
+      setGrnItems(items.map(i => ({
+        itemId: i.item_id,
+        name: i.inventory_items?.name,
+        unit: i.inventory_items?.units?.abbreviation || 'pcs',
+        quantity: i.quantity,
+        costPrice: Number(i.cost_price),
+        expiryDate: ''
+      })));
+    }
+    setGrnModalOpen(true);
+  };
+
+  // ── Save GRN ──────────────────────────────────────────────────
+  const handleSaveGRN = async () => {
+    setGrnError(null);
+    setGrnLoading(true);
     try {
-      const response = await api.patch(`/purchase-orders/${selectedPo.id}/status`, {
-        status,
-        remarks: `Updated via system dashboard authorization by ${user?.username}`
-      });
+      const payload = {
+        poId: grnPo.id,
+        supplierId: grnPo.supplier_id,
+        invoiceNumber: grnInvoiceNumber.trim() || null,
+        totalAmount: Number(grnPo.total_amount),
+        remarks: grnRemarks.trim(),
+        items: grnItems.map(i => ({
+          itemId: i.itemId,
+          quantity: Number(i.quantity),
+          costPrice: Number(i.costPrice),
+          expiryDate: i.expiryDate || null,
+          batchNumber: `GRN-${Date.now()}-${i.itemId.slice(0, 6)}`
+        }))
+      };
+      const response = await api.post('/grn', payload);
       if (response.data.status === 'success') {
-        setDetailModalOpen(false);
+        // Mark PO as COMPLETED
+        await supabase.from('purchase_orders').update({ status: 'COMPLETED' }).eq('id', grnPo.id);
+        setGrnModalOpen(false);
         fetchPOs();
       }
     } catch (err: any) {
-      alert(err.response?.data?.message || 'Failed to authorize PO status transition.');
+      setGrnError(err.response?.data?.message || err.message || 'Failed to process GRN.');
+    } finally {
+      setGrnLoading(false);
     }
   };
 
+  // ── Pay Modal ─────────────────────────────────────────────────
   const openPayModal = (po: any) => {
     setPayPo(po);
     setPayAmount(Number(po.total_amount) - Number(po.paid_amount || 0));
     setPayMethod('Cash');
+    setPayDate(new Date().toISOString().split('T')[0]);
     setChequeDate('');
     setPayError(null);
     setPayModalOpen(true);
@@ -310,10 +349,9 @@ export const PurchaseOrders: React.FC = () => {
     setPayError(null);
     const amount = Number(payAmount);
     const outstanding = Number(payPo.total_amount) - Number(payPo.paid_amount || 0);
-
     if (amount <= 0) return setPayError('Payment amount must be greater than zero.');
     if (amount > outstanding) return setPayError('Payment cannot exceed the outstanding balance.');
-    if (payMethod === 'Cheque' && !chequeDate) return setPayError('Please provide a realize date for the cheque.');
+    if (payMethod === 'Cheque' && !chequeDate) return setPayError('Please provide a cheque realize date.');
 
     setPayLoading(true);
     try {
@@ -322,6 +360,7 @@ export const PurchaseOrders: React.FC = () => {
         po_id: payPo.id,
         amount,
         payment_method: payMethod,
+        payment_date: payDate,
         cheque_realize_date: payMethod === 'Cheque' ? chequeDate : null,
         notes: `Payment for ${payPo.po_number}`,
         paid_by: user?.id
@@ -329,7 +368,9 @@ export const PurchaseOrders: React.FC = () => {
       if (insertErr) throw insertErr;
 
       const newPaidAmount = Number(payPo.paid_amount || 0) + amount;
-      const { error: updatePoErr } = await supabase.from('purchase_orders').update({ paid_amount: newPaidAmount }).eq('id', payPo.id);
+      const { error: updatePoErr } = await supabase.from('purchase_orders')
+        .update({ paid_amount: newPaidAmount })
+        .eq('id', payPo.id);
       if (updatePoErr) throw updatePoErr;
 
       const { data: supData } = await supabase.from('suppliers').select('outstanding_balance').eq('id', payPo.supplier_id).single();
@@ -347,18 +388,45 @@ export const PurchaseOrders: React.FC = () => {
     }
   };
 
+  // ── Helpers ───────────────────────────────────────────────────
+  const getPaymentStatus = (po: any) => {
+    const paid = Number(po.paid_amount || 0);
+    const total = Number(po.total_amount);
+    if (paid >= total) return 'PAID';
+    if (paid > 0) return 'PARTIAL';
+    return 'UNPAID';
+  };
+
+  const filteredPos = pos.filter(p =>
+    p.po_number?.toLowerCase().includes(search.toLowerCase()) ||
+    p.suppliers?.name?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const subTotal = poLines.reduce((acc, curr) => acc + curr.totalCost, 0);
+  const discountAmount = poDiscountType === 'percentage' ? subTotal * (poDiscount / 100) : poDiscount;
+  const grandTotal = Math.max(0, subTotal - discountAmount);
+
+  // ─────────────────────────────────────────────────────────────
   return (
     <div className="space-y-8 pb-10">
+      {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">Purchase Orders</h2>
-          <p className="text-sm text-slate-500">Create and approve procurement orders sent to vendor channels</p>
+          <p className="text-sm text-slate-500">Create POs, receive goods (GRN) and record payments independently</p>
         </div>
         <button onClick={openCreateModal} className="btn-primary flex items-center justify-center space-x-2">
           <Plus size={18} /><span>Create PO</span>
         </button>
       </div>
 
+      {/* Search */}
+      <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 w-full max-w-sm">
+        <Search size={16} className="text-slate-400" />
+        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by PO number or supplier..." className="flex-1 text-sm outline-none bg-transparent" />
+      </div>
+
+      {/* PO Table */}
       <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm card-shadow">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
@@ -368,37 +436,35 @@ export const PurchaseOrders: React.FC = () => {
                 <th className="px-6 py-4">Supplier</th>
                 <th className="px-6 py-4">Created By</th>
                 <th className="px-6 py-4 text-right">Grand Total (LKR)</th>
-                <th className="px-6 py-4 text-center">Status</th>
-                <th className="px-6 py-4 text-center">Payment Status</th>
+                <th className="px-6 py-4 text-center">GRN Status</th>
+                <th className="px-6 py-4 text-center">Payment</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 text-sm">
               {loading ? (
                 <tr><td colSpan={7} className="text-center py-8 text-slate-400">Loading purchase orders...</td></tr>
-              ) : pos.length === 0 ? (
+              ) : filteredPos.length === 0 ? (
                 <tr><td colSpan={7} className="text-center py-8 text-slate-400">No purchase orders found.</td></tr>
               ) : (
-                pos.map((po) => {
-                  const paid = Number(po.paid_amount || 0);
-                  const total = Number(po.total_amount);
-                  const isPayable = (po.status === 'APPROVED' || po.status === 'COMPLETED') && paid < total;
-                  const paymentStatus = paid === 0 ? 'UNPAID' : paid >= total ? 'PAID' : 'PARTIAL';
+                filteredPos.map((po) => {
+                  const paymentStatus = getPaymentStatus(po);
+                  const grnDone = po.status === 'COMPLETED';
+                  const canGRN = po.status === 'PENDING';
+                  const canPay = (Number(po.paid_amount || 0) < Number(po.total_amount));
 
                   return (
                     <tr key={po.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4 font-semibold text-slate-800">{po.po_number}</td>
                       <td className="px-6 py-4 font-medium">{po.suppliers?.name}</td>
                       <td className="px-6 py-4 text-slate-500">{po.profiles?.username || 'System'}</td>
-                      <td className="px-6 py-4 font-bold text-right">LKR {total.toFixed(2)}</td>
+                      <td className="px-6 py-4 font-bold text-right">LKR {Number(po.total_amount).toFixed(2)}</td>
                       <td className="px-6 py-4 text-center">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase
-                          ${po.status === 'PENDING' ? 'bg-amber-50 text-amber-600' : ''}
-                          ${po.status === 'APPROVED' ? 'bg-blue-50 text-blue-600' : ''}
-                          ${po.status === 'COMPLETED' ? 'bg-green-50 text-green-700' : ''}
-                          ${po.status === 'REJECTED' ? 'bg-red-50 text-red-600' : ''}
-                          ${po.status === 'CANCELLED' ? 'bg-gray-100 text-gray-500' : ''}
-                        `}>{po.status}</span>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
+                          grnDone ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-600'
+                        }`}>
+                          {grnDone ? <><CheckCircle2 size={10}/> Received</> : <><Clock size={10}/> Pending</>}
+                        </span>
                       </td>
                       <td className="px-6 py-4 text-center">
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase
@@ -407,15 +473,28 @@ export const PurchaseOrders: React.FC = () => {
                           ${paymentStatus === 'UNPAID' ? 'bg-slate-100 text-slate-500' : ''}
                         `}>{paymentStatus}</span>
                       </td>
-                      <td className="px-6 py-4 text-right flex justify-end gap-2 items-center">
-                        {isPayable && (
-                          <button onClick={() => openPayModal(po)} className="px-3 py-1 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded text-xs font-bold transition-colors">
-                            Pay Now
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2 items-center">
+                          {canGRN && (
+                            <button
+                              onClick={() => openGrnModal(po)}
+                              className="px-3 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded text-xs font-bold transition-colors flex items-center gap-1"
+                            >
+                              <PackageCheck size={12} /> GRN
+                            </button>
+                          )}
+                          {canPay && (
+                            <button
+                              onClick={() => openPayModal(po)}
+                              className="px-3 py-1 bg-primary/10 text-primary hover:bg-primary hover:text-white rounded text-xs font-bold transition-colors flex items-center gap-1"
+                            >
+                              <DollarSign size={12} /> Pay
+                            </button>
+                          )}
+                          <button onClick={() => openDetailModal(po)} className="p-1.5 text-slate-400 hover:text-primary hover:bg-blue-50 rounded-lg transition-all">
+                            <Eye size={16} />
                           </button>
-                        )}
-                        <button onClick={() => openDetailModal(po)} className="p-1.5 text-slate-400 hover:text-primary hover:bg-blue-50 rounded-lg transition-all">
-                          <Eye size={16} />
-                        </button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -426,13 +505,16 @@ export const PurchaseOrders: React.FC = () => {
         </div>
       </div>
 
-      {/* PO Creation Modal */}
+      {/* ── Create PO Modal ────────────────────────────────────── */}
       {createModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-4xl p-6 space-y-6 card-shadow my-8">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-bold text-slate-800">Create Purchase Order</h3>
-              <button onClick={() => setCreateModalOpen(false)} className="text-slate-400 hover:text-slate-600">Cancel</button>
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Create Purchase Order</h3>
+                <p className="text-xs text-slate-400">Goods can be received later via GRN</p>
+              </div>
+              <button onClick={() => setCreateModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20}/></button>
             </div>
 
             {formError && (
@@ -444,6 +526,7 @@ export const PurchaseOrders: React.FC = () => {
 
             <form onSubmit={handleSavePO} className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Supplier Search */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Vendor Supplier</label>
                   <div ref={supplierRef} className="relative">
@@ -455,7 +538,7 @@ export const PurchaseOrders: React.FC = () => {
                       <input
                         type="text"
                         value={supplierSearch}
-                        onChange={(e) => { setSupplierSearch(e.target.value); setShowSupplierDropdown(true); }}
+                        onChange={e => { setSupplierSearch(e.target.value); setShowSupplierDropdown(true); }}
                         onFocus={() => setShowSupplierDropdown(true)}
                         placeholder="Search supplier..."
                         className="flex-1 text-sm outline-none bg-transparent"
@@ -472,32 +555,19 @@ export const PurchaseOrders: React.FC = () => {
                             s.code.toLowerCase().includes(supplierSearch.toLowerCase())
                           )
                           .map(s => (
-                            <button
-                              key={s.id}
-                              type="button"
-                              onClick={() => {
-                                setSelectedSupplier(s.id);
-                                setSupplierSearch(`${s.name} (${s.code})`);
-                                setShowSupplierDropdown(false);
-                              }}
-                              className={`w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-50 transition-colors text-sm ${
-                                selectedSupplier === s.id ? 'bg-blue-50 font-semibold text-primary' : 'text-slate-700'
-                              }`}
+                            <button key={s.id} type="button"
+                              onClick={() => { setSelectedSupplier(s.id); setSupplierSearch(`${s.name} (${s.code})`); setShowSupplierDropdown(false); }}
+                              className={`w-full text-left px-4 py-3 hover:bg-blue-50 border-b border-slate-50 transition-colors text-sm ${selectedSupplier === s.id ? 'bg-blue-50 font-semibold text-primary' : 'text-slate-700'}`}
                             >
                               <span className="font-semibold">{s.name}</span>
                               <span className="text-slate-400 text-xs ml-2">({s.code})</span>
                             </button>
                           ))
                         }
-                        {suppliers.filter(s =>
-                          supplierSearch.trim() === '' ||
-                          s.name.toLowerCase().includes(supplierSearch.toLowerCase()) ||
-                          s.code.toLowerCase().includes(supplierSearch.toLowerCase())
-                        ).length === 0 && (
+                        {suppliers.filter(s => supplierSearch.trim() === '' || s.name.toLowerCase().includes(supplierSearch.toLowerCase()) || s.code.toLowerCase().includes(supplierSearch.toLowerCase())).length === 0 && (
                           <div className="px-4 py-2 text-xs text-slate-400 text-center italic">No suppliers found</div>
                         )}
-                        <button
-                          type="button"
+                        <button type="button"
                           onClick={() => { setShowSupplierDropdown(false); setCreateSupplierOpen(true); setSupplierError(null); }}
                           className="w-full text-left px-4 py-3 flex items-center gap-2 text-primary font-semibold text-sm hover:bg-blue-50 border-t border-slate-100 transition-colors"
                         >
@@ -507,18 +577,20 @@ export const PurchaseOrders: React.FC = () => {
                     )}
                   </div>
                 </div>
+
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Remarks / Instructions</label>
-                  <input type="text" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Enter special shipping notes..." className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
+                  <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Enter special shipping notes..." className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
                 </div>
               </div>
 
+              {/* Item Search */}
               <div ref={searchRef} className="border border-slate-100 bg-slate-50 p-4 rounded-xl space-y-3">
                 <h4 className="text-xs font-bold text-slate-700 uppercase flex items-center gap-2"><PackageSearch size={14} /> Search & Add Item</h4>
                 <div className="relative">
                   <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary">
                     <Search size={14} className="text-slate-400 shrink-0" />
-                    <input type="text" value={itemSearch} onChange={(e) => { setItemSearch(e.target.value); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} placeholder="Type item name or SKU to search..." className="flex-1 text-sm outline-none bg-transparent" />
+                    <input type="text" value={itemSearch} onChange={e => { setItemSearch(e.target.value); setShowSuggestions(true); }} onFocus={() => setShowSuggestions(true)} placeholder="Type item name or SKU to search..." className="flex-1 text-sm outline-none bg-transparent" />
                   </div>
                   {showSuggestions && filteredSuggestions.length > 0 && (
                     <div className="absolute z-50 top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg max-h-52 overflow-y-auto">
@@ -535,6 +607,7 @@ export const PurchaseOrders: React.FC = () => {
                 </div>
               </div>
 
+              {/* PO Lines Table */}
               <div className="border border-slate-100 rounded-xl overflow-x-auto">
                 <table className="w-full text-left border-collapse min-w-[700px]">
                   <thead>
@@ -555,19 +628,15 @@ export const PurchaseOrders: React.FC = () => {
                         <tr key={idx} className="hover:bg-slate-50/50">
                           <td className="px-4 py-3 font-medium text-slate-800">{line.name}</td>
                           <td className="px-4 py-2">
-                            <input type="number" min="0.001" step="0.001" value={line.quantity || ''} onChange={(e) => updatePoLine(idx, 'quantity', e.target.value)} className="w-20 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg text-center font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" /> <span className="text-slate-500 font-medium ml-1">{line.unit}</span>
+                            <input type="number" min="0.001" step="0.001" value={line.quantity || ''} onChange={e => updatePoLine(idx, 'quantity', e.target.value)} className="w-20 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg text-center font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" /> <span className="text-slate-500 font-medium ml-1">{line.unit}</span>
                           </td>
                           <td className="px-4 py-2">
-                            <input type="number" min="0" step="0.01" value={line.costPrice || ''} onChange={(e) => updatePoLine(idx, 'costPrice', e.target.value)} className="w-24 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" />
+                            <input type="number" min="0" step="0.001" value={line.costPrice || ''} onChange={e => updatePoLine(idx, 'costPrice', e.target.value)} className="w-24 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" />
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex items-center space-x-2">
-                              <input type="number" min="0" step="0.01" value={line.discount || ''} onChange={(e) => updatePoLine(idx, 'discount', e.target.value)} className="w-20 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg text-right font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" />
-                              <select
-                                value={line.discountType || 'fixed'}
-                                onChange={(e) => updatePoLineType(idx, e.target.value as 'fixed' | 'percentage')}
-                                className="px-2 py-1.5 border-2 border-slate-300 rounded-lg bg-white font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm cursor-pointer"
-                              >
+                              <input type="number" min="0" step="0.01" value={line.discount || ''} onChange={e => updatePoLine(idx, 'discount', e.target.value)} className="w-20 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg text-right font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" />
+                              <select value={line.discountType || 'fixed'} onChange={e => updatePoLineType(idx, e.target.value as 'fixed' | 'percentage')} className="px-2 py-1.5 border-2 border-slate-300 rounded-lg bg-white font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm cursor-pointer">
                                 <option value="fixed">LKR</option>
                                 <option value="percentage">%</option>
                               </select>
@@ -584,20 +653,17 @@ export const PurchaseOrders: React.FC = () => {
                 </table>
               </div>
 
+              {/* Totals */}
               <div className="flex flex-col items-end space-y-3 pt-4 border-t border-slate-100">
                 <div className="flex items-center gap-4 text-sm">
                   <span className="font-bold text-slate-600">Subtotal:</span>
-                  <span className="font-semibold w-24 text-right">LKR {poLines.reduce((acc, curr) => acc + curr.totalCost, 0).toFixed(2)}</span>
+                  <span className="font-semibold w-28 text-right">LKR {subTotal.toFixed(2)}</span>
                 </div>
                 <div className="flex items-center gap-4 text-sm">
                   <span className="font-bold text-slate-600">Overall PO Discount:</span>
                   <div className="flex items-center space-x-1">
-                    <input type="number" min="0" step="0.01" value={poDiscount || ''} onChange={(e) => setPoDiscount(Number(e.target.value) || 0)} className="w-20 text-right px-2 py-1 border border-slate-200 rounded" />
-                    <select
-                      value={poDiscountType}
-                      onChange={(e) => setPoDiscountType(e.target.value as 'fixed' | 'percentage')}
-                      className="px-1.5 py-1 border border-slate-200 rounded bg-white text-xs"
-                    >
+                    <input type="number" min="0" step="0.01" value={poDiscount || ''} onChange={e => setPoDiscount(Number(e.target.value) || 0)} className="w-20 text-right px-2 py-1 border border-slate-200 rounded" />
+                    <select value={poDiscountType} onChange={e => setPoDiscountType(e.target.value as 'fixed' | 'percentage')} className="px-1.5 py-1 border border-slate-200 rounded bg-white text-xs">
                       <option value="fixed">LKR</option>
                       <option value="percentage">%</option>
                     </select>
@@ -605,22 +671,108 @@ export const PurchaseOrders: React.FC = () => {
                 </div>
                 <div className="flex items-center gap-4 text-lg">
                   <span className="font-bold text-slate-800">Grand Total:</span>
-                  <span className="font-extrabold text-primary w-24 text-right">
-                    LKR {Math.max(0, poLines.reduce((acc, curr) => acc + curr.totalCost, 0) - (poDiscountType === 'percentage' ? poLines.reduce((acc, curr) => acc + curr.totalCost, 0) * (poDiscount / 100) : poDiscount)).toFixed(2)}
-                  </span>
+                  <span className="font-extrabold text-primary w-28 text-right">LKR {grandTotal.toFixed(2)}</span>
                 </div>
               </div>
 
               <div className="flex items-center justify-end space-x-3 pt-4 border-t border-slate-100">
                 <button type="button" onClick={() => setCreateModalOpen(false)} className="px-5 py-2.5 border border-slate-200 text-slate-700 font-semibold rounded-xl text-sm">Cancel</button>
-                <button type="submit" className="px-5 py-2.5 bg-primary text-white font-semibold rounded-xl text-sm shadow-sm active:scale-95">Save Purchase Order</button>
+                <button type="submit" className="px-5 py-2.5 bg-primary text-white font-semibold rounded-xl text-sm shadow-sm active:scale-95 flex items-center gap-2">
+                  <ShoppingCart size={16} /> Save Purchase Order
+                </button>
               </div>
             </form>
           </div>
         </div>
       )}
 
-      {/* Detail Modal */}
+      {/* ── GRN Modal ──────────────────────────────────────────── */}
+      {grnModalOpen && grnPo && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 space-y-5 card-shadow my-8">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-emerald-50 rounded-xl"><PackageCheck size={20} className="text-emerald-600" /></div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">Goods Received Note (GRN)</h3>
+                  <p className="text-xs text-slate-400">{grnPo.po_number} · {grnPo.suppliers?.name}</p>
+                </div>
+              </div>
+              <button onClick={() => setGrnModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20} /></button>
+            </div>
+
+            {grnError && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl text-xs font-semibold text-red-700 flex items-center gap-2">
+                <AlertCircle size={14} /> {grnError}
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Invoice / Reference No. <span className="text-slate-300 font-normal">(Optional)</span></label>
+                <input type="text" value={grnInvoiceNumber} onChange={e => setGrnInvoiceNumber(e.target.value)} placeholder="e.g. INV-2024-001" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Remarks <span className="text-slate-300 font-normal">(Optional)</span></label>
+                <input type="text" value={grnRemarks} onChange={e => setGrnRemarks(e.target.value)} placeholder="e.g. All items received in good condition" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
+              </div>
+            </div>
+
+            {/* GRN Items */}
+            <div className="border border-slate-100 rounded-xl overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 border-b border-slate-100 font-bold text-slate-400 uppercase">
+                  <tr>
+                    <th className="px-4 py-2.5">Item</th>
+                    <th className="px-4 py-2.5">Qty Received</th>
+                    <th className="px-4 py-2.5">Unit Cost</th>
+                    <th className="px-4 py-2.5">Expiry Date <span className="text-slate-300 font-normal">(Optional)</span></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {grnItems.map((item, idx) => (
+                    <tr key={idx} className="hover:bg-slate-50/50">
+                      <td className="px-4 py-3 font-medium text-slate-800">{item.name}</td>
+                      <td className="px-4 py-2">
+                        <input type="number" min="0.001" step="0.001" value={item.quantity || ''}
+                          onChange={e => setGrnItems(prev => { const c=[...prev]; c[idx]={...c[idx], quantity: e.target.value}; return c; })}
+                          className="w-20 px-2 py-1.5 border-2 border-slate-300 rounded-lg text-center font-bold text-slate-800 focus:border-primary outline-none"
+                        /> <span className="text-slate-500 ml-1">{item.unit}</span>
+                      </td>
+                      <td className="px-4 py-2">
+                        <input type="number" min="0" step="0.001" value={item.costPrice || ''}
+                          onChange={e => setGrnItems(prev => { const c=[...prev]; c[idx]={...c[idx], costPrice: e.target.value}; return c; })}
+                          className="w-24 px-2 py-1.5 border-2 border-slate-300 rounded-lg font-bold text-slate-800 focus:border-primary outline-none"
+                        />
+                      </td>
+                      <td className="px-4 py-2">
+                        <input type="date" value={item.expiryDate || ''}
+                          onChange={e => setGrnItems(prev => { const c=[...prev]; c[idx]={...c[idx], expiryDate: e.target.value}; return c; })}
+                          className="px-2 py-1.5 border-2 border-slate-300 rounded-lg text-slate-800 focus:border-primary outline-none"
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 font-medium flex items-start gap-2">
+              <AlertCircle size={14} className="shrink-0 mt-0.5" />
+              Confirming GRN will update stock levels and mark this PO as Received. Payment can be made separately.
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button onClick={() => setGrnModalOpen(false)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl text-sm hover:bg-slate-50 transition-colors">Cancel</button>
+              <button onClick={handleSaveGRN} disabled={grnLoading} className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
+                {grnLoading ? 'Processing...' : <><PackageCheck size={16} /> Confirm GRN & Update Stock</>}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Detail Modal ───────────────────────────────────────── */}
       {detailModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
           <div className="bg-white rounded-2xl w-full max-w-3xl p-6 space-y-6 card-shadow my-8">
@@ -631,10 +783,15 @@ export const PurchaseOrders: React.FC = () => {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm bg-slate-50 p-4 rounded-xl">
               <div><p className="text-slate-400 font-semibold text-[10px] uppercase">PO Number</p><p className="font-bold">{selectedPo?.po_number}</p></div>
               <div><p className="text-slate-400 font-semibold text-[10px] uppercase">Supplier</p><p className="font-bold">{selectedPo?.suppliers?.name}</p></div>
-              <div><p className="text-slate-400 font-semibold text-[10px] uppercase">Status</p><p className="font-bold text-amber-600">{selectedPo?.status}</p></div>
+              <div>
+                <p className="text-slate-400 font-semibold text-[10px] uppercase">GRN Status</p>
+                <p className={`font-bold ${selectedPo?.status === 'COMPLETED' ? 'text-green-600' : 'text-amber-600'}`}>
+                  {selectedPo?.status === 'COMPLETED' ? 'Received' : 'Pending Delivery'}
+                </p>
+              </div>
               <div><p className="text-slate-400 font-semibold text-[10px] uppercase">Paid Amount</p><p className="font-bold text-green-600">LKR {Number(selectedPo?.paid_amount || 0).toFixed(2)}</p></div>
             </div>
-            
+
             <div className="border border-slate-100 rounded-xl overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 border-b border-slate-100 font-bold text-slate-400 uppercase">
@@ -658,33 +815,26 @@ export const PurchaseOrders: React.FC = () => {
               <p className="text-slate-500">Overall PO Discount: <span className="text-red-500 font-semibold">- LKR {Number(selectedPo?.discount_amount || 0).toFixed(2)}</span></p>
               <p className="text-lg font-bold">Grand Total: LKR {Number(selectedPo?.total_amount).toFixed(2)}</p>
             </div>
-
-            {selectedPo?.status === 'PENDING' && hasPermission('po:approve') && (
-              <div className="flex justify-end space-x-3 pt-4 border-t border-slate-100">
-                <button onClick={() => handleUpdateStatus('REJECTED')} className="px-5 py-2.5 bg-rose-50 text-rose-600 font-bold rounded-xl text-sm">Reject PO</button>
-                <button onClick={() => handleUpdateStatus('APPROVED')} className="px-5 py-2.5 bg-blue-600 text-white font-bold rounded-xl text-sm">Approve PO</button>
-              </div>
-            )}
           </div>
         </div>
       )}
 
-      {/* Pay Now Modal */}
+      {/* ── Pay Modal ──────────────────────────────────────────── */}
       {payModalOpen && payPo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-6 card-shadow">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
-              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Banknote className="text-primary"/> Pay Supplier</h3>
-              <button onClick={() => setPayModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20}/></button>
+              <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Banknote className="text-primary" /> Pay Supplier</h3>
+              <button onClick={() => setPayModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20} /></button>
             </div>
 
             <div className="bg-blue-50 p-4 rounded-xl space-y-2 text-sm">
               <div className="flex justify-between"><span className="text-slate-500">PO Number:</span><span className="font-semibold text-slate-800">{payPo.po_number}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">PO Total:</span><span className="font-semibold text-slate-800">LKR {Number(payPo.total_amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500">Already Paid:</span><span className="font-semibold text-green-600">LKR {Number(payPo.paid_amount || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">PO Total:</span><span className="font-semibold text-slate-800">LKR {Number(payPo.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
+              <div className="flex justify-between"><span className="text-slate-500">Already Paid:</span><span className="font-semibold text-green-600">LKR {Number(payPo.paid_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span></div>
               <div className="pt-2 mt-2 border-t border-blue-100 flex justify-between font-bold text-base">
                 <span className="text-slate-700">Outstanding:</span>
-                <span className="text-rose-600">LKR {(Number(payPo.total_amount) - Number(payPo.paid_amount || 0)).toLocaleString(undefined, {minimumFractionDigits: 2})}</span>
+                <span className="text-rose-600">LKR {(Number(payPo.total_amount) - Number(payPo.paid_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
 
@@ -693,12 +843,15 @@ export const PurchaseOrders: React.FC = () => {
             <form onSubmit={handlePay} className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Payment Amount (LKR)</label>
-                <input type="number" step="0.01" value={payAmount} onChange={(e) => setPayAmount(Number(e.target.value))} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                <input type="number" step="0.001" value={payAmount} onChange={e => setPayAmount(Number(e.target.value))} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
               </div>
-              
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Payment Date</label>
+                <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+              </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Payment Method</label>
-                <select value={payMethod} onChange={(e) => setPayMethod(e.target.value)} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none bg-white">
+                <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none bg-white">
                   <option value="Cash">Cash</option>
                   <option value="Online Transfer">Online Transfer</option>
                   <option value="Cheque">Cheque</option>
@@ -711,19 +864,19 @@ export const PurchaseOrders: React.FC = () => {
               {payMethod === 'Cheque' && (
                 <div className="animate-in fade-in slide-in-from-top-2">
                   <label className="text-xs font-bold text-slate-500 uppercase">Cheque Realize Date</label>
-                  <input type="date" value={chequeDate} onChange={(e) => setChequeDate(e.target.value)} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
+                  <input type="date" value={chequeDate} onChange={e => setChequeDate(e.target.value)} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
                 </div>
               )}
 
-              <button type="submit" disabled={payLoading} className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:opacity-90 transition-opacity flex justify-center items-center">
-                {payLoading ? 'Processing...' : 'Record Payment'}
+              <button type="submit" disabled={payLoading} className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:opacity-90 transition-opacity flex justify-center items-center gap-2">
+                {payLoading ? 'Processing...' : <><DollarSign size={16}/> Save & Record Payment</>}
               </button>
             </form>
           </div>
         </div>
       )}
 
-      {/* Quick Create Supplier Modal */}
+      {/* ── Quick Create Supplier Modal ────────────────────────── */}
       {createSupplierOpen && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
           <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl">
@@ -748,63 +901,32 @@ export const PurchaseOrders: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase">Supplier Name *</label>
-                  <input
-                    type="text" value={newSupplierName} onChange={e => setNewSupplierName(e.target.value)}
-                    placeholder="e.g. ABC Traders"
-                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
+                  <input type="text" value={newSupplierName} onChange={e => setNewSupplierName(e.target.value)} placeholder="e.g. ABC Traders" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase">Supplier Code *</label>
-                  <input
-                    type="text" value={newSupplierCode} onChange={e => setNewSupplierCode(e.target.value)}
-                    placeholder="e.g. ABC001"
-                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm uppercase"
-                  />
+                  <input type="text" value={newSupplierCode} onChange={e => setNewSupplierCode(e.target.value)} placeholder="e.g. ABC001" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm uppercase" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase">Phone</label>
-                  <input
-                    type="text" value={newSupplierPhone} onChange={e => setNewSupplierPhone(e.target.value)}
-                    placeholder="e.g. 0771234567"
-                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
+                  <input type="text" value={newSupplierPhone} onChange={e => setNewSupplierPhone(e.target.value)} placeholder="e.g. 0771234567" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
                 </div>
                 <div>
                   <label className="text-xs font-bold text-slate-500 uppercase">Email</label>
-                  <input
-                    type="email" value={newSupplierEmail} onChange={e => setNewSupplierEmail(e.target.value)}
-                    placeholder="e.g. info@abc.com"
-                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                  />
+                  <input type="email" value={newSupplierEmail} onChange={e => setNewSupplierEmail(e.target.value)} placeholder="e.g. info@abc.com" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
                 </div>
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Address</label>
-                <input
-                  type="text" value={newSupplierAddress} onChange={e => setNewSupplierAddress(e.target.value)}
-                  placeholder="Supplier address (optional)"
-                  className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                />
+                <input type="text" value={newSupplierAddress} onChange={e => setNewSupplierAddress(e.target.value)} placeholder="Supplier address (optional)" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
               </div>
             </div>
 
             <div className="flex gap-3 pt-1">
-              <button
-                type="button"
-                onClick={() => setCreateSupplierOpen(false)}
-                className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl text-sm hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleCreateSupplier}
-                disabled={supplierSaving}
-                className="flex-1 py-2.5 bg-primary text-white font-bold rounded-xl text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-              >
+              <button type="button" onClick={() => setCreateSupplierOpen(false)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl text-sm hover:bg-slate-50 transition-colors">Cancel</button>
+              <button type="button" onClick={handleCreateSupplier} disabled={supplierSaving} className="flex-1 py-2.5 bg-primary text-white font-bold rounded-xl text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
                 {supplierSaving ? 'Saving...' : <><UserPlus size={14} /> Create & Select</>}
               </button>
             </div>
