@@ -406,9 +406,15 @@ CREATE POLICY "Allow create PO to all authenticated users"
     ON purchase_orders FOR INSERT TO authenticated 
     WITH CHECK (auth.uid() = created_by);
 
+CREATE POLICY "Allow update PO to all authenticated users" 
+    ON purchase_orders FOR UPDATE TO authenticated USING (true);
+
 CREATE POLICY "Allow create PO items to all authenticated users" 
     ON purchase_order_items FOR INSERT TO authenticated 
     WITH CHECK (true);
+
+CREATE POLICY "Allow update PO items to all authenticated users" 
+    ON purchase_order_items FOR UPDATE TO authenticated USING (true);
 
 CREATE POLICY "Allow read to grns" 
     ON grns FOR SELECT TO authenticated USING (true);
