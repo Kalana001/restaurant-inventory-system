@@ -63,7 +63,7 @@ export const Adjustments: React.FC = () => {
   const { clearDraft: clearMovementType } = useAutoSave('adj_draft_type', movementType);
   const { clearDraft: clearReasonId } = useAutoSave('adj_draft_reason', selectedReasonId);
   const { clearDraft: clearDate } = useAutoSave('adj_draft_date', movementDate);
-  const { clearDraft: clearLinesAutoSave } = useAutoSave('adj_draft_lines', lines);
+  const { clearDraft: clearLinesAutoSave, saveStatus } = useAutoSave('adj_draft_lines', lines);
 
   const clearAdjDrafts = () => {
     clearMovementType(); clearReasonId(); clearDate(); clearLinesAutoSave();
@@ -481,13 +481,17 @@ export const Adjustments: React.FC = () => {
                 <div>
                   <div className="flex items-center gap-3">
                     <h3 className="text-lg font-bold text-slate-800">Bulk Stock Movement</h3>
-                    {((lines.length > 1 || (lines[0] && (lines[0].itemId || Number(lines[0].quantity) > 0)))) && (
-                      <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-widest">Draft Loaded</span>
-                    )}
+                      {((lines.length > 1 || (lines[0] && (lines[0].itemId || Number(lines[0].quantity) > 0)))) && (
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 uppercase tracking-widest">Draft Loaded</span>
+                          {saveStatus === 'saving' && <span className="text-[10px] text-slate-400 font-medium italic animate-pulse">Saving...</span>}
+                          {saveStatus === 'saved' && <span className="text-[10px] text-green-500 font-medium">Saved</span>}
+                        </div>
+                      )}
                   </div>
                   <p className="text-xs text-slate-500 mt-0.5">All items will be grouped under one receipt number</p>
                 </div>
-              <button onClick={() => handleCancelAdj()} className="text-slate-400 hover:text-slate-600 text-sm font-semibold">âœ• Close</button>
+              <button onClick={() => handleCancelAdj()} className="text-slate-400 hover:text-slate-600 text-sm font-semibold">✕ Close</button>
             </div>
 
             <div className="p-6 space-y-6 overflow-y-auto">

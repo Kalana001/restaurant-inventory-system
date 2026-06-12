@@ -30,7 +30,7 @@ export const PurchaseOrders: React.FC = () => {
 
   const { clearDraft: clearSupplier } = useAutoSave('po_draft_supplier', selectedSupplier);
   const { clearDraft: clearRemarks } = useAutoSave('po_draft_remarks', remarks);
-  const { clearDraft: clearLines } = useAutoSave('po_draft_lines', poLines);
+  const { clearDraft: clearLines, saveStatus } = useAutoSave('po_draft_lines', poLines);
   const { clearDraft: clearDiscount } = useAutoSave('po_draft_discount', poDiscount);
   const { clearDraft: clearDiscountType } = useAutoSave('po_draft_discount_type', poDiscountType);
 

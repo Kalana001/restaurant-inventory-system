@@ -1,7 +1,8 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export function useAutoSave(key: string, data: any, delay: number = 1000) {
   const isFirstRender = useRef(true);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
 
   useEffect(() => {
     // Skip saving on the very first render to prevent overwriting existing drafts with initial empty state
@@ -10,11 +11,20 @@ export function useAutoSave(key: string, data: any, delay: number = 1000) {
       return;
     }
 
+    setSaveStatus('saving');
+
     const timer = setTimeout(() => {
       try {
         localStorage.setItem(key, JSON.stringify(data));
+        setSaveStatus('saved');
+        
+        // Reset back to idle after a couple of seconds to clear the indicator
+        setTimeout(() => {
+          setSaveStatus(prev => prev === 'saved' ? 'idle' : prev);
+        }, 2000);
       } catch (err) {
         console.error('Failed to save draft to localStorage:', err);
+        setSaveStatus('idle');
       }
     }, delay);
 
@@ -29,7 +39,7 @@ export function useAutoSave(key: string, data: any, delay: number = 1000) {
     }
   };
 
-  return { clearDraft };
+  return { clearDraft, saveStatus };
 }
 
 export function loadDraft<T>(key: string): T | null {
