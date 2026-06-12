@@ -147,7 +147,7 @@ export const Adjustments: React.FC = () => {
     const unit = units.find(u => u.id === item?.base_unit_id);
     const { data: itemBatches } = await supabase
       .from('batches')
-      .select('id, batch_number, available_qty, expiry_date, inventory_items ( cost_price )')
+      .select('id, batch_number, available_qty, expiry_date, inventory_items ( cost_price ), stock_movements ( type, cost_price )')
       .eq('item_id', itemId)
       .gt('available_qty', 0)
       .order('received_date', { ascending: false });
@@ -457,7 +457,7 @@ export const Adjustments: React.FC = () => {
       {/* â”€â”€ Bulk Movement Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900 bg-opacity-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-3xl my-6 card-shadow flex flex-col">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-5xl my-6 card-shadow flex flex-col">
 
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
@@ -540,16 +540,16 @@ export const Adjustments: React.FC = () => {
                 </div>
 
                 <div className="hidden md:grid grid-cols-12 gap-2 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  <div className="col-span-5">Item</div>
-                  <div className="col-span-3">{movementType === 'STOCK_IN' ? 'Price (LKR)' : 'Batch'}</div>
-                  <div className="col-span-3">Quantity</div>
+                  <div className="col-span-4">Item</div>
+                  <div className="col-span-5">{movementType === 'STOCK_IN' ? 'Price (LKR)' : 'Batch'}</div>
+                  <div className="col-span-2">Quantity</div>
                   <div className="col-span-1"></div>
                 </div>
 
                 {lines.map((line) => (
                   <div key={line.id} className="grid grid-cols-12 gap-2 items-start bg-slate-50 rounded-xl p-3 border border-slate-100">
                     {/* Item Search */}
-                    <div className="col-span-12 md:col-span-5 relative">
+                    <div className="col-span-12 md:col-span-4 relative">
                       <input
                         type="text"
                         placeholder="Type item name or SKU..."
@@ -604,7 +604,7 @@ export const Adjustments: React.FC = () => {
                     </div>
 
                     {/* Batch / Price */}
-                    <div className="col-span-12 md:col-span-3">
+                    <div className="col-span-12 md:col-span-5">
                       {movementType === 'STOCK_IN' ? (
                         <input
                           type="number" step="0.001" min="0"
@@ -620,11 +620,15 @@ export const Adjustments: React.FC = () => {
                           className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white"
                         >
                           <option value="">Select batch...</option>
-                          {line.batches.map(b => (
-                            <option key={b.id} value={b.id}>
-                              {b.batch_number} (LKR {Number((b.inventory_items as any)?.cost_price || 0).toFixed(3)}){b.expiry_date ? ` [Exp: ${b.expiry_date}]` : ''}
-                            </option>
-                          ))}
+                          {line.batches.map(b => {
+                            const stockIn = b.stock_movements?.find((m: any) => m.type === 'STOCK_IN' && m.cost_price > 0);
+                            const price = stockIn ? Number(stockIn.cost_price) : Number((b.inventory_items as any)?.cost_price || 0);
+                            return (
+                              <option key={b.id} value={b.id}>
+                                {b.batch_number} (LKR {price.toFixed(3)} | Qty: {Number(b.available_qty).toFixed(3)}){b.expiry_date ? ` [Exp: ${b.expiry_date}]` : ''}
+                              </option>
+                            );
+                          })}
                         </select>
                       ) : (
                         <div className="w-full px-3 py-2 border border-dashed border-slate-200 rounded-lg text-xs text-slate-400 text-center">
@@ -634,7 +638,7 @@ export const Adjustments: React.FC = () => {
                     </div>
 
                     {/* Quantity */}
-                    <div className="col-span-10 md:col-span-3 flex items-center gap-2">
+                    <div className="col-span-10 md:col-span-2 flex items-center gap-2">
                       <input
                         type="number" min="0.001" step="any"
                         value={line.quantity}
