@@ -152,7 +152,7 @@ export const DailyUsageSheet: React.FC = () => {
   const rightItems = items.slice(mid);
 
   const renderTable = (tableItems: SheetItem[]) => (
-    <table className="w-full text-[15px] border-collapse border border-slate-300" style={{ height: exporting ? '100%' : 'auto' }}>
+    <table className="w-full text-[17px] border-collapse border border-slate-300" style={{ height: exporting ? '100%' : 'auto' }}>
       <thead>
         <tr className="bg-slate-100">
           <th className="border border-slate-300 p-2 text-left w-32" rowSpan={2}>Item Name</th>
