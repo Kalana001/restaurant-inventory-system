@@ -202,8 +202,7 @@ export const Reports: React.FC = () => {
             <button onClick={() => openItemHistoryModal(r)} className="font-bold text-primary hover:underline text-left">{r.name}</button>
           )},
           { key: 'category', header: 'Category', render: (r) => r.categories?.name },
-          { key: 'unit', header: 'Unit', render: (r) => r.units?.abbreviation },
-          { key: 'current_stock', header: 'Stock Qty', sortable: true },
+          { key: 'current_stock', header: 'Quantity', sortable: true, render: (r) => <span className="font-bold text-slate-800">{Number(r.current_stock)} <span className="text-slate-500 font-medium">{r.units?.abbreviation}</span></span> },
           { key: 'cost_price', header: 'Unit Cost (LKR)', render: (r) => Number(r.cost_price).toLocaleString(undefined, { minimumFractionDigits: 2 }) },
           { key: 'total_value', header: 'Total Value (LKR)', render: (r) => (Number(r.current_stock) * Number(r.cost_price)).toLocaleString(undefined, { minimumFractionDigits: 2 }) }
         ];
