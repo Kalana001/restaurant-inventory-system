@@ -448,28 +448,18 @@ export const PurchaseOrders: React.FC = () => {
 
     try {
       let newTotal = 0;
-      // 1. Update all items
       for (const line of updatePricesLines) {
         const costPrice = Number(line.new_cost_price) || 0;
-        const totalCost = costPrice * Number(line.quantity);
-        newTotal += totalCost;
-
-        const { error } = await supabase.from('purchase_order_items')
-          .update({ cost_price: costPrice, total_cost: totalCost })
-          .eq('id', line.id);
-        if (error) throw error;
+        newTotal += costPrice * Number(line.quantity);
       }
 
-      // 2. We keep the discount amount as is or calculate it? 
-      // The user didn't specify, so we will keep the existing discount_amount or zero it if we wanted.
-      // We'll leave discount amount as it was in the DB, but just recalculate grand total.
       const discountAmount = Number(updatePricesPo.discount_amount || 0);
       const grandTotal = Math.max(0, newTotal - discountAmount);
 
-      const { error: poErr } = await supabase.from('purchase_orders')
-        .update({ total_amount: grandTotal })
-        .eq('id', updatePricesPo.id);
-      if (poErr) throw poErr;
+      await api.patch(`/po/${updatePricesPo.id}/deep-price-correction`, {
+        lines: updatePricesLines,
+        grandTotal
+      });
 
       setUpdatePricesModalOpen(false);
       fetchPOs();
