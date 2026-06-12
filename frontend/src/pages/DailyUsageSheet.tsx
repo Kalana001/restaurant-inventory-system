@@ -68,16 +68,20 @@ export const DailyUsageSheet: React.FC = () => {
       const imgData = canvas.toDataURL('image/png');
       
       const pdf = new jsPDF({
-        orientation: 'landscape',
+        orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       });
       
       const pdfWidth = pdf.internal.pageSize.getWidth();
-      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdfHeight = pdf.internal.pageSize.getHeight();
       
-      // Calculate margins if we want it centered, but for a full sheet top-left is fine
-      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      const ratio = Math.min(pdfWidth / canvas.width, pdfHeight / canvas.height);
+      const imgWidth = canvas.width * ratio;
+      const imgHeight = canvas.height * ratio;
+      
+      // Center horizontally, align top
+      pdf.addImage(imgData, 'PNG', (pdfWidth - imgWidth) / 2, 0, imgWidth, imgHeight);
       pdf.save('Daily_Usage_Sheet.pdf');
     } catch (err) {
       console.error('PDF export failed:', err);
@@ -103,11 +107,7 @@ export const DailyUsageSheet: React.FC = () => {
     );
   }
 
-  // Split into two arrays for side-by-side rendering
-  const mid = Math.ceil(items.length / 2);
-  const leftItems = items.slice(0, mid);
-  const rightItems = items.slice(mid);
-
+  // We now render a single vertical table as requested
   const renderTable = (tableItems: SheetItem[]) => (
     <table className="w-full text-[10px] border-collapse border border-slate-300 print:text-[9px]">
       <thead>
@@ -175,18 +175,6 @@ export const DailyUsageSheet: React.FC = () => {
             ))}
           </tr>
         ))}
-        {/* Fill empty rows if right table is shorter */}
-        {tableItems.length < leftItems.length && Array.from({ length: leftItems.length - tableItems.length }).map((_, i) => (
-          <tr key={`empty-row-${i}`} className="bg-white">
-             <td className="border border-slate-300 p-1.5 h-[27px]"></td>
-             {[1, 2, 3].map(day => (
-              <React.Fragment key={`empty-cell-${day}-${i}`}>
-                <td className="border border-slate-300 p-1.5"></td>
-                <td className="border border-slate-300 p-1.5"></td>
-              </React.Fragment>
-            ))}
-          </tr>
-        ))}
       </tbody>
     </table>
   );
@@ -248,10 +236,9 @@ export const DailyUsageSheet: React.FC = () => {
           </div>
         </div>
 
-        {/* 2-Column Tables */}
-        <div className="grid grid-cols-2 gap-4 items-start">
-          {renderTable(leftItems)}
-          {renderTable(rightItems)}
+        {/* Single Table */}
+        <div className="w-full">
+          {renderTable(items)}
         </div>
         
         {/* Print Footer */}
