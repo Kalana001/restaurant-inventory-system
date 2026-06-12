@@ -30,12 +30,14 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
         const { data: jatReason } = await supabase.from('movement_reasons').select('id').eq('name', 'JAT').single();
         if (!jatReason) return;
 
-        const [ { data: movements }, { data: settlements } ] = await Promise.all([
+        const [ { data: movements }, { data: settlements }, { data: dailyPurchases }, { data: transCosts } ] = await Promise.all([
           supabase.from('stock_movements').select('quantity, cost_price, created_at, reference_type').eq('type', 'STOCK_OUT').eq('reason_id', jatReason.id),
-          supabase.from('jat_settlements').select('notes').neq('status', 'BOUNCED')
+          supabase.from('jat_settlements').select('notes').neq('status', 'BOUNCED'),
+          supabase.from('daily_purchases').select('date, total_cost').eq('department', 'JAT'),
+          supabase.from('transportation_costs').select('date, cost').eq('department', 'JAT')
         ]);
 
-        if (movements) {
+        if (movements || dailyPurchases || transCosts) {
           const allocationsByReceipt: Record<string, number> = {};
           settlements?.forEach(s => {
             try {
@@ -49,14 +51,39 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
           });
 
           const txMap: Record<string, any> = {};
-          movements.forEach(m => {
-            const receipt = m.reference_type || 'MANUAL';
-            const cost = m.quantity * m.cost_price;
-            if (!txMap[receipt]) {
-              txMap[receipt] = { receipt, date: format(new Date(m.created_at), 'yyyy-MM-dd'), totalCost: 0, paid: 0, remaining: 0 };
-            }
-            txMap[receipt].totalCost += cost;
-          });
+          
+          if (movements) {
+            movements.forEach(m => {
+              const receipt = m.reference_type || 'MANUAL';
+              const cost = m.quantity * m.cost_price;
+              if (!txMap[receipt]) {
+                txMap[receipt] = { receipt, date: format(new Date(m.created_at), 'yyyy-MM-dd'), reason: 'JAT', totalCost: 0, paid: 0, remaining: 0 };
+              }
+              txMap[receipt].totalCost += cost;
+            });
+          }
+
+          if (dailyPurchases) {
+            dailyPurchases.forEach(dp => {
+              const receipt = `MKT-${dp.date}-JAT`;
+              const cost = Number(dp.total_cost) || 0;
+              if (!txMap[receipt]) {
+                txMap[receipt] = { receipt, date: dp.date, reason: 'JAT / Vege', totalCost: 0, paid: 0, remaining: 0 };
+              }
+              txMap[receipt].totalCost += cost;
+            });
+          }
+
+          if (transCosts) {
+            transCosts.forEach(tc => {
+              const receipt = `TRN-${tc.date}-JAT`;
+              const cost = Number(tc.cost) || 0;
+              if (!txMap[receipt]) {
+                txMap[receipt] = { receipt, date: tc.date, reason: 'JAT / Trans', totalCost: 0, paid: 0, remaining: 0 };
+              }
+              txMap[receipt].totalCost += cost;
+            });
+          }
 
           Object.values(txMap).forEach(tx => {
             tx.paid = allocationsByReceipt[tx.receipt] || 0;
@@ -163,8 +190,8 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[95vh]">
+    <div className="fixed inset-0 z-[60] flex items-start md:items-center justify-center p-2 md:p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] mt-4 md:mt-0">
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-emerald-500" />
