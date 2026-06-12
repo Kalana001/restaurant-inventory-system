@@ -309,7 +309,7 @@ export const Reports: React.FC = () => {
       />
 
       {reportType === 'jat_kitchen' ? (
-        <JatKitchenReport month={filters.month} />
+        <JatKitchenReport month={filters.month} day={filters.day} />
       ) : (
         <ReportTable 
           columns={columns}

@@ -5,9 +5,10 @@ import { DollarSign, Plus, CheckCircle, XCircle, Clock } from 'lucide-react';
 
 interface JatKitchenReportProps {
   month?: string; // YYYY-MM
+  day?: string; // YYYY-MM-DD
 }
 
-export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month }) => {
+export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }) => {
   const [data, setData] = useState<{ date: string; kitchen: number; jat: number }[]>([]);
   const [settlements, setSettlements] = useState<any[]>([]);
   const [monthlyKitchen, setMonthlyKitchen] = useState(0);
@@ -37,14 +38,20 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month }) => 
       const kitchenReason = reasons?.find(r => r.name === 'Kitchen Usage')?.id;
 
       // 2. Determine date range
-      const targetDate = month ? new Date(month + '-01') : new Date();
-      const start = startOfMonth(targetDate).toISOString();
-      const end = endOfMonth(targetDate).toISOString();
+      let start: string, end: string;
+      if (day) {
+        start = new Date(day + 'T00:00:00.000Z').toISOString();
+        end = new Date(day + 'T23:59:59.999Z').toISOString();
+      } else {
+        const targetDate = month ? new Date(month + '-01') : new Date();
+        start = startOfMonth(targetDate).toISOString();
+        end = endOfMonth(targetDate).toISOString();
+      }
 
-      // 3. Fetch Stock Movements for this month
+      // 3. Fetch Stock Movements for this date range
       const { data: movements } = await supabase
         .from('stock_movements')
-        .select('created_at, total_cost, reason_id')
+        .select('created_at, quantity, cost_price, reason_id')
         .eq('type', 'STOCK_OUT')
         .gte('created_at', start)
         .lte('created_at', end);
@@ -57,7 +64,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month }) => 
         movements.forEach(m => {
           const date = m.created_at.split('T')[0];
           if (!daily[date]) daily[date] = { kitchen: 0, jat: 0 };
-          const cost = Number(m.total_cost) || 0;
+          const cost = (Number(m.quantity) || 0) * (Number(m.cost_price) || 0);
           if (m.reason_id === jatReason) {
             daily[date].jat += cost;
             mJat += cost;
@@ -76,11 +83,11 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month }) => 
       // Total JAT All-Time
       const { data: allJat } = await supabase
         .from('stock_movements')
-        .select('total_cost')
+        .select('quantity, cost_price')
         .eq('type', 'STOCK_OUT')
         .eq('reason_id', jatReason);
       
-      const totalJatCost = allJat?.reduce((sum, m) => sum + (Number(m.total_cost) || 0), 0) || 0;
+      const totalJatCost = allJat?.reduce((sum, m) => sum + ((Number(m.quantity) || 0) * (Number(m.cost_price) || 0)), 0) || 0;
 
       // Total Settled (Cleared or Pending) - Assume pending counts as paid until bounced, or maybe just all?
       // Actually, let's sum all valid settlements
