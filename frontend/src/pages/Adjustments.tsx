@@ -175,13 +175,27 @@ export const Adjustments: React.FC = () => {
     setSelectedReasonId('');
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+    const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
     const validLines = lines.filter(l => l.itemId && Number(l.quantity) > 0);
     if (validLines.length === 0) { setFormError('Please add at least one item with a valid quantity.'); return; }
+    if (validLines.length !== lines.length) { setFormError('Please fill or remove empty item slots before submitting.'); return; }
     if (!selectedReasonId) { setFormError('Please select a reason.'); return; }
+
+    if (movementType === 'STOCK_OUT') {
+      for (const line of lines) {
+        if (line.batchId) {
+          const batch = line.batches.find(b => b.id === line.batchId);
+          if (batch && Number(line.quantity) > batch.available_qty) {
+            const item = catalogItems.find(i => i.id === line.itemId);
+            setFormError(`Cannot stock out ${line.quantity} of ${item?.name || 'Item'}. Only ${batch.available_qty} available in selected batch.`);
+            return;
+          }
+        }
+      }
+    }
 
     setSubmitting(true);
     const errors: string[] = [];

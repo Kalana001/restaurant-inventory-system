@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
-import { DollarSign, Plus, CheckCircle, XCircle, Clock } from 'lucide-react';
-import { JatPaymentModal } from './JatPaymentModal';
+import { DollarSign, CheckCircle, XCircle, Clock } from 'lucide-react';
 
 interface JatKitchenReportProps {
   month?: string; // YYYY-MM
@@ -25,14 +24,7 @@ interface TransactionRow {
 export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }) => {
   const [data, setData] = useState<TransactionRow[]>([]);
   const [selectedReceipt, setSelectedReceipt] = useState<TransactionRow | null>(null);
-  const [settlements, setSettlements] = useState<any[]>([]);
-  const [monthlyKitchen, setMonthlyKitchen] = useState(0);
-  const [monthlyJat, setMonthlyJat] = useState(0);
-  const [unsettledBalance, setUnsettledBalance] = useState(0);
-  const [loading, setLoading] = useState(false);
 
-  // Modal states
-  const [modalOpen, setModalOpen] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -125,19 +117,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
 
       setUnsettledBalance(totalJatCost - totalSettled);
 
-      // 5. Fetch Settlements for this month's view
-      const { data: monthSettlements } = await supabase
-        .from('jat_settlements')
-        .select('*')
-        .gte('settlement_date', start.split('T')[0])
-        .lte('settlement_date', end.split('T')[0])
-        .order('settlement_date', { ascending: false });
 
-      if (monthSettlements) {
-        setSettlements(monthSettlements);
-        const monthSettlementsTotal = monthSettlements.reduce((sum, s) => sum + (Number(s.amount) || 0), 0);
-        setMonthlyJat(Math.max(0, mJat - monthSettlementsTotal));
-      }
 
     } catch (err) {
       console.error(err);
@@ -152,14 +132,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
 
 
 
-  const updateStatus = async (id: string, status: string) => {
-    try {
-      await supabase.from('jat_settlements').update({ status }).eq('id', id);
-      fetchData();
-    } catch (err) {
-      console.error(err);
-    }
-  };
+
 
   return (
     <div className="space-y-6">
@@ -179,7 +152,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Transaction Details Table */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
@@ -221,80 +194,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
             </table>
           </div>
         </div>
-
-        {/* JAT Settlements Table */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-            <h3 className="font-bold text-slate-800">JAT Settlements</h3>
-            <button
-              onClick={() => setModalOpen(true)}
-              className="flex items-center gap-2 px-3 py-1.5 bg-primary text-white text-sm font-bold rounded-lg hover:bg-opacity-90 transition-all shadow-sm"
-            >
-              <Plus className="w-4 h-4" /> Record Payment
-            </button>
-          </div>
-          <div className="overflow-x-auto flex-1">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 font-bold">Date</th>
-                  <th className="px-4 py-3 font-bold">Method</th>
-                  <th className="px-4 py-3 font-bold text-right">Amount</th>
-                  <th className="px-4 py-3 font-bold text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {settlements.length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">No settlements found</td></tr>
-                ) : (
-                  settlements.map(s => (
-                    <tr key={s.id} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-700">
-                        {format(parseISO(s.settlement_date), 'MMM dd, yyyy')}
-                        {s.for_date && <div className="text-xs text-slate-400">For: {format(parseISO(s.for_date), 'MMM dd')}</div>}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-semibold text-slate-600 text-xs px-2 py-1 bg-slate-100 rounded-lg">{s.payment_method.replace('_', ' ')}</span>
-                        {s.payment_method === 'CHEQUE' && s.cheque_realize_date && (
-                          <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
-                            <Clock className="w-3 h-3" /> Due {format(parseISO(s.cheque_realize_date), 'MMM dd')}
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3 text-right font-bold text-emerald-600">
-                        LKR {Number(s.amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                      </td>
-                      <td className="px-4 py-3 text-center">
-                        <select
-                          value={s.status}
-                          onChange={(e) => updateStatus(s.id, e.target.value)}
-                          className={`text-xs font-bold rounded-full px-2 py-1 border-0 ${
-                            s.status === 'CLEARED' ? 'bg-emerald-100 text-emerald-700' :
-                            s.status === 'BOUNCED' ? 'bg-rose-100 text-rose-700' :
-                            'bg-amber-100 text-amber-700'
-                          }`}
-                        >
-                          <option value="PENDING">PENDING</option>
-                          <option value="CLEARED">CLEARED</option>
-                          <option value="BOUNCED">BOUNCED</option>
-                        </select>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
-
-      {/* Add Settlement Modal */}
-      {modalOpen && (
-        <JatPaymentModal 
-          onClose={() => setModalOpen(false)} 
-          onSuccess={() => { setModalOpen(false); fetchData(); }} 
-        />
-      )}
 
       {/* Receipt Details Modal */}
       {selectedReceipt && (
