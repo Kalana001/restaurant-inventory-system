@@ -115,14 +115,13 @@ export const DailyUsageSheet: React.FC = () => {
             <th key={dayIndex} className="border border-slate-300 p-1 text-center" colSpan={2}>
               <input 
                 type="text" 
-                placeholder="Date..." 
                 value={dates[dayIndex]} 
                 onChange={e => {
                   const newDates = [...dates];
                   newDates[dayIndex] = e.target.value;
                   setDates(newDates);
                 }}
-                className="w-full text-center bg-transparent outline-none placeholder:text-slate-400 font-bold"
+                className="w-full text-center bg-transparent outline-none font-bold"
               />
             </th>
           ))}
