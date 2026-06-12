@@ -269,7 +269,12 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
                     <tr key={row.receipt} className="hover:bg-slate-50/50">
                       <td className="px-4 py-3 font-medium text-slate-700">{format(parseISO(row.date), 'dd MMM')}</td>
                       <td className="px-4 py-3">
-                        <span className={`px-2 py-1 text-xs font-bold rounded-lg ${row.reason === 'JAT' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>{row.reason}</span>
+                        <span className={`px-2 py-1 text-xs font-bold rounded-lg ${
+                          row.reason === 'JAT' ? 'bg-orange-100 text-orange-700' : 
+                          row.reason === 'Kitchen Usage' ? 'bg-blue-100 text-blue-700' :
+                          row.reason === 'JAT / Vege' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                          'bg-purple-100 text-purple-700 border border-purple-200'
+                        }`}>{row.reason}</span>
                       </td>
                       <td className="px-4 py-3 text-right font-semibold">LKR {row.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
                       <td className="px-4 py-3 text-center">
