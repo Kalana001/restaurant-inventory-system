@@ -320,8 +320,7 @@ export const PurchaseOrders: React.FC = () => {
         name: i.inventory_items?.name,
         unit: i.inventory_items?.units?.abbreviation || 'pcs',
         quantity: i.quantity,
-        costPrice: Number(i.cost_price),
-        expiryDate: format(new Date(), 'yyyy-MM-dd')
+        costPrice: Number(i.cost_price)
       })));
     }
     setGrnModalOpen(true);
@@ -342,7 +341,6 @@ export const PurchaseOrders: React.FC = () => {
           item_id: i.itemId,
           quantity: Number(i.quantity),
           cost_price: Number(i.costPrice),
-          expiry_date: i.expiryDate || null,
           batch_number: `GRN-${Date.now()}-${i.itemId.slice(0, 6)}`
         }))
       };
@@ -822,7 +820,6 @@ export const PurchaseOrders: React.FC = () => {
                     <th className="px-4 py-2.5">Item</th>
                     <th className="px-4 py-2.5">Qty Received</th>
                     <th className="px-4 py-2.5">Unit Cost</th>
-                    <th className="px-4 py-2.5">Expiry Date <span className="text-slate-300 font-normal">(Optional)</span></th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -839,12 +836,6 @@ export const PurchaseOrders: React.FC = () => {
                         <input type="number" min="0" step="0.001" value={item.costPrice || ''}
                           onChange={e => setGrnItems(prev => { const c=[...prev]; c[idx]={...c[idx], costPrice: e.target.value}; return c; })}
                           className="w-24 px-2 py-1.5 border-2 border-slate-300 rounded-lg font-bold text-slate-800 focus:border-primary outline-none"
-                        />
-                      </td>
-                      <td className="px-4 py-2">
-                        <input type="date" value={item.expiryDate || ''}
-                          onChange={e => setGrnItems(prev => { const c=[...prev]; c[idx]={...c[idx], expiryDate: e.target.value}; return c; })}
-                          className="px-2 py-1.5 border-2 border-slate-300 rounded-lg text-slate-800 focus:border-primary outline-none"
                         />
                       </td>
                     </tr>
