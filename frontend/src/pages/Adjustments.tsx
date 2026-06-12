@@ -165,7 +165,7 @@ export const Adjustments: React.FC = () => {
     setLines(prev => prev.map(l => l.id === lineId ? { ...l, [field]: value } : l));
   };
 
-  const addLine = () => setLines(prev => [...prev, newLine()]);
+  const addLine = () => setLines(prev => [newLine(), ...prev]);
   const removeLine = (lineId: string) => setLines(prev => prev.filter(l => l.id !== lineId));
 
   const handleCancelAdj = () => {
@@ -539,6 +539,14 @@ export const Adjustments: React.FC = () => {
                   <span className="text-xs text-slate-400">{lines.length} line{lines.length !== 1 ? 's' : ''}</span>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={addLine}
+                  className="w-full py-2.5 border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary hover:text-primary rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 mb-2"
+                >
+                  <Plus size={16} /> Add Another Item
+                </button>
+
                 <div className="hidden md:grid grid-cols-12 gap-2 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   <div className="col-span-4">Item</div>
                   <div className="col-span-5">{movementType === 'STOCK_IN' ? 'Price (LKR)' : 'Batch'}</div>
@@ -662,14 +670,6 @@ export const Adjustments: React.FC = () => {
                     </div>
                   </div>
                 ))}
-
-                <button
-                  type="button"
-                  onClick={addLine}
-                  className="w-full py-2.5 border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary hover:text-primary rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2"
-                >
-                  <Plus size={16} /> Add Another Item
-                </button>
               </div>
 
               {/* Summary */}
