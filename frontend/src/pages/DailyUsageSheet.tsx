@@ -120,7 +120,7 @@ export const DailyUsageSheet: React.FC = () => {
           {[0, 1, 2].map(dayIndex => (
             <th key={dayIndex} className="border border-slate-300 p-1 text-center" colSpan={2}>
               {exporting ? (
-                <span className="font-bold">{dates[dayIndex]}</span>
+                <span className="font-bold inline-block min-h-[18px] min-w-[50px]">{dates[dayIndex] || '\u00A0'}</span>
               ) : (
                 <input 
                   type="text" 
@@ -151,7 +151,7 @@ export const DailyUsageSheet: React.FC = () => {
             <td className="border border-slate-300 p-0 relative">
               <div className="flex items-center w-full min-h-[32px]">
                 {exporting ? (
-                  <span className="w-full p-2 font-medium text-slate-800 leading-tight">{item.customName}</span>
+                  <span className="w-full p-2 font-medium text-slate-800 leading-tight min-h-[32px] inline-block">{item.customName || '\u00A0'}</span>
                 ) : (
                   <input
                     type="text"
@@ -226,7 +226,7 @@ export const DailyUsageSheet: React.FC = () => {
             <div className="flex items-center gap-2">
               Month: 
               {exporting ? (
-                <span className="w-24 border-b border-slate-300 border-dotted inline-block">{monthInput}</span>
+                <span className="w-24 border-b border-slate-300 border-dotted inline-block min-h-[20px] align-bottom">{monthInput || '\u00A0'}</span>
               ) : (
                 <input 
                   type="text" 
@@ -239,7 +239,7 @@ export const DailyUsageSheet: React.FC = () => {
             <div className="flex items-center gap-2">
               Date Range: 
               {exporting ? (
-                <span className="w-32 border-b border-slate-300 border-dotted inline-block">{dateRangeInput}</span>
+                <span className="w-32 border-b border-slate-300 border-dotted inline-block min-h-[20px] align-bottom">{dateRangeInput || '\u00A0'}</span>
               ) : (
                 <input 
                   type="text" 
