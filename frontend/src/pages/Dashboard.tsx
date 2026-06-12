@@ -66,35 +66,73 @@ export const Dashboard: React.FC = () => {
         const jatReason = reasonsData.find(r => r.name === 'JAT');
         const kitchenReason = reasonsData.find(r => r.name === 'Kitchen Usage');
 
-        const [ { data: jatMoves }, { data: settledJatData }, { data: kitchenMoves } ] = await Promise.all([
+        const [ { data: jatMoves }, { data: settledJatData }, { data: kitchenMoves }, { data: dailyPurchases }, { data: transCosts } ] = await Promise.all([
           jatReason ? supabase.from('stock_movements').select('quantity, cost_price').eq('type', 'STOCK_OUT').eq('reason_id', jatReason.id) : Promise.resolve({ data: [] }),
           supabase.from('jat_settlements').select('amount').neq('status', 'BOUNCED'),
-          kitchenReason ? supabase.from('stock_movements').select('quantity, cost_price, created_at').eq('type', 'STOCK_OUT').eq('reason_id', kitchenReason.id) : Promise.resolve({ data: [] })
+          kitchenReason ? supabase.from('stock_movements').select('quantity, cost_price, created_at').eq('type', 'STOCK_OUT').eq('reason_id', kitchenReason.id) : Promise.resolve({ data: [] }),
+          supabase.from('daily_purchases').select('total_cost, department, date'),
+          supabase.from('transportation_costs').select('cost, department, date')
         ]);
         
-        const total = jatMoves?.reduce((sum, row) => sum + (row.quantity * row.cost_price), 0) || 0;
+        let totalJat = jatMoves?.reduce((sum, row) => sum + (Number(row.quantity) * Number(row.cost_price)), 0) || 0;
         const settled = settledJatData?.reduce((sum, row) => sum + (Number(row.amount) || 0), 0) || 0;
         
-        setJatTotal(total);
-        setJatUnsettled(Math.max(0, total - settled));
+        // Add JAT purchases and trans costs to totalJat
+        if (dailyPurchases) {
+          totalJat += dailyPurchases
+            .filter(dp => dp.department === 'JAT')
+            .reduce((sum, dp) => sum + (Number(dp.total_cost) || 0), 0);
+        }
+        if (transCosts) {
+          totalJat += transCosts
+            .filter(tc => tc.department === 'JAT')
+            .reduce((sum, tc) => sum + (Number(tc.cost) || 0), 0);
+        }
+
+        setJatTotal(totalJat);
+        setJatUnsettled(Math.max(0, totalJat - settled));
+
+        const now = new Date();
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+        
+        // For DP and TC, dates are stored as YYYY-MM-DD
+        const monthStartStr = now.toISOString().split('T')[0].substring(0, 8) + '01'; // YYYY-MM-01
+        const todayStr = now.toISOString().split('T')[0];
+
+        let mTotalKitchen = 0;
+        let dTotalKitchen = 0;
 
         if (kitchenMoves) {
-          const now = new Date();
-          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-
-          let mTotal = 0;
-          let dTotal = 0;
-
           kitchenMoves.forEach(m => {
-            const cost = m.quantity * m.cost_price;
-            if (m.created_at >= monthStart) mTotal += cost;
-            if (m.created_at >= todayStart) dTotal += cost;
+            const cost = Number(m.quantity) * Number(m.cost_price);
+            if (m.created_at >= monthStart) mTotalKitchen += cost;
+            if (m.created_at >= todayStart) dTotalKitchen += cost;
           });
-
-          setKitchenMonthTotal(mTotal);
-          setKitchenDailyTotal(dTotal);
         }
+        
+        if (dailyPurchases) {
+          dailyPurchases.forEach(dp => {
+            if (dp.department === 'KITCHEN') {
+              const cost = Number(dp.total_cost) || 0;
+              if (dp.date >= monthStartStr) mTotalKitchen += cost;
+              if (dp.date === todayStr) dTotalKitchen += cost;
+            }
+          });
+        }
+        
+        if (transCosts) {
+          transCosts.forEach(tc => {
+            if (tc.department === 'KITCHEN') {
+              const cost = Number(tc.cost) || 0;
+              if (tc.date >= monthStartStr) mTotalKitchen += cost;
+              if (tc.date === todayStr) dTotalKitchen += cost;
+            }
+          });
+        }
+
+        setKitchenMonthTotal(mTotalKitchen);
+        setKitchenDailyTotal(dTotalKitchen);
       }
 
       const { data: moves, error: moveErr } = await supabase
