@@ -20,7 +20,8 @@ import {
   Bell,
   AlertTriangle,
   Clock,
-  ShoppingBag
+  ShoppingBag,
+  Truck
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
@@ -143,6 +144,12 @@ export const DashboardLayout: React.FC = () => {
       label: 'Daily Purchases', 
       path: '/daily-purchases', 
       icon: <ShoppingBag size={20} />, 
+      permission: null 
+    },
+    { 
+      label: 'Transportation', 
+      path: '/transportation', 
+      icon: <Truck size={20} />, 
       permission: null 
     },
     { 

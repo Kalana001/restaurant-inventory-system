@@ -70,6 +70,12 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
         .gte('date', dpStartStr)
         .lte('date', dpEndStr);
 
+      const { data: transCosts } = await supabase
+        .from('transportation_costs')
+        .select('*')
+        .gte('date', dpStartStr)
+        .lte('date', dpEndStr);
+
       const transactions: Record<string, TransactionRow> = {};
       let mKitchen = 0;
       let mJat = 0;
@@ -137,6 +143,34 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
         });
       }
 
+      if (transCosts) {
+        transCosts.forEach((tc: any) => {
+          const receipt = `TRN-${tc.date}-${tc.department}`;
+          const cost = Number(tc.cost) || 0;
+
+          if (!transactions[receipt]) {
+            transactions[receipt] = {
+              receipt,
+              date: tc.date,
+              reason: tc.department === 'JAT' ? 'JAT / Trans' : 'Kitchen Usage / Trans',
+              totalCost: 0,
+              items: []
+            };
+          }
+
+          transactions[receipt].totalCost += cost;
+          transactions[receipt].items.push({
+            name: `${tc.reason} (Transport)`,
+            quantity: 1,
+            cost_price: cost,
+            total: cost
+          });
+
+          if (tc.department === 'JAT') mJat += cost;
+          else if (tc.department === 'KITCHEN') mKitchen += cost;
+        });
+      }
+
       setMonthlyKitchen(mKitchen);
       setMonthlyJat(mJat);
       setData(Object.values(transactions).sort((a, b) => b.date.localeCompare(a.date)));
@@ -160,6 +194,11 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
         .select('total_cost, department')
         .eq('date', todayStr);
 
+      const { data: todayTc } = await supabase
+        .from('transportation_costs')
+        .select('cost, department')
+        .eq('date', todayStr);
+
       let tJat = 0;
       let tKitchen = 0;
 
@@ -179,6 +218,14 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
         });
       }
 
+      if (todayTc) {
+        todayTc.forEach(tc => {
+          const cost = Number(tc.cost) || 0;
+          if (tc.department === 'JAT') tJat += cost;
+          else if (tc.department === 'KITCHEN') tKitchen += cost;
+        });
+      }
+
       setTodayJat(tJat);
       setTodayKitchen(tKitchen);
 
@@ -195,9 +242,15 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
         .select('total_cost')
         .eq('department', 'JAT');
 
+      const { data: allJatTc } = await supabase
+        .from('transportation_costs')
+        .select('cost')
+        .eq('department', 'JAT');
+
       const baseJatCost = allJat?.reduce((sum, m) => sum + ((Number(m.quantity) || 0) * (Number(m.cost_price) || 0)), 0) || 0;
       const dpJatCost = allJatDp?.reduce((sum, dp) => sum + (Number(dp.total_cost) || 0), 0) || 0;
-      const totalJatCost = baseJatCost + dpJatCost;
+      const tcJatCost = allJatTc?.reduce((sum, tc) => sum + (Number(tc.cost) || 0), 0) || 0;
+      const totalJatCost = baseJatCost + dpJatCost + tcJatCost;
 
       // Total Settled (Cleared or Pending) - Assume pending counts as paid until bounced, or maybe just all?
       // Actually, let's sum all valid settlements
@@ -312,6 +365,8 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
               <option value="Kitchen Usage">Kitchen Usage</option>
               <option value="JAT / Vege">JAT / Vege</option>
               <option value="Kitchen Usage / Vege">Kitchen Usage / Vege</option>
+              <option value="JAT / Trans">JAT / Trans</option>
+              <option value="Kitchen Usage / Trans">Kitchen Usage / Trans</option>
             </select>
           </div>
           <div className="overflow-x-auto flex-1">
@@ -338,7 +393,9 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
                           row.reason === 'JAT' ? 'bg-orange-100 text-orange-700' : 
                           row.reason === 'Kitchen Usage' ? 'bg-blue-100 text-blue-700' :
                           row.reason === 'JAT / Vege' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-                          'bg-purple-100 text-purple-700 border border-purple-200'
+                          row.reason === 'Kitchen Usage / Vege' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                          row.reason === 'JAT / Trans' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' :
+                          'bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200'
                         }`}>{row.reason}</span>
                       </td>
                       <td className="px-4 py-3 text-right font-semibold">LKR {row.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>

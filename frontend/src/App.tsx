@@ -20,6 +20,7 @@ import SecuritySettings from './pages/SecuritySettings';
 import ActivityLog from './pages/ActivityLog';
 import DailyUsageSheet from './pages/DailyUsageSheet';
 import { DailyPurchases } from './pages/DailyPurchases';
+import { Transportation } from './pages/Transportation';
 
 function App() {
   return (
@@ -60,6 +61,7 @@ function App() {
 
             <Route element={<ProtectedRoute />}>
               <Route path="/daily-purchases" element={<DailyPurchases />} />
+              <Route path="/transportation" element={<Transportation />} />
             </Route>
 
             <Route element={<ProtectedRoute requiredPermission="reports:read" />}>

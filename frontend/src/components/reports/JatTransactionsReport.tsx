@@ -51,17 +51,21 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
       }
 
       let dpQuery = supabase.from('daily_purchases').select('*').eq('department', 'JAT');
+      let tcQuery = supabase.from('transportation_costs').select('*').eq('department', 'JAT');
       if (day) {
         dpQuery = dpQuery.gte('date', day).lte('date', day);
+        tcQuery = tcQuery.gte('date', day).lte('date', day);
       } else {
         const targetDate = month ? new Date(month + '-01') : new Date();
         const startStr = format(startOfMonth(targetDate), 'yyyy-MM-dd');
         const endStr = format(endOfMonth(targetDate), 'yyyy-MM-dd');
         dpQuery = dpQuery.gte('date', startStr).lte('date', endStr);
+        tcQuery = tcQuery.gte('date', startStr).lte('date', endStr);
       }
 
       const { data: movements } = await query;
       const { data: dailyPurchases } = await dpQuery;
+      const { data: transCosts } = await tcQuery;
       const { data: settlements } = await supabase.from('jat_settlements').select('id, notes, status').neq('status', 'BOUNCED');
 
       if (movements) {
@@ -130,6 +134,34 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
               name: `${dp.item_name} (Market Buy)`,
               quantity: Number(dp.quantity) || 0,
               cost_price: Number(dp.quantity) ? cost / Number(dp.quantity) : cost,
+              total: cost
+            });
+          });
+        }
+
+        if (transCosts) {
+          transCosts.forEach((tc: any) => {
+            const receipt = `TRN-${tc.date}-JAT`;
+            const date = tc.date;
+            const cost = Number(tc.cost) || 0;
+
+            if (!txMap[receipt]) {
+              txMap[receipt] = {
+                receipt,
+                date,
+                reason: 'JAT / Trans',
+                totalCost: 0,
+                paid: 0,
+                remaining: 0,
+                status: 'PENDING',
+                items: []
+              };
+            }
+            txMap[receipt].totalCost += cost;
+            txMap[receipt].items.push({
+              name: `${tc.reason} (Transport)`,
+              quantity: 1,
+              cost_price: cost,
               total: cost
             });
           });
@@ -259,7 +291,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
             <div className="p-6 overflow-y-auto">
               <div className="flex items-center gap-4 mb-4 text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100">
                 <div><span className="font-bold text-slate-500">Date:</span> {format(parseISO(selectedReceipt.date), 'MMMM dd, yyyy')}</div>
-                <div><span className="font-bold text-slate-500">Reason:</span> JAT</div>
+                <div><span className="font-bold text-slate-500">Reason:</span> {selectedReceipt.reason}</div>
                 <div><span className="font-bold text-slate-500">Total:</span> LKR {selectedReceipt.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
               </div>
 
