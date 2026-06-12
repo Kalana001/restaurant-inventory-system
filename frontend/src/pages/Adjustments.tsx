@@ -4,7 +4,6 @@ import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useAutoSave, loadDraft } from '../hooks/useAutoSave';
 import {
-import { format } from 'date-fns';
   Plus, Check, X, AlertCircle, Layers, Trash2,
   PackageOpen, PackagePlus, FileText, Calendar, XCircle, TrendingUp, TrendingDown, Settings
 } from 'lucide-react';
@@ -56,7 +55,7 @@ export const Adjustments: React.FC = () => {
   // Bulk form state
   const [movementType, setMovementType] = useState<'STOCK_IN' | 'STOCK_OUT'>(() => loadDraft<'STOCK_IN' | 'STOCK_OUT'>('adj_draft_type') || 'STOCK_OUT');
   const [selectedReasonId, setSelectedReasonId] = useState(() => loadDraft<string>('adj_draft_reason') || '');
-  const [movementDate, setMovementDate] = useState(() => loadDraft<string>('adj_draft_date') || format(new Date(), 'yyyy-MM-dd'));
+  const [movementDate, setMovementDate] = useState(() => loadDraft<string>('adj_draft_date') || new Date().toISOString().split('T')[0]);
   const [lines, setLines] = useState<BulkLine[]>(() => loadDraft<BulkLine[]>('adj_draft_lines') || [newLine()]);
   
   const { clearDraft: clearMovementType } = useAutoSave('adj_draft_type', movementType);
@@ -131,7 +130,7 @@ export const Adjustments: React.FC = () => {
   const handleOpenModal = () => {
     setLines([newLine()]);
     setMovementType('STOCK_OUT');
-    setMovementDate(format(new Date(), 'yyyy-MM-dd'));
+    setMovementDate(new Date().toISOString().split('T')[0]);
     setFormError(null);
     const kitchenUsage = reasons.find(r => r.type === 'STOCK_OUT' && r.name.toLowerCase() === 'kitchen usage');
     const firstOut = reasons.find(r => r.type === 'STOCK_OUT');
@@ -789,4 +788,5 @@ export const Adjustments: React.FC = () => {
   );
 };
 export default Adjustments;
+
 
