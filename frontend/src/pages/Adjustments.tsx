@@ -457,7 +457,7 @@ export const Adjustments: React.FC = () => {
       {/* â”€â”€ Bulk Movement Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {modalOpen && (
         <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900 bg-opacity-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-5xl my-6 card-shadow flex flex-col">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-5xl my-6 min-h-[85vh] card-shadow flex flex-col">
 
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
