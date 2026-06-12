@@ -40,9 +40,13 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ da
         .eq('reason_id', jatReason.id);
 
       if (day) {
-        query = query.eq('created_at::date', day);
+        const start = new Date(day + 'T00:00:00.000Z').toISOString();
+        const end = new Date(day + 'T23:59:59.999Z').toISOString();
+        query = query.gte('created_at', start).lte('created_at', end);
       } else {
-        query = query.gte('created_at', dateRange.start).lte('created_at', dateRange.end);
+        const start = new Date(dateRange.start + 'T00:00:00.000Z').toISOString();
+        const end = new Date(dateRange.end + 'T23:59:59.999Z').toISOString();
+        query = query.gte('created_at', start).lte('created_at', end);
       }
 
       const { data: movements } = await query;
