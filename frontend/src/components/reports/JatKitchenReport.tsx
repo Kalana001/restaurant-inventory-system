@@ -177,56 +177,52 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
       let trueMonthJat = 0;
       let trueMonthKitchen = 0;
 
-      if (!day) {
-        trueMonthJat = mJat;
-        trueMonthKitchen = mKitchen;
-      } else {
-        const targetDate = new Date(day + 'T00:00:00.000Z');
-        const mStart = startOfMonth(targetDate).toISOString();
-        const mEnd = endOfMonth(targetDate).toISOString();
-        const mStartStr = format(targetDate, 'yyyy-MM-01');
-        const mEndStr = format(endOfMonth(targetDate), 'yyyy-MM-dd');
+      // ALWAYS fetch the current real-world calendar month's stats
+      const currentMonthDate = new Date();
+      const mStart = startOfMonth(currentMonthDate).toISOString();
+      const mEnd = endOfMonth(currentMonthDate).toISOString();
+      const mStartStr = format(currentMonthDate, 'yyyy-MM-01');
+      const mEndStr = format(endOfMonth(currentMonthDate), 'yyyy-MM-dd');
 
-        const [mMovements, mDp, mTc] = await Promise.all([
-          supabase
-            .from('stock_movements')
-            .select('quantity, cost_price, reason_id')
-            .eq('type', 'STOCK_OUT')
-            .gte('created_at', mStart)
-            .lte('created_at', mEnd),
-          supabase
-            .from('daily_purchases')
-            .select('total_cost, department')
-            .gte('date', mStartStr)
-            .lte('date', mEndStr),
-          supabase
-            .from('transportation_costs')
-            .select('cost, department')
-            .gte('date', mStartStr)
-            .lte('date', mEndStr)
-        ]);
+      const [mMovements, mDp, mTc] = await Promise.all([
+        supabase
+          .from('stock_movements')
+          .select('quantity, cost_price, reason_id')
+          .eq('type', 'STOCK_OUT')
+          .gte('created_at', mStart)
+          .lte('created_at', mEnd),
+        supabase
+          .from('daily_purchases')
+          .select('total_cost, department')
+          .gte('date', mStartStr)
+          .lte('date', mEndStr),
+        supabase
+          .from('transportation_costs')
+          .select('cost, department')
+          .gte('date', mStartStr)
+          .lte('date', mEndStr)
+      ]);
 
-        if (mMovements.data) {
-          mMovements.data.forEach(m => {
-            const cost = (Number(m.quantity) || 0) * (Number(m.cost_price) || 0);
-            if (m.reason_id === jatReason) trueMonthJat += cost;
-            else if (m.reason_id === kitchenReason) trueMonthKitchen += cost;
-          });
-        }
-        if (mDp.data) {
-          mDp.data.forEach(dp => {
-            const cost = Number(dp.total_cost) || 0;
-            if (dp.department === 'JAT') trueMonthJat += cost;
-            else if (dp.department === 'KITCHEN') trueMonthKitchen += cost;
-          });
-        }
-        if (mTc.data) {
-          mTc.data.forEach(tc => {
-            const cost = Number(tc.cost) || 0;
-            if (tc.department === 'JAT') trueMonthJat += cost;
-            else if (tc.department === 'KITCHEN') trueMonthKitchen += cost;
-          });
-        }
+      if (mMovements.data) {
+        mMovements.data.forEach(m => {
+          const cost = (Number(m.quantity) || 0) * (Number(m.cost_price) || 0);
+          if (m.reason_id === jatReason) trueMonthJat += cost;
+          else if (m.reason_id === kitchenReason) trueMonthKitchen += cost;
+        });
+      }
+      if (mDp.data) {
+        mDp.data.forEach(dp => {
+          const cost = Number(dp.total_cost) || 0;
+          if (dp.department === 'JAT') trueMonthJat += cost;
+          else if (dp.department === 'KITCHEN') trueMonthKitchen += cost;
+        });
+      }
+      if (mTc.data) {
+        mTc.data.forEach(tc => {
+          const cost = Number(tc.cost) || 0;
+          if (tc.department === 'JAT') trueMonthJat += cost;
+          else if (tc.department === 'KITCHEN') trueMonthKitchen += cost;
+        });
       }
 
       setTrueMonthlyJat(trueMonthJat);
