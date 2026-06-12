@@ -29,6 +29,8 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
   const [loading, setLoading] = useState(true);
   const [monthlyKitchen, setMonthlyKitchen] = useState(0);
   const [monthlyJat, setMonthlyJat] = useState(0);
+  const [todayKitchen, setTodayKitchen] = useState(0);
+  const [todayJat, setTodayJat] = useState(0);
   const [unsettledBalance, setUnsettledBalance] = useState(0);
 
   const fetchData = async () => {
@@ -138,7 +140,48 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
       setMonthlyJat(mJat);
       setData(Object.values(transactions).sort((a, b) => b.date.localeCompare(a.date)));
 
-      // 4. Fetch All-Time Unsettled Balance for JAT
+      // 4. Fetch Today's Stats
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const todayEnd = new Date();
+      todayEnd.setHours(23, 59, 59, 999);
+      
+      const { data: todayMovements } = await supabase
+        .from('stock_movements')
+        .select('quantity, cost_price, reason_id')
+        .eq('type', 'STOCK_OUT')
+        .gte('created_at', todayStart.toISOString())
+        .lte('created_at', todayEnd.toISOString());
+
+      const todayStr = format(new Date(), 'yyyy-MM-dd');
+      const { data: todayDp } = await supabase
+        .from('daily_purchases')
+        .select('total_cost, department')
+        .eq('date', todayStr);
+
+      let tJat = 0;
+      let tKitchen = 0;
+
+      if (todayMovements) {
+        todayMovements.forEach(m => {
+          const cost = (Number(m.quantity) || 0) * (Number(m.cost_price) || 0);
+          if (m.reason_id === jatReason) tJat += cost;
+          else if (m.reason_id === kitchenReason) tKitchen += cost;
+        });
+      }
+
+      if (todayDp) {
+        todayDp.forEach(dp => {
+          const cost = Number(dp.total_cost) || 0;
+          if (dp.department === 'JAT') tJat += cost;
+          else if (dp.department === 'KITCHEN') tKitchen += cost;
+        });
+      }
+
+      setTodayJat(tJat);
+      setTodayKitchen(tKitchen);
+
+      // 5. Fetch All-Time Unsettled Balance for JAT
       // Total JAT All-Time
       const { data: allJat } = await supabase
         .from('stock_movements')
@@ -230,18 +273,26 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-500 uppercase">JAT Unsettled Balance (All-Time)</h3>
-          <p className="text-2xl font-black text-rose-600 mt-2">LKR {unsettledBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm md:col-span-1">
+          <h3 className="text-xs font-bold text-slate-500 uppercase">JAT Unsettled Balance</h3>
+          <p className="text-xl font-black text-rose-600 mt-2">LKR {unsettledBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
         </div>
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-500 uppercase">JAT Cost (This Month)</h3>
-          <p className="text-2xl font-black text-slate-800 mt-2">LKR {monthlyJat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm md:col-span-1">
+          <h3 className="text-xs font-bold text-slate-500 uppercase">JAT Cost (Today)</h3>
+          <p className="text-xl font-black text-slate-800 mt-2">LKR {todayJat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
         </div>
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <h3 className="text-sm font-bold text-slate-500 uppercase">Kitchen Usage (This Month)</h3>
-          <p className="text-2xl font-black text-slate-800 mt-2">LKR {monthlyKitchen.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm md:col-span-1">
+          <h3 className="text-xs font-bold text-slate-500 uppercase">Kitchen Usage (Today)</h3>
+          <p className="text-xl font-black text-slate-800 mt-2">LKR {todayKitchen.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm md:col-span-1">
+          <h3 className="text-xs font-bold text-slate-500 uppercase">JAT Cost (This Month)</h3>
+          <p className="text-xl font-black text-slate-800 mt-2">LKR {monthlyJat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+        </div>
+        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm md:col-span-1">
+          <h3 className="text-xs font-bold text-slate-500 uppercase">Kitchen Usage (This Month)</h3>
+          <p className="text-xl font-black text-slate-800 mt-2">LKR {monthlyKitchen.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
         </div>
       </div>
 
