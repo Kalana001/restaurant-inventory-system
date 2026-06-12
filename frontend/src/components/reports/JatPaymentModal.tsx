@@ -39,12 +39,14 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
 
         if (movements || dailyPurchases || transCosts) {
           const allocationsByReceipt: Record<string, number> = {};
+          const isAllocated: Record<string, boolean> = {};
           settlements?.forEach(s => {
             try {
               const parsed = JSON.parse(s.notes);
               if (parsed && parsed.allocations) {
                 Object.entries(parsed.allocations).forEach(([receipt, amount]) => {
                   allocationsByReceipt[receipt] = (allocationsByReceipt[receipt] || 0) + Number(amount);
+                  isAllocated[receipt] = true;
                 });
               }
             } catch (e) {}
@@ -90,7 +92,7 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
             tx.remaining = Math.max(0, tx.totalCost - tx.paid);
           });
 
-          setPendingReceipts(Object.values(txMap).filter(t => t.remaining > 0).sort((a, b) => a.date.localeCompare(b.date)));
+          setPendingReceipts(Object.values(txMap).filter(t => t.remaining > 0 || (t.totalCost === 0 && !isAllocated[t.receipt])).sort((a, b) => a.date.localeCompare(b.date)));
         }
       } catch (err) {
         console.error(err);
@@ -154,7 +156,8 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (totalAmount <= 0) return alert('Payment amount must be greater than 0');
+    if (selectedReceipts.size === 0) return alert('Please select at least one receipt to settle');
+    if (totalAmount < 0) return alert('Payment amount cannot be negative');
 
     setSubmitting(true);
     try {
@@ -163,8 +166,8 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
 
       const finalAllocations: Record<string, number> = {};
       Object.entries(allocations).forEach(([k, v]) => {
-        if (selectedReceipts.has(k) && v > 0) {
-          finalAllocations[k] = v;
+        if (selectedReceipts.has(k)) {
+          finalAllocations[k] = v || 0;
         }
       });
 
@@ -318,7 +321,7 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
 
             <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
               <button type="button" onClick={onClose} className="px-6 py-2 bg-slate-100 text-slate-600 font-bold rounded-xl hover:bg-slate-200 transition-colors">Cancel</button>
-              <button type="submit" disabled={submitting || totalAmount <= 0} className="px-8 py-2 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:shadow-none">
+              <button type="submit" disabled={submitting || selectedReceipts.size === 0 || totalAmount < 0} className="px-8 py-2 bg-emerald-500 text-white font-bold rounded-xl hover:bg-emerald-600 transition-colors shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-2 disabled:opacity-50 disabled:shadow-none">
                 {submitting ? 'Saving...' : <><CheckCircle className="w-5 h-5" /> Save Payment</>}
               </button>
             </div>
