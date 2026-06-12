@@ -215,6 +215,20 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     </>
   );
 
+  const renderJatKitchenFilters = () => (
+    <>
+      <div className="space-y-1">
+        <label className="text-xs font-bold text-slate-500 uppercase">Month</label>
+        <input 
+          type="month" 
+          value={filters.month || ''} 
+          onChange={(e) => handleChange('month', e.target.value)}
+          className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+        />
+      </div>
+    </>
+  );
+
   return (
     <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm space-y-4">
       <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
@@ -222,11 +236,12 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         <h3 className="font-bold text-slate-700">Report Filters</h3>
       </div>
       
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-slate-50 p-4 rounded-xl">
+      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4 items-end bg-slate-50 p-4 rounded-xl">
         {reportType === 'valuation' && renderValuationFilters()}
         {reportType === 'expiry' && renderExpiryFilters()}
         {reportType === 'outstanding' && renderOutstandingFilters()}
         {reportType === 'movements' && renderMovementsFilters()}
+        {reportType === 'jat_kitchen' && renderJatKitchenFilters()}
       </div>
 
       <div className="flex items-center justify-end gap-3 pt-2">

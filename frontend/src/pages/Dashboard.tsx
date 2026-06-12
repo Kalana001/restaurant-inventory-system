@@ -23,11 +23,14 @@ interface Metrics {
 export const Dashboard: React.FC = () => {
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [activities, setActivities] = useState<any[]>([]);
+  const [jatTotal, setJatTotal] = useState(0);
+  const [jatUnsettled, setJatUnsettled] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const fetchDashboardData = async () => {
     setLoading(true);
     try {
+      // Fetch Dashboard Metrics
       const { data: metricsData, error: metricsErr } = await supabase
         .from('dashboard_metrics_view')
         .select('*')
@@ -35,6 +38,21 @@ export const Dashboard: React.FC = () => {
 
       if (!metricsErr && metricsData) {
         setMetrics(metricsData as Metrics);
+      }
+
+      // Fetch JAT Stats
+      const { data: reasons } = await supabase.from('movement_reasons').select('id').eq('name', 'JAT').single();
+      if (reasons) {
+        const [ { data: totalJatData }, { data: settledJatData } ] = await Promise.all([
+          supabase.from('stock_movements').select('total_cost').eq('type', 'STOCK_OUT').eq('reason_id', reasons.id),
+          supabase.from('jat_settlements').select('amount').neq('status', 'BOUNCED')
+        ]);
+        
+        const total = totalJatData?.reduce((sum, row) => sum + (Number(row.total_cost) || 0), 0) || 0;
+        const settled = settledJatData?.reduce((sum, row) => sum + (Number(row.amount) || 0), 0) || 0;
+        
+        setJatTotal(total);
+        setJatUnsettled(Math.max(0, total - settled));
       }
 
       const { data: moves, error: moveErr } = await supabase
@@ -104,15 +122,27 @@ export const Dashboard: React.FC = () => {
       bg: 'bg-orange-50 border-orange-100',
     },
     {
-      title: 'Supplier Outstanding',
-      value: `LKR ${Number(metrics?.total_supplier_outstanding || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`,
-      icon: <Wallet size={24} className="text-purple-500" />,
+      title: 'Supplier Balance Outstanding',
+      value: `LKR ${Number(metrics?.total_supplier_outstanding || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      icon: <Wallet size={24} className="text-indigo-500" />,
+      bg: 'bg-indigo-50 border-indigo-100',
+    },
+    {
+      title: 'JAT Total Cost',
+      value: `LKR ${jatTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      icon: <TrendingDown size={24} className="text-purple-500" />,
       bg: 'bg-purple-50 border-purple-100',
     },
+    {
+      title: 'JAT Unsettled Balance',
+      value: `LKR ${jatUnsettled.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      icon: <AlertTriangle size={24} className="text-pink-500" />,
+      bg: 'bg-pink-50 border-pink-100',
+    }
   ];
 
   return (
-    <div className="space-y-8 pb-10">
+    <div className="space-y-6 pb-20">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">System Summary</h2>

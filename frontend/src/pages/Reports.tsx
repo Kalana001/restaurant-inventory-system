@@ -5,6 +5,7 @@ import { FilterPanel } from '../components/reports/FilterPanel';
 import { ReportTable } from '../components/reports/ReportTable';
 import type { ColumnDef } from '../components/reports/ReportTable';
 import { ExportPanel } from '../components/reports/ExportPanel';
+import { JatKitchenReport } from '../components/reports/JatKitchenReport';
 import { generateCSV, generateExcel, generatePDF } from '../lib/exportUtils';
 import type { ExportColumn } from '../lib/exportUtils';
 import { format } from 'date-fns';
@@ -307,18 +308,24 @@ export const Reports: React.FC = () => {
         users={users}
       />
 
-      <ReportTable 
-        columns={columns}
-        data={data}
-        loading={loading}
-      />
+      {reportType === 'jat_kitchen' ? (
+        <JatKitchenReport month={filters.month} />
+      ) : (
+        <ReportTable 
+          columns={columns}
+          data={data}
+          loading={loading}
+        />
+      )}
 
-      <ExportPanel 
-        totalCount={data.length}
-        columns={columns}
-        onExport={handleExport}
-        exporting={exporting}
-      />
+      {reportType !== 'jat_kitchen' && (
+        <ExportPanel 
+          totalCount={data.length}
+          columns={columns}
+          onExport={handleExport}
+          exporting={exporting}
+        />
+      )}
 
       {/* Supplier History Modal */}
       {historyOpen && historySupplier && (

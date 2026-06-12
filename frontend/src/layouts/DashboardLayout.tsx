@@ -86,6 +86,31 @@ export const DashboardLayout: React.FC = () => {
           });
         }
 
+        // Fetch cheque realization alerts
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        
+        const { data: cheques } = await supabase
+          .from('jat_settlements')
+          .select('id, amount, cheque_number, cheque_realize_date')
+          .eq('payment_method', 'CHEQUE')
+          .eq('status', 'PENDING')
+          .lte('cheque_realize_date', tomorrowStr);
+
+        if (cheques) {
+          cheques.forEach(c => {
+            notifications.push({
+              id: `cq-${c.id}`,
+              type: 'CHEQUE_ALERT',
+              title: 'Cheque Realization Alert',
+              message: `Cheque #${c.cheque_number || 'N/A'} for LKR ${Number(c.amount).toLocaleString(undefined, {minimumFractionDigits:2})} is due on ${c.cheque_realize_date}.`,
+              time: new Date().toISOString(),
+              link: '/reports/jat_kitchen'
+            });
+          });
+        }
+
         setAlerts(notifications);
       } catch (err) {
         console.error('Failed to fetch alerts', err);
@@ -131,7 +156,8 @@ export const DashboardLayout: React.FC = () => {
         { label: 'Inventory Valuation', path: '/reports/valuation', permission: 'reports:read' },
         { label: 'Expiry Warning', path: '/reports/expiry', permission: 'reports:read' },
         { label: 'Supplier Balances', path: '/reports/outstanding', permission: 'reports:read' },
-        { label: 'Stock Movements', path: '/reports/movements', permission: 'reports:read' }
+        { label: 'Stock Movements', path: '/reports/movements', permission: 'reports:read' },
+        { label: 'JAT & Kitchen', path: '/reports/jat_kitchen', permission: 'reports:read' }
       ]
     },
   ];
