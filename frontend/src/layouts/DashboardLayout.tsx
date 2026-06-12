@@ -170,6 +170,7 @@ export const DashboardLayout: React.FC = () => {
     { label: 'User Management', path: '/users',  icon: <Users size={16} />, permission: 'users:manage' },
     { label: 'Role Management', path: '/roles',  icon: <ShieldCheck size={16} />, permission: 'roles:read' },
     { label: 'Security Settings', path: '/settings/security', icon: <Shield size={16} />, permission: 'security:manage' },
+    { label: 'Daily Usage Sheet', path: '/daily-usage-sheet', icon: <Activity size={16} />, permission: 'reports:read' },
   ];
 
   const filteredAdminNav = adminNavItems.filter(item => !item.permission || hasPermission(item.permission));

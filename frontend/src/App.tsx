@@ -18,6 +18,7 @@ import Roles from './pages/Roles';
 import Unauthorized from './pages/Unauthorized';
 import SecuritySettings from './pages/SecuritySettings';
 import ActivityLog from './pages/ActivityLog';
+import DailyUsageSheet from './pages/DailyUsageSheet';
 
 function App() {
   return (
@@ -67,6 +68,7 @@ function App() {
               <Route path="/roles" element={<Roles />} />
               <Route path="/activity-log" element={<ActivityLog />} />
               <Route path="/settings/security" element={<SecuritySettings />} />
+              <Route path="/daily-usage-sheet" element={<DailyUsageSheet />} />
             </Route>
           </Route>
         </Routes>
