@@ -30,6 +30,8 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
   const [loading, setLoading] = useState(true);
   const [monthlyKitchen, setMonthlyKitchen] = useState(0);
   const [monthlyJat, setMonthlyJat] = useState(0);
+  const [trueMonthlyKitchen, setTrueMonthlyKitchen] = useState(0);
+  const [trueMonthlyJat, setTrueMonthlyJat] = useState(0);
   const [todayKitchen, setTodayKitchen] = useState(0);
   const [todayJat, setTodayJat] = useState(0);
   const [unsettledBalance, setUnsettledBalance] = useState(0);
@@ -172,6 +174,63 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         });
       }
 
+      let trueMonthJat = 0;
+      let trueMonthKitchen = 0;
+
+      if (!day) {
+        trueMonthJat = mJat;
+        trueMonthKitchen = mKitchen;
+      } else {
+        const targetDate = new Date(day + 'T00:00:00.000Z');
+        const mStart = startOfMonth(targetDate).toISOString();
+        const mEnd = endOfMonth(targetDate).toISOString();
+        const mStartStr = format(targetDate, 'yyyy-MM-01');
+        const mEndStr = format(endOfMonth(targetDate), 'yyyy-MM-dd');
+
+        const [mMovements, mDp, mTc] = await Promise.all([
+          supabase
+            .from('stock_movements')
+            .select('quantity, cost_price, reason_id')
+            .eq('type', 'STOCK_OUT')
+            .gte('created_at', mStart)
+            .lte('created_at', mEnd),
+          supabase
+            .from('daily_purchases')
+            .select('total_cost, department')
+            .gte('date', mStartStr)
+            .lte('date', mEndStr),
+          supabase
+            .from('transportation_costs')
+            .select('cost, department')
+            .gte('date', mStartStr)
+            .lte('date', mEndStr)
+        ]);
+
+        if (mMovements.data) {
+          mMovements.data.forEach(m => {
+            const cost = (Number(m.quantity) || 0) * (Number(m.cost_price) || 0);
+            if (m.reason_id === jatReason) trueMonthJat += cost;
+            else if (m.reason_id === kitchenReason) trueMonthKitchen += cost;
+          });
+        }
+        if (mDp.data) {
+          mDp.data.forEach(dp => {
+            const cost = Number(dp.total_cost) || 0;
+            if (dp.department === 'JAT') trueMonthJat += cost;
+            else if (dp.department === 'KITCHEN') trueMonthKitchen += cost;
+          });
+        }
+        if (mTc.data) {
+          mTc.data.forEach(tc => {
+            const cost = Number(tc.cost) || 0;
+            if (tc.department === 'JAT') trueMonthJat += cost;
+            else if (tc.department === 'KITCHEN') trueMonthKitchen += cost;
+          });
+        }
+      }
+
+      setTrueMonthlyJat(trueMonthJat);
+      setTrueMonthlyKitchen(trueMonthKitchen);
       setMonthlyKitchen(mKitchen);
       setMonthlyJat(mJat);
       if (onTotalsUpdate) {
@@ -346,11 +405,11 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm md:col-span-1">
           <h3 className="text-xs font-bold text-slate-500 uppercase">JAT Cost (This Month)</h3>
-          <p className="text-xl font-black text-slate-800 mt-2">LKR {monthlyJat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+          <p className="text-xl font-black text-slate-800 mt-2">LKR {trueMonthlyJat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
         </div>
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm md:col-span-1">
           <h3 className="text-xs font-bold text-slate-500 uppercase">Kitchen Usage (This Month)</h3>
-          <p className="text-xl font-black text-slate-800 mt-2">LKR {monthlyKitchen.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+          <p className="text-xl font-black text-slate-800 mt-2">LKR {trueMonthlyKitchen.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
         </div>
       </div>
 
