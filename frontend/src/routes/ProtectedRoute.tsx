@@ -34,8 +34,11 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/unauthorized" replace />;
   }
 
-  if (requiredRole && user.role?.name?.toLowerCase() !== requiredRole.toLowerCase()) {
-    return <Navigate to="/unauthorized" replace />;
+  if (requiredRole) {
+    const allowedRoles = requiredRole.split(',').map(r => r.trim().toLowerCase());
+    if (!allowedRoles.includes(user.role?.name?.toLowerCase() || '')) {
+      return <Navigate to="/unauthorized" replace />;
+    }
   }
 
   return <Outlet />;

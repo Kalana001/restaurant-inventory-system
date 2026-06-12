@@ -22,7 +22,7 @@ import {
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
-  const { user, permissions, logout } = useAuth();
+  const { user, hasPermission, logout } = useAuth();
   const location = useLocation();
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -169,17 +169,17 @@ export const DashboardLayout: React.FC = () => {
     { label: 'Security Settings', path: '/settings/security', icon: <Shield size={16} />, permission: 'security:manage' },
   ];
 
-  const filteredAdminNav = adminNavItems.filter(item => !item.permission || permissions.includes(item.permission));
+  const filteredAdminNav = adminNavItems.filter(item => !item.permission || hasPermission(item.permission));
 
   const filteredMainNav = mainNavItems.map(item => {
     if (item.subItems) {
       return {
         ...item,
-        subItems: item.subItems.filter(sub => !sub.permission || permissions.includes(sub.permission))
+        subItems: item.subItems.filter(sub => !sub.permission || hasPermission(sub.permission))
       };
     }
     return item;
-  }).filter(item => !item.permission || permissions.includes(item.permission));
+  }).filter(item => !item.permission || hasPermission(item.permission));
 
   return (
     <div className="h-screen overflow-hidden bg-gray-50 flex">

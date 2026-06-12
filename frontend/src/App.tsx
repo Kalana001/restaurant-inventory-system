@@ -62,7 +62,7 @@ function App() {
             </Route>
 
             {/* System Admin Routes - Admin role only */}
-            <Route element={<ProtectedRoute requiredRole="Admin" />}>
+            <Route element={<ProtectedRoute requiredRole="Admin, Owner" />}>
               <Route path="/users" element={<Users />} />
               <Route path="/roles" element={<Roles />} />
               <Route path="/activity-log" element={<ActivityLog />} />

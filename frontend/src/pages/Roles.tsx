@@ -6,7 +6,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 
 export const Roles: React.FC = () => {
   const { user } = useAuth();
-  const isAdmin = user?.role?.name?.toLowerCase() === 'admin';
+  const isAdmin = ['admin', 'owner'].includes(user?.role?.name?.toLowerCase() || '');
   const [roles, setRoles] = useState<any[]>([]);
   const [permissions, setPermissions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
