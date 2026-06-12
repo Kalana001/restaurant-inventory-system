@@ -32,6 +32,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
   const [todayKitchen, setTodayKitchen] = useState(0);
   const [todayJat, setTodayJat] = useState(0);
   const [unsettledBalance, setUnsettledBalance] = useState(0);
+  const [reasonFilter, setReasonFilter] = useState('ALL');
 
   const fetchData = async () => {
     setLoading(true);
@@ -301,6 +302,17 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
             <h3 className="font-bold text-slate-800">Transaction Details</h3>
+            <select
+              value={reasonFilter}
+              onChange={e => setReasonFilter(e.target.value)}
+              className="px-3 py-1.5 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm"
+            >
+              <option value="ALL">All Reasons</option>
+              <option value="JAT">JAT</option>
+              <option value="Kitchen Usage">Kitchen Usage</option>
+              <option value="JAT / Vege">JAT / Vege</option>
+              <option value="Kitchen Usage / Vege">Kitchen Usage / Vege</option>
+            </select>
           </div>
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-sm text-left">
@@ -313,11 +325,13 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {data.length === 0 ? (
+                {data.filter(row => reasonFilter === 'ALL' || row.reason === reasonFilter).length === 0 ? (
                   <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">No data found</td></tr>
                 ) : (
-                  data.map(row => (
-                    <tr key={row.receipt} className="hover:bg-slate-50/50">
+                  data
+                    .filter(row => reasonFilter === 'ALL' || row.reason === reasonFilter)
+                    .map(row => (
+                      <tr key={row.receipt} className="hover:bg-slate-50/50">
                       <td className="px-4 py-3 font-medium text-slate-700">{format(parseISO(row.date), 'dd MMM')}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 text-xs font-bold rounded-lg ${
