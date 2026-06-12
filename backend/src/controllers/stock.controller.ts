@@ -76,10 +76,6 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
     }
 
     // 6. Call PostgreSQL stored function to insert movement and update stock
-    // Generate movement_number here (not in DB) to prevent duplicate key errors on bulk submissions
-    // Format: MVN-{timestamp_ms}-{4_random_digits} — guaranteed unique even in rapid succession
-    const movementNumber = `MVN-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-
     const { data: movementId, error: dbError } = await supabase.rpc(
       'process_stock_movement_transaction',
       {
@@ -92,8 +88,7 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
         p_created_by: userId,
         p_status: status,
         p_reference_id: null,
-        p_reference_type: receiptNumber || 'MANUAL',
-        p_movement_number: movementNumber
+        p_reference_type: receiptNumber || 'MANUAL'
       }
     );
 
