@@ -1,9 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Printer, CalendarDays } from 'lucide-react';
+import { Printer, CalendarDays, X } from 'lucide-react';
+
+interface SheetItem {
+  id: string;
+  customName: string;
+}
 
 export const DailyUsageSheet: React.FC = () => {
-  const [items, setItems] = useState<any[]>([]);
+  const [items, setItems] = useState<SheetItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -11,12 +16,26 @@ export const DailyUsageSheet: React.FC = () => {
       try {
         const { data, error } = await supabase
           .from('inventory_items')
-          .select('id, name, units:units!inventory_items_base_unit_id_fkey(abbreviation)')
+          .select('id, name, categories(name), units:units!inventory_items_base_unit_id_fkey(abbreviation)')
           .eq('status', 'ACTIVE')
           .order('name');
           
         if (error) throw error;
-        setItems(data || []);
+        
+        // Filter out boxes, bags, packaging, etc.
+        const filtered = (data || []).filter((item: any) => {
+          const cat = (item.categories?.name || '').toLowerCase();
+          const unit = (item.units?.abbreviation || '').toLowerCase();
+          const name = (item.name || '').toLowerCase();
+          
+          if (cat.includes('box') || cat.includes('bag') || cat.includes('pack')) return false;
+          if (unit.includes('box') || unit.includes('bag') || unit.includes('pack')) return false;
+          if (name.includes('box') || name.includes('bag')) return false;
+          
+          return true;
+        }).map(item => ({ id: item.id, customName: item.name }));
+
+        setItems(filtered);
       } catch (err) {
         console.error('Failed to load items:', err);
       } finally {
@@ -30,6 +49,14 @@ export const DailyUsageSheet: React.FC = () => {
     window.print();
   };
 
+  const handleNameChange = (id: string, newName: string) => {
+    setItems(items.map(item => item.id === id ? { ...item, customName: newName } : item));
+  };
+
+  const handleRemove = (id: string) => {
+    setItems(items.filter(item => item.id !== id));
+  };
+
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -37,6 +64,73 @@ export const DailyUsageSheet: React.FC = () => {
       </div>
     );
   }
+
+  // Split into two arrays for side-by-side rendering
+  const mid = Math.ceil(items.length / 2);
+  const leftItems = items.slice(0, mid);
+  const rightItems = items.slice(mid);
+
+  const renderTable = (tableItems: SheetItem[]) => (
+    <table className="w-full text-[10px] border-collapse border border-slate-300 print:text-[9px]">
+      <thead>
+        <tr className="bg-slate-100">
+          <th className="border border-slate-300 p-1.5 text-left" rowSpan={2}>Item Name</th>
+          {[1, 2, 3].map(day => (
+            <th key={day} className="border border-slate-300 p-1.5 text-center" colSpan={2}>Day {day}</th>
+          ))}
+        </tr>
+        <tr className="bg-slate-50">
+          {[1, 2, 3].map(day => (
+            <React.Fragment key={`sub-${day}`}>
+              <th className="border border-slate-300 p-1 text-center font-semibold text-orange-700 bg-orange-50/50 w-10">JAT</th>
+              <th className="border border-slate-300 p-1 text-center font-semibold text-blue-700 bg-blue-50/50 w-10">Rest.</th>
+            </React.Fragment>
+          ))}
+        </tr>
+      </thead>
+      <tbody>
+        {tableItems.map((item, idx) => (
+          <tr key={item.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} group`}>
+            <td className="border border-slate-300 p-0 relative">
+              <div className="flex items-center w-full">
+                <input
+                  type="text"
+                  value={item.customName}
+                  onChange={(e) => handleNameChange(item.id, e.target.value)}
+                  className="w-full p-1.5 bg-transparent outline-none font-medium text-slate-800"
+                />
+                <button
+                  onClick={() => handleRemove(item.id)}
+                  className="print:hidden absolute right-1 p-0.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                  title="Remove from list"
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            </td>
+            {[1, 2, 3].map(day => (
+              <React.Fragment key={`cell-${day}`}>
+                <td className="border border-slate-300 p-1.5"></td>
+                <td className="border border-slate-300 p-1.5"></td>
+              </React.Fragment>
+            ))}
+          </tr>
+        ))}
+        {/* Fill empty rows if right table is shorter */}
+        {tableItems.length < leftItems.length && Array.from({ length: leftItems.length - tableItems.length }).map((_, i) => (
+          <tr key={`empty-row-${i}`} className="bg-white">
+             <td className="border border-slate-300 p-1.5 h-[27px]"></td>
+             {[1, 2, 3].map(day => (
+              <React.Fragment key={`empty-cell-${day}-${i}`}>
+                <td className="border border-slate-300 p-1.5"></td>
+                <td className="border border-slate-300 p-1.5"></td>
+              </React.Fragment>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 
   return (
     <div className="space-y-6 print:space-y-0 print:m-0 print:p-0">
@@ -46,7 +140,7 @@ export const DailyUsageSheet: React.FC = () => {
           <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <CalendarDays className="text-primary" /> Daily Usage Sheet
           </h2>
-          <p className="text-sm text-slate-500 mt-1">Print a blank template for daily stock and usage tracking.</p>
+          <p className="text-sm text-slate-500 mt-1">Customize your items, remove rows, and print for manual tracking.</p>
         </div>
         <button
           onClick={handlePrint}
@@ -57,56 +151,27 @@ export const DailyUsageSheet: React.FC = () => {
       </div>
 
       {/* Printable Area */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 w-full overflow-x-auto">
+      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 w-full overflow-hidden">
         {/* Print Header */}
-        <div className="mb-6 flex justify-between items-end">
+        <div className="mb-4 flex justify-between items-end">
           <div>
-            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Daily Usage Sheet</h1>
-            <p className="text-sm font-semibold text-slate-500 mt-1">Sigiri Catering Services</p>
+            <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">Daily Usage Sheet (3 Days)</h1>
+            <p className="text-xs font-semibold text-slate-500 mt-1">Sigiri Catering Services</p>
           </div>
-          <div className="flex gap-8 text-sm font-bold text-slate-700">
-            <div>Month: <span className="inline-block w-32 border-b-2 border-slate-300 border-dotted" /></div>
-            <div>Date Range: <span className="inline-block w-40 border-b-2 border-slate-300 border-dotted" /></div>
+          <div className="flex gap-6 text-xs font-bold text-slate-700">
+            <div>Month: <span className="inline-block w-24 border-b border-slate-300 border-dotted" /></div>
+            <div>Date Range: <span className="inline-block w-32 border-b border-slate-300 border-dotted" /></div>
           </div>
         </div>
 
-        {/* Table */}
-        <table className="w-full text-xs border-collapse border border-slate-300 print:text-[10px]">
-          <thead>
-            <tr className="bg-slate-100">
-              <th className="border border-slate-300 p-2 text-left w-64" rowSpan={2}>Item Name</th>
-              {[1, 2, 3, 4, 5, 6, 7].map(day => (
-                <th key={day} className="border border-slate-300 p-2 text-center" colSpan={2}>Day {day}</th>
-              ))}
-            </tr>
-            <tr className="bg-slate-50">
-              {[1, 2, 3, 4, 5, 6, 7].map(day => (
-                <React.Fragment key={`sub-${day}`}>
-                  <th className="border border-slate-300 p-1.5 text-center font-semibold text-orange-700 bg-orange-50/50 w-16">JAT</th>
-                  <th className="border border-slate-300 p-1.5 text-center font-semibold text-blue-700 bg-blue-50/50 w-16">Rest.</th>
-                </React.Fragment>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item, idx) => (
-              <tr key={item.id} className={idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'}>
-                <td className="border border-slate-300 p-1.5 font-medium text-slate-800">
-                  {item.name} <span className="text-[9px] text-slate-400 ml-1">({item.units?.abbreviation})</span>
-                </td>
-                {[1, 2, 3, 4, 5, 6, 7].map(day => (
-                  <React.Fragment key={`cell-${day}`}>
-                    <td className="border border-slate-300 p-1.5"></td>
-                    <td className="border border-slate-300 p-1.5"></td>
-                  </React.Fragment>
-                ))}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        {/* 2-Column Tables */}
+        <div className="grid grid-cols-2 gap-4 items-start">
+          {renderTable(leftItems)}
+          {renderTable(rightItems)}
+        </div>
         
         {/* Print Footer */}
-        <div className="mt-8 flex justify-between text-xs font-bold text-slate-500 hidden print:flex">
+        <div className="mt-6 flex justify-between text-[10px] font-bold text-slate-500 hidden print:flex">
           <div>Prepared By: _____________________</div>
           <div>Checked By: _____________________</div>
         </div>
@@ -115,12 +180,13 @@ export const DailyUsageSheet: React.FC = () => {
       {/* Print Styles */}
       <style>{`
         @media print {
-          @page { size: landscape; margin: 10mm; }
+          @page { size: landscape; margin: 8mm; }
           body { -webkit-print-color-adjust: exact; print-color-adjust: exact; background-color: white !important; }
           /* Hide Sidebar and Navbar when printing */
           nav, aside { display: none !important; }
           main { margin-left: 0 !important; padding: 0 !important; }
           .print\\:hidden { display: none !important; }
+          input { border: none !important; padding: 0 !important; margin: 0 !important; background: transparent !important; color: black !important; font-size: 9px !important; }
         }
       `}</style>
     </div>
