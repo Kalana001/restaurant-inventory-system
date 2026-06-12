@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
-import { XCircle } from 'lucide-react';
+import { XCircle, Printer } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface JatKitchenReportProps {
   month?: string; // YYYY-MM
@@ -145,6 +147,42 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
     );
   }
 
+  const handlePrintReceipt = () => {
+    if (!selectedReceipt) return;
+
+    const doc = new jsPDF();
+    
+    doc.setFontSize(20);
+    doc.text('Sigiri Catering - Receipt', 14, 22);
+    
+    doc.setFontSize(10);
+    doc.text(`Receipt No: ${selectedReceipt.receipt}`, 14, 30);
+    doc.text(`Date: ${format(parseISO(selectedReceipt.date), 'MMMM dd, yyyy')}`, 14, 36);
+    doc.text(`Reason: ${selectedReceipt.reason}`, 14, 42);
+
+    const tableData = selectedReceipt.items.map((item: any) => [
+      item.name,
+      item.quantity.toString(),
+      `LKR ${item.cost_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+      `LKR ${item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}`
+    ]);
+
+    autoTable(doc, {
+      startY: 50,
+      head: [['Item Name', 'Quantity', 'Unit Cost', 'Total Cost']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [59, 130, 246] }, // blue-500
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY || 50;
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Grand Total: LKR ${selectedReceipt.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}`, 14, finalY + 10);
+
+    doc.save(`Receipt_${selectedReceipt.receipt}.pdf`);
+  };
+
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
@@ -215,9 +253,14 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
               <h3 className="font-bold text-lg text-slate-800">
                 Receipt Details: <span className="text-primary">{selectedReceipt.receipt}</span>
               </h3>
-              <button onClick={() => setSelectedReceipt(null)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
-                <XCircle className="w-5 h-5" />
-              </button>
+              <div className="flex items-center gap-2">
+                <button onClick={handlePrintReceipt} className="px-3 py-1.5 flex items-center gap-2 bg-blue-50 text-blue-600 hover:bg-blue-100 hover:text-blue-700 font-semibold rounded-lg transition-colors text-sm border border-blue-200">
+                  <Printer size={16} /> Print PDF
+                </button>
+                <button onClick={() => setSelectedReceipt(null)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
+                  <XCircle className="w-5 h-5" />
+                </button>
+              </div>
             </div>
             
             <div className="p-6 overflow-y-auto">
