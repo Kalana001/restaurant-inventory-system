@@ -10,7 +10,7 @@ import { JatTransactionsReport } from '../components/reports/JatTransactionsRepo
 import { generateCSV, generateExcel, generatePDF } from '../lib/exportUtils';
 import type { ExportColumn } from '../lib/exportUtils';
 import { format } from 'date-fns';
-import { TrendingUp, Clock, Package, DollarSign, X } from 'lucide-react';
+import { TrendingUp, TrendingDown, Clock, Package, DollarSign, X } from 'lucide-react';
 
 export const Reports: React.FC = () => {
   const { type } = useParams<{ type: string }>();
@@ -34,6 +34,11 @@ export const Reports: React.FC = () => {
   const [historySupplier, setHistorySupplier] = useState<any | null>(null);
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+
+  const [itemHistoryOpen, setItemHistoryOpen] = useState(false);
+  const [itemHistoryItem, setItemHistoryItem] = useState<any>(null);
+  const [itemHistoryData, setItemHistoryData] = useState<any[]>([]);
+  const [itemHistoryLoading, setItemHistoryLoading] = useState(false);
 
   useEffect(() => {
     if (!type) {
@@ -155,11 +160,33 @@ export const Reports: React.FC = () => {
     }
   };
 
+  const openItemHistoryModal = async (item: any) => {
+    setItemHistoryItem(item);
+    setItemHistoryOpen(true);
+    setItemHistoryLoading(true);
+    setItemHistoryData([]);
+    try {
+      const { data: movements } = await supabase
+        .from('stock_movements')
+        .select('id, movement_number, type, quantity, cost_price, created_at, movement_reasons(name), profiles:created_by(username)')
+        .eq('item_id', item.id)
+        .order('created_at', { ascending: false });
+        
+      setItemHistoryData(movements || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setItemHistoryLoading(false);
+    }
+  };
+
   const columns = useMemo((): ColumnDef[] => {
     switch (reportType) {
       case 'valuation':
         return [
-          { key: 'name', header: 'Item Name', sortable: true },
+          { key: 'name', header: 'Item Name', sortable: true, render: (r) => (
+            <button onClick={() => openItemHistoryModal(r)} className="font-bold text-primary hover:underline text-left">{r.name}</button>
+          )},
           { key: 'category', header: 'Category', render: (r) => r.categories?.name },
           { key: 'unit', header: 'Unit', render: (r) => r.units?.abbreviation },
           { key: 'current_stock', header: 'Stock Qty', sortable: true },
@@ -418,6 +445,70 @@ export const Reports: React.FC = () => {
         </div>
       )}
 
+      {/* Item History Modal */}
+      {itemHistoryOpen && itemHistoryItem && (
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900/50 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl my-6 card-shadow flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">{itemHistoryItem.name} - Stock Ledger</h3>
+                <p className="text-xs text-slate-500 mt-0.5">Full history of stock in and stock out movements</p>
+              </div>
+              <button onClick={() => setItemHistoryOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[70vh]">
+              {itemHistoryLoading ? (
+                <div className="flex items-center justify-center py-12 text-slate-400">
+                  <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
+                  Loading ledger...
+                </div>
+              ) : itemHistoryData.length === 0 ? (
+                <div className="text-center py-12 text-slate-400">
+                  <Clock size={40} className="mx-auto mb-3 opacity-30" />
+                  <p className="font-medium">No stock movements found.</p>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div className="absolute left-4 top-0 bottom-0 w-px bg-slate-100" />
+                  <div className="space-y-4">
+                    {itemHistoryData.map((m, idx) => (
+                      <div key={idx} className="flex gap-4 relative">
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 z-10 ${
+                          m.type === 'STOCK_IN' ? 'bg-green-100' :
+                          m.type === 'STOCK_OUT' ? 'bg-rose-100' : 'bg-blue-100'
+                        }`}>
+                          {m.type === 'STOCK_IN' && <TrendingUp size={14} className="text-green-600" />}
+                          {m.type === 'STOCK_OUT' && <TrendingDown size={14} className="text-rose-600" />}
+                        </div>
+                        <div className={`flex-1 rounded-xl p-4 border text-sm ${
+                          m.type === 'STOCK_IN' ? 'bg-green-50/50 border-green-100' :
+                          m.type === 'STOCK_OUT' ? 'bg-rose-50/50 border-rose-100' : 'bg-blue-50/50 border-blue-100'
+                        }`}>
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <p className={`font-bold ${
+                                m.type === 'STOCK_IN' ? 'text-green-700' :
+                                m.type === 'STOCK_OUT' ? 'text-rose-700' : 'text-blue-700'
+                              }`}>{m.type.replace('_', ' ')}</p>
+                              <p className="text-xs text-slate-600 mt-1">Movement# <span className="font-mono font-semibold">{m.movement_number}</span> · Date: <span className="font-semibold">{format(new Date(m.created_at), 'dd MMM yyyy HH:mm')}</span></p>
+                              <p className="text-xs text-slate-600 mt-1">Reason: <span className="font-semibold">{m.movement_reasons?.name || '-'}</span> · By: <span className="font-semibold">{m.profiles?.username || 'System'}</span></p>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-sm font-bold text-slate-800">{m.type === 'STOCK_OUT' ? '-' : '+'}{Number(m.quantity)} {itemHistoryItem.units?.abbreviation}</p>
+                              <p className="text-xs font-semibold text-slate-500 mt-1">@ LKR {Number(m.cost_price).toFixed(2)}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
