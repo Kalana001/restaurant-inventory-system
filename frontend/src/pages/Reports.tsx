@@ -28,6 +28,7 @@ export const Reports: React.FC = () => {
   const [categories, setCategories] = useState<any[]>([]);
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
+  const [poPaymentMethods, setPoPaymentMethods] = useState<string[]>([]);
 
   // History Modal States
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -117,6 +118,16 @@ export const Reports: React.FC = () => {
       if (error) throw error;
 
       let finalData = result || [];
+
+      if (reportType === 'purchase_orders') {
+        const methods = new Set<string>();
+        finalData.forEach((po: any) => {
+          po.supplier_payments?.forEach((sp: any) => {
+            if (sp.payment_method) methods.add(sp.payment_method);
+          });
+        });
+        setPoPaymentMethods(Array.from(methods).sort());
+      }
 
       if (reportType === 'expiry' && filters.days && filters.days !== 'all') {
         const thresholdDate = new Date();
@@ -387,6 +398,7 @@ export const Reports: React.FC = () => {
         categories={categories}
         suppliers={suppliers}
         users={users}
+        poPaymentMethods={poPaymentMethods}
       />
 
       {reportType === 'jat_kitchen' ? (
@@ -397,11 +409,21 @@ export const Reports: React.FC = () => {
           day={filters.day} 
         />
       ) : (
-        <ReportTable 
-          columns={columns}
-          data={data}
-          loading={loading}
-        />
+        <div className="space-y-4">
+          <ReportTable 
+            columns={columns}
+            data={data}
+            loading={loading}
+          />
+          {reportType === 'purchase_orders' && data.length > 0 && (
+            <div className="bg-white p-6 rounded-2xl flex justify-between items-center border border-slate-200 shadow-sm">
+              <span className="font-semibold text-slate-500 uppercase text-sm tracking-wider">Total Purchase Value</span>
+              <span className="text-2xl font-bold text-slate-800">
+                LKR {data.reduce((acc, po) => acc + Number(po.total_amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+          )}
+        </div>
       )}
 
       {reportType !== 'jat_kitchen' && reportType !== 'jat_transactions' && (

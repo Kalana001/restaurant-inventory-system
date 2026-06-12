@@ -10,6 +10,7 @@ export interface FilterPanelProps {
   categories: any[];
   suppliers: any[];
   users: any[];
+  poPaymentMethods?: string[];
 }
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
@@ -20,7 +21,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   onReset,
   categories,
   suppliers,
-  users
+  users,
+  poPaymentMethods = []
 }) => {
   const handleChange = (key: string, value: any) => {
     const updated = { ...filters, [key]: value };
@@ -192,9 +194,17 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           className="w-full p-2 border border-slate-200 rounded-lg text-sm"
         >
           <option value="">All Payment Methods</option>
-          <option value="Cash">Cash</option>
-          <option value="Cheque">Cheque</option>
-          <option value="Bank Transfer">Bank Transfer</option>
+          {poPaymentMethods.map(method => (
+            <option key={method} value={method}>{method}</option>
+          ))}
+          {/* Fallbacks if list is empty */}
+          {poPaymentMethods.length === 0 && (
+            <>
+              <option value="Cash">Cash</option>
+              <option value="Cheque">Cheque</option>
+              <option value="Bank Transfer">Bank Transfer</option>
+            </>
+          )}
         </select>
       </div>
     </>
