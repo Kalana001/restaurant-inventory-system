@@ -292,7 +292,6 @@ export const Inventory: React.FC = () => {
             if (rpcErr) throw rpcErr;
           }
         }
-      }
 
       setModalOpen(false);
       fetchCatalogData();
