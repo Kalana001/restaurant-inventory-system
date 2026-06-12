@@ -17,6 +17,7 @@ interface BulkItem {
   id: string;
   item_name: string;
   quantity: string;
+  unit_price: string;
   total_cost: string;
   department: 'JAT' | 'KITCHEN';
 }
@@ -43,7 +44,7 @@ export const DailyPurchases: React.FC = () => {
   
   // Bulk Entry State
   const [bulkItems, setBulkItems] = useState<BulkItem[]>([
-    { id: Date.now().toString(), item_name: '', quantity: '', total_cost: '', department: 'JAT' }
+    { id: Date.now().toString(), item_name: '', quantity: '', unit_price: '', total_cost: '', department: 'JAT' }
   ]);
   const [submitting, setSubmitting] = useState(false);
 
@@ -74,7 +75,7 @@ export const DailyPurchases: React.FC = () => {
   };
 
   const addRow = () => {
-    setBulkItems([...bulkItems, { id: Date.now().toString() + Math.random(), item_name: '', quantity: '', total_cost: '', department: 'JAT' }]);
+    setBulkItems([...bulkItems, { id: Date.now().toString() + Math.random(), item_name: '', quantity: '', unit_price: '', total_cost: '', department: 'JAT' }]);
   };
 
   const removeRow = (id: string) => {
@@ -90,6 +91,7 @@ export const DailyPurchases: React.FC = () => {
       id: Date.now().toString() + index,
       item_name: name,
       quantity: '',
+      unit_price: '',
       total_cost: '',
       department
     }));
@@ -133,7 +135,7 @@ export const DailyPurchases: React.FC = () => {
       if (error) throw error;
       
       // Reset form to one empty row
-      setBulkItems([{ id: Date.now().toString(), item_name: '', quantity: '', total_cost: '', department: 'JAT' }]);
+      setBulkItems([{ id: Date.now().toString(), item_name: '', quantity: '', unit_price: '', total_cost: '', department: 'JAT' }]);
       fetchPurchases();
     } catch (err) {
       console.error('Error adding purchases:', err);
@@ -206,9 +208,10 @@ export const DailyPurchases: React.FC = () => {
               <thead>
                 <tr className="border-b border-slate-200 text-xs font-bold text-slate-500 uppercase">
                   <th className="pb-2 pr-2">Item Name</th>
-                  <th className="pb-2 pr-2 w-24">Qty</th>
-                  <th className="pb-2 pr-2 w-32">Cost (LKR)</th>
-                  <th className="pb-2 pr-2 w-32">Used For</th>
+                  <th className="pb-2 pr-2 w-20">Qty</th>
+                  <th className="pb-2 pr-2 w-24">Unit Price</th>
+                  <th className="pb-2 pr-2 w-24">Total Cost</th>
+                  <th className="pb-2 pr-2 w-28">Used For</th>
                   <th className="pb-2 w-10 text-center"></th>
                 </tr>
               </thead>
@@ -230,7 +233,25 @@ export const DailyPurchases: React.FC = () => {
                         placeholder="Qty"
                         step="0.01" min="0"
                         value={item.quantity}
-                        onChange={e => updateRow(item.id, 'quantity', e.target.value)}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const newTotal = val && item.unit_price ? (Number(val) * Number(item.unit_price)).toFixed(2) : item.total_cost;
+                          setBulkItems(bulkItems.map(i => i.id === item.id ? { ...i, quantity: val, total_cost: newTotal } : i));
+                        }}
+                        className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                      />
+                    </td>
+                    <td className="py-2 pr-2">
+                      <input 
+                        type="number" 
+                        placeholder="Price"
+                        step="0.01" min="0"
+                        value={item.unit_price}
+                        onChange={e => {
+                          const val = e.target.value;
+                          const newTotal = val && item.quantity ? (Number(val) * Number(item.quantity)).toFixed(2) : item.total_cost;
+                          setBulkItems(bulkItems.map(i => i.id === item.id ? { ...i, unit_price: val, total_cost: newTotal } : i));
+                        }}
                         className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
                       />
                     </td>
@@ -241,7 +262,7 @@ export const DailyPurchases: React.FC = () => {
                         step="0.01" min="0"
                         value={item.total_cost}
                         onChange={e => updateRow(item.id, 'total_cost', e.target.value)}
-                        className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none"
+                        className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none bg-slate-50"
                       />
                     </td>
                     <td className="py-2 pr-2">
