@@ -25,6 +25,8 @@ export const Dashboard: React.FC = () => {
   const [activities, setActivities] = useState<any[]>([]);
   const [jatTotal, setJatTotal] = useState(0);
   const [jatUnsettled, setJatUnsettled] = useState(0);
+  const [kitchenMonthTotal, setKitchenMonthTotal] = useState(0);
+  const [kitchenDailyTotal, setKitchenDailyTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const fetchDashboardData = async () => {
@@ -40,19 +42,41 @@ export const Dashboard: React.FC = () => {
         setMetrics(metricsData as Metrics);
       }
 
-      // Fetch JAT Stats
-      const { data: reasons } = await supabase.from('movement_reasons').select('id').eq('name', 'JAT').single();
-      if (reasons) {
-        const [ { data: totalJatData }, { data: settledJatData } ] = await Promise.all([
-          supabase.from('stock_movements').select('total_cost').eq('type', 'STOCK_OUT').eq('reason_id', reasons.id),
-          supabase.from('jat_settlements').select('amount').neq('status', 'BOUNCED')
+      // Fetch JAT & Kitchen Stats
+      const { data: reasonsData } = await supabase.from('movement_reasons').select('id, name').in('name', ['JAT', 'Kitchen Usage']);
+      if (reasonsData) {
+        const jatReason = reasonsData.find(r => r.name === 'JAT');
+        const kitchenReason = reasonsData.find(r => r.name === 'Kitchen Usage');
+
+        const [ { data: jatMoves }, { data: settledJatData }, { data: kitchenMoves } ] = await Promise.all([
+          jatReason ? supabase.from('stock_movements').select('quantity, cost_price').eq('type', 'STOCK_OUT').eq('reason_id', jatReason.id) : Promise.resolve({ data: [] }),
+          supabase.from('jat_settlements').select('amount').neq('status', 'BOUNCED'),
+          kitchenReason ? supabase.from('stock_movements').select('quantity, cost_price, created_at').eq('type', 'STOCK_OUT').eq('reason_id', kitchenReason.id) : Promise.resolve({ data: [] })
         ]);
         
-        const total = totalJatData?.reduce((sum, row) => sum + (Number(row.total_cost) || 0), 0) || 0;
+        const total = jatMoves?.reduce((sum, row) => sum + (row.quantity * row.cost_price), 0) || 0;
         const settled = settledJatData?.reduce((sum, row) => sum + (Number(row.amount) || 0), 0) || 0;
         
         setJatTotal(total);
         setJatUnsettled(Math.max(0, total - settled));
+
+        if (kitchenMoves) {
+          const now = new Date();
+          const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+          const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+
+          let mTotal = 0;
+          let dTotal = 0;
+
+          kitchenMoves.forEach(m => {
+            const cost = m.quantity * m.cost_price;
+            if (m.created_at >= monthStart) mTotal += cost;
+            if (m.created_at >= todayStart) dTotal += cost;
+          });
+
+          setKitchenMonthTotal(mTotal);
+          setKitchenDailyTotal(dTotal);
+        }
       }
 
       const { data: moves, error: moveErr } = await supabase
@@ -138,6 +162,18 @@ export const Dashboard: React.FC = () => {
       value: `LKR ${jatUnsettled.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       icon: <AlertTriangle size={24} className="text-pink-500" />,
       bg: 'bg-pink-50 border-pink-100',
+    },
+    {
+      title: 'Kitchen Cost (Month)',
+      value: `LKR ${kitchenMonthTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      icon: <TrendingDown size={24} className="text-sky-500" />,
+      bg: 'bg-sky-50 border-sky-100',
+    },
+    {
+      title: 'Kitchen Cost (Today)',
+      value: `LKR ${kitchenDailyTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      icon: <TrendingDown size={24} className="text-cyan-500" />,
+      bg: 'bg-cyan-50 border-cyan-100',
     }
   ];
 

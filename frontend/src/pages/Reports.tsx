@@ -6,6 +6,7 @@ import { ReportTable } from '../components/reports/ReportTable';
 import type { ColumnDef } from '../components/reports/ReportTable';
 import { ExportPanel } from '../components/reports/ExportPanel';
 import { JatKitchenReport } from '../components/reports/JatKitchenReport';
+import { JatTransactionsReport } from '../components/reports/JatTransactionsReport';
 import { generateCSV, generateExcel, generatePDF } from '../lib/exportUtils';
 import type { ExportColumn } from '../lib/exportUtils';
 import { format } from 'date-fns';
@@ -310,6 +311,11 @@ export const Reports: React.FC = () => {
 
       {reportType === 'jat_kitchen' ? (
         <JatKitchenReport month={filters.month} day={filters.day} />
+      ) : reportType === 'jat_transactions' ? (
+        <JatTransactionsReport 
+          dateRange={{ start: filters.dateRange?.start || format(new Date(), 'yyyy-MM-01'), end: filters.dateRange?.end || format(new Date(), 'yyyy-MM-dd') }} 
+          day={filters.day} 
+        />
       ) : (
         <ReportTable 
           columns={columns}
@@ -318,7 +324,7 @@ export const Reports: React.FC = () => {
         />
       )}
 
-      {reportType !== 'jat_kitchen' && (
+      {reportType !== 'jat_kitchen' && reportType !== 'jat_transactions' && (
         <ExportPanel 
           totalCount={data.length}
           columns={columns}

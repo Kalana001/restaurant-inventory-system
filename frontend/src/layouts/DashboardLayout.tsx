@@ -157,7 +157,8 @@ export const DashboardLayout: React.FC = () => {
         { label: 'Expiry Warning', path: '/reports/expiry', permission: 'reports:read' },
         { label: 'Supplier Balances', path: '/reports/outstanding', permission: 'reports:read' },
         { label: 'Stock Movements', path: '/reports/movements', permission: 'reports:read' },
-        { label: 'JAT & Kitchen', path: '/reports/jat_kitchen', permission: 'reports:read' }
+        { label: 'JAT & Kitchen', path: '/reports/jat_kitchen', permission: 'reports:read' },
+        { label: 'JAT Transactions', path: '/reports/jat_transactions', permission: 'reports:read' }
       ]
     },
   ];
