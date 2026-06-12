@@ -56,7 +56,9 @@ export const DailyUsageSheet: React.FC = () => {
     if (!element) return;
     
     setExporting(true);
-    // Add a slight delay to allow UI to settle if needed, or directly capture
+    // Wait for React to re-render inputs as spans
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
     try {
       const canvas = await html2canvas(element, { 
         scale: 2,
@@ -113,16 +115,20 @@ export const DailyUsageSheet: React.FC = () => {
           <th className="border border-slate-300 p-1.5 text-left" rowSpan={2}>Item Name</th>
           {[0, 1, 2].map(dayIndex => (
             <th key={dayIndex} className="border border-slate-300 p-1 text-center" colSpan={2}>
-              <input 
-                type="text" 
-                value={dates[dayIndex]} 
-                onChange={e => {
-                  const newDates = [...dates];
-                  newDates[dayIndex] = e.target.value;
-                  setDates(newDates);
-                }}
-                className="w-full text-center bg-transparent outline-none font-bold"
-              />
+              {exporting ? (
+                <span className="font-bold">{dates[dayIndex]}</span>
+              ) : (
+                <input 
+                  type="text" 
+                  value={dates[dayIndex]} 
+                  onChange={e => {
+                    const newDates = [...dates];
+                    newDates[dayIndex] = e.target.value;
+                    setDates(newDates);
+                  }}
+                  className="w-full text-center bg-transparent outline-none font-bold"
+                />
+              )}
             </th>
           ))}
         </tr>
@@ -140,19 +146,25 @@ export const DailyUsageSheet: React.FC = () => {
           <tr key={item.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} group`}>
             <td className="border border-slate-300 p-0 relative">
               <div className="flex items-center w-full">
-                <input
-                  type="text"
-                  value={item.customName}
-                  onChange={(e) => handleNameChange(item.id, e.target.value)}
-                  className="w-full p-1.5 bg-transparent outline-none font-medium text-slate-800"
-                />
-                <button
-                  onClick={() => handleRemove(item.id)}
-                  className="print:hidden absolute right-1 p-0.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
-                  title="Remove from list"
-                >
-                  <X size={12} />
-                </button>
+                {exporting ? (
+                  <span className="w-full p-1.5 font-medium text-slate-800">{item.customName}</span>
+                ) : (
+                  <input
+                    type="text"
+                    value={item.customName}
+                    onChange={(e) => handleNameChange(item.id, e.target.value)}
+                    className="w-full p-1.5 bg-transparent outline-none font-medium text-slate-800"
+                  />
+                )}
+                {!exporting && (
+                  <button
+                    onClick={() => handleRemove(item.id)}
+                    className="print:hidden absolute right-1 p-0.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded opacity-0 group-hover:opacity-100 transition-all"
+                    title="Remove from list"
+                  >
+                    <X size={12} />
+                  </button>
+                )}
               </div>
             </td>
             {[1, 2, 3].map(day => (
@@ -209,21 +221,29 @@ export const DailyUsageSheet: React.FC = () => {
           <div className="flex gap-6 text-xs font-bold text-slate-700 items-center">
             <div className="flex items-center gap-2">
               Month: 
-              <input 
-                type="text" 
-                value={monthInput}
-                onChange={e => setMonthInput(e.target.value)}
-                className="w-24 border-b border-slate-300 border-dotted outline-none bg-transparent" 
-              />
+              {exporting ? (
+                <span className="w-24 border-b border-slate-300 border-dotted inline-block">{monthInput}</span>
+              ) : (
+                <input 
+                  type="text" 
+                  value={monthInput}
+                  onChange={e => setMonthInput(e.target.value)}
+                  className="w-24 border-b border-slate-300 border-dotted outline-none bg-transparent" 
+                />
+              )}
             </div>
             <div className="flex items-center gap-2">
               Date Range: 
-              <input 
-                type="text" 
-                value={dateRangeInput}
-                onChange={e => setDateRangeInput(e.target.value)}
-                className="w-32 border-b border-slate-300 border-dotted outline-none bg-transparent" 
-              />
+              {exporting ? (
+                <span className="w-32 border-b border-slate-300 border-dotted inline-block">{dateRangeInput}</span>
+              ) : (
+                <input 
+                  type="text" 
+                  value={dateRangeInput}
+                  onChange={e => setDateRangeInput(e.target.value)}
+                  className="w-32 border-b border-slate-300 border-dotted outline-none bg-transparent" 
+                />
+              )}
             </div>
           </div>
         </div>
