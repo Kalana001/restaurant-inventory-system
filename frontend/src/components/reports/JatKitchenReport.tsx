@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
-import { DollarSign, CheckCircle, XCircle, Clock } from 'lucide-react';
+import { XCircle } from 'lucide-react';
 
 interface JatKitchenReportProps {
   month?: string; // YYYY-MM
@@ -24,7 +24,10 @@ interface TransactionRow {
 export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }) => {
   const [data, setData] = useState<TransactionRow[]>([]);
   const [selectedReceipt, setSelectedReceipt] = useState<TransactionRow | null>(null);
-
+  const [loading, setLoading] = useState(true);
+  const [monthlyKitchen, setMonthlyKitchen] = useState(0);
+  const [monthlyJat, setMonthlyJat] = useState(0);
+  const [unsettledBalance, setUnsettledBalance] = useState(0);
 
   const fetchData = async () => {
     setLoading(true);
@@ -133,6 +136,14 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
 
 
 
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
