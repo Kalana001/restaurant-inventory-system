@@ -19,6 +19,7 @@ import Unauthorized from './pages/Unauthorized';
 import SecuritySettings from './pages/SecuritySettings';
 import ActivityLog from './pages/ActivityLog';
 import DailyUsageSheet from './pages/DailyUsageSheet';
+import { DailyPurchases } from './pages/DailyPurchases';
 
 function App() {
   return (
@@ -55,6 +56,10 @@ function App() {
 
             <Route element={<ProtectedRoute requiredPermission="stock:read" />}>
               <Route path="/adjustments" element={<Adjustments />} />
+            </Route>
+
+            <Route element={<ProtectedRoute />}>
+              <Route path="/daily-purchases" element={<DailyPurchases />} />
             </Route>
 
             <Route element={<ProtectedRoute requiredPermission="reports:read" />}>

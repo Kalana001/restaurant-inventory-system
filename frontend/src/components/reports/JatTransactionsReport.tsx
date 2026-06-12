@@ -50,7 +50,18 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
         query = query.gte('created_at', start).lte('created_at', end);
       }
 
+      let dpQuery = supabase.from('daily_purchases').select('*').eq('department', 'JAT');
+      if (day) {
+        dpQuery = dpQuery.gte('date', day).lte('date', day);
+      } else {
+        const targetDate = month ? new Date(month + '-01') : new Date();
+        const startStr = format(startOfMonth(targetDate), 'yyyy-MM-dd');
+        const endStr = format(endOfMonth(targetDate), 'yyyy-MM-dd');
+        dpQuery = dpQuery.gte('date', startStr).lte('date', endStr);
+      }
+
       const { data: movements } = await query;
+      const { data: dailyPurchases } = await dpQuery;
       const { data: settlements } = await supabase.from('jat_settlements').select('id, notes, status').neq('status', 'BOUNCED');
 
       if (movements) {
@@ -95,6 +106,34 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
             total: cost
           });
         });
+
+        if (dailyPurchases) {
+          dailyPurchases.forEach((dp: any) => {
+            const receipt = `MKT-${dp.date}-JAT`;
+            const date = dp.date;
+            const cost = Number(dp.total_cost) || 0;
+
+            if (!txMap[receipt]) {
+              txMap[receipt] = {
+                receipt,
+                date,
+                reason: 'JAT',
+                totalCost: 0,
+                paid: 0,
+                remaining: 0,
+                status: 'PENDING',
+                items: []
+              };
+            }
+            txMap[receipt].totalCost += cost;
+            txMap[receipt].items.push({
+              name: `${dp.item_name} (Market Buy)`,
+              quantity: Number(dp.quantity) || 0,
+              cost_price: Number(dp.quantity) ? cost / Number(dp.quantity) : cost,
+              total: cost
+            });
+          });
+        }
 
         // Calculate statuses
         Object.values(txMap).forEach(tx => {

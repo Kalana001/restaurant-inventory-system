@@ -58,6 +58,15 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
         .gte('created_at', start)
         .lte('created_at', end);
 
+      const dpStartStr = day ? day : format(new Date(start), 'yyyy-MM-dd');
+      const dpEndStr = day ? day : format(new Date(end), 'yyyy-MM-dd');
+
+      const { data: dailyPurchases } = await supabase
+        .from('daily_purchases')
+        .select('*')
+        .gte('date', dpStartStr)
+        .lte('date', dpEndStr);
+
       const transactions: Record<string, TransactionRow> = {};
       let mKitchen = 0;
       let mJat = 0;
@@ -97,6 +106,34 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
         });
       }
 
+      if (dailyPurchases) {
+        dailyPurchases.forEach((dp: any) => {
+          const receipt = `MKT-${dp.date}-${dp.department}`;
+          const cost = Number(dp.total_cost) || 0;
+
+          if (!transactions[receipt]) {
+            transactions[receipt] = {
+              receipt,
+              date: dp.date,
+              reason: dp.department === 'JAT' ? 'JAT' : 'Kitchen Usage',
+              totalCost: 0,
+              items: []
+            };
+          }
+
+          transactions[receipt].totalCost += cost;
+          transactions[receipt].items.push({
+            name: `${dp.item_name} (Market Buy)`,
+            quantity: Number(dp.quantity) || 0,
+            cost_price: Number(dp.quantity) ? cost / Number(dp.quantity) : cost,
+            total: cost
+          });
+
+          if (dp.department === 'JAT') mJat += cost;
+          else if (dp.department === 'KITCHEN') mKitchen += cost;
+        });
+      }
+
       setMonthlyKitchen(mKitchen);
       setMonthlyJat(mJat);
       setData(Object.values(transactions).sort((a, b) => b.date.localeCompare(a.date)));
@@ -109,7 +146,14 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
         .eq('type', 'STOCK_OUT')
         .eq('reason_id', jatReason);
       
-      const totalJatCost = allJat?.reduce((sum, m) => sum + ((Number(m.quantity) || 0) * (Number(m.cost_price) || 0)), 0) || 0;
+      const { data: allJatDp } = await supabase
+        .from('daily_purchases')
+        .select('total_cost')
+        .eq('department', 'JAT');
+
+      const baseJatCost = allJat?.reduce((sum, m) => sum + ((Number(m.quantity) || 0) * (Number(m.cost_price) || 0)), 0) || 0;
+      const dpJatCost = allJatDp?.reduce((sum, dp) => sum + (Number(dp.total_cost) || 0), 0) || 0;
+      const totalJatCost = baseJatCost + dpJatCost;
 
       // Total Settled (Cleared or Pending) - Assume pending counts as paid until bounced, or maybe just all?
       // Actually, let's sum all valid settlements

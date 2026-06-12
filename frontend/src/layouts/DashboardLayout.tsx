@@ -19,7 +19,8 @@ import {
   ChevronDown,
   Bell,
   AlertTriangle,
-  Clock
+  Clock,
+  ShoppingBag
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
@@ -137,6 +138,12 @@ export const DashboardLayout: React.FC = () => {
         { label: 'Categories', path: '/categories', permission: 'items:read' },
         { label: 'Stock Adjustments', path: '/adjustments', permission: 'stock:read' }
       ]
+    },
+    { 
+      label: 'Daily Purchases', 
+      path: '/daily-purchases', 
+      icon: <ShoppingBag size={20} />, 
+      permission: null 
     },
     { 
       label: 'Purchase Orders', 
