@@ -28,6 +28,7 @@ export const Dashboard: React.FC = () => {
   const [kitchenMonthTotal, setKitchenMonthTotal] = useState(0);
   const [kitchenDailyTotal, setKitchenDailyTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [realTimeInventoryValue, setRealTimeInventoryValue] = useState(0);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -40,6 +41,23 @@ export const Dashboard: React.FC = () => {
 
       if (!metricsErr && metricsData) {
         setMetrics(metricsData as Metrics);
+      }
+
+      // Manually calculate true Total Inventory Value in real-time
+      const { data: batchesData } = await supabase
+        .from('batches')
+        .select('available_qty, inventory_items!inner(cost_price, status)')
+        .eq('status', 'ACTIVE')
+        .gt('available_qty', 0);
+        
+      if (batchesData) {
+        const trueTotalValue = batchesData.reduce((sum, b: any) => {
+          if (b.inventory_items?.status === 'ACTIVE') {
+            return sum + ((Number(b.available_qty) || 0) * (Number(b.inventory_items.cost_price) || 0));
+          }
+          return sum;
+        }, 0);
+        setRealTimeInventoryValue(trueTotalValue);
       }
 
       // Fetch JAT & Kitchen Stats
@@ -123,7 +141,7 @@ export const Dashboard: React.FC = () => {
     },
     {
       title: 'Total Inventory Value',
-      value: `LKR ${Number(metrics?.total_inventory_value || 0).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`,
+      value: `LKR ${Number(realTimeInventoryValue).toLocaleString('en-US', { minimumFractionDigits: 3, maximumFractionDigits: 3 })}`,
       icon: <TrendingUp size={24} className="text-green-500" />,
       bg: 'bg-green-50 border-green-100',
     },
