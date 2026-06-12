@@ -169,6 +169,39 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
     </>
   );
 
+  const renderPurchaseOrderFilters = () => (
+    <>
+      <div className="space-y-1">
+        <label className="text-xs font-bold text-slate-500 uppercase">Supplier</label>
+        <select
+          value={filters.supplierId || ''}
+          onChange={(e) => handleChange('supplierId', e.target.value)}
+          className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+        >
+          <option value="">All Suppliers</option>
+          {suppliers.map(s => (
+            <option key={s.id} value={s.id}>
+              {s.name} {s.status === 'INACTIVE' ? '(Archived)' : ''}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="space-y-1">
+        <label className="text-xs font-bold text-slate-500 uppercase">Payment Method</label>
+        <select
+          value={filters.paymentMethod || ''}
+          onChange={(e) => handleChange('paymentMethod', e.target.value)}
+          className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+        >
+          <option value="">All Payment Methods</option>
+          <option value="Cash">Cash</option>
+          <option value="Cheque">Cheque</option>
+          <option value="Bank Transfer">Bank Transfer</option>
+        </select>
+      </div>
+    </>
+  );
+
   const renderMovementsFilters = () => (
     <>
       <div className="space-y-1">
@@ -269,6 +302,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         {reportType === 'expiry' && renderExpiryFilters()}
         {reportType === 'outstanding' && renderOutstandingFilters()}
         {reportType === 'movements' && renderMovementsFilters()}
+        {reportType === 'purchase_orders' && renderPurchaseOrderFilters()}
         {(reportType === 'jat_kitchen' || reportType === 'jat_transactions') && renderJatKitchenFilters()}
       </div>
 

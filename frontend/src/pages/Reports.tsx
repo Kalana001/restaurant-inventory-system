@@ -100,6 +100,13 @@ export const Reports: React.FC = () => {
 
         if (filters.userId) query = query.eq('created_by', filters.userId);
         if (filters.type) query = query.eq('type', filters.type);
+      } else if (reportType === 'purchase_orders') {
+        query = supabase
+          .from('purchase_orders')
+          .select(`*, suppliers(name), profiles:created_by (username), supplier_payments(payment_method, amount)`)
+          .order('created_at', { ascending: false });
+
+        if (filters.supplierId) query = query.eq('supplier_id', filters.supplierId);
       } else {
         setData([]);
         return;
@@ -119,6 +126,12 @@ export const Reports: React.FC = () => {
       if (reportType === 'movements' && filters.search) {
         const s = filters.search.toLowerCase();
         finalData = finalData.filter((m: any) => m.inventory_items?.name?.toLowerCase()?.includes(s));
+      }
+
+      if (reportType === 'purchase_orders' && filters.paymentMethod) {
+        finalData = finalData.filter((p: any) => 
+          p.supplier_payments?.some((sp: any) => sp.payment_method === filters.paymentMethod)
+        );
       }
 
       setData(finalData);
@@ -292,6 +305,25 @@ export const Reports: React.FC = () => {
               newRow[c.key] = sorted[0].payment_method;
             }
           }
+          if (reportType === 'outstanding' && c.key === 'status') newRow[c.key] = 'Active';
+
+          if (reportType === 'purchase_orders' && c.key === 'created_at') newRow[c.key] = row.created_at ? format(new Date(row.created_at), 'dd/MM/yyyy') : '-';
+          if (reportType === 'purchase_orders' && c.key === 'supplier') newRow[c.key] = row.suppliers?.name;
+          if (reportType === 'purchase_orders' && c.key === 'total_amount') newRow[c.key] = Number(row.total_amount || 0).toFixed(2);
+          if (reportType === 'purchase_orders' && c.key === 'paid_amount') newRow[c.key] = Number(row.paid_amount || 0).toFixed(2);
+          if (reportType === 'purchase_orders' && c.key === 'payment_methods') {
+            if (!row.supplier_payments || row.supplier_payments.length === 0) newRow[c.key] = '-';
+            else {
+              const methods = Array.from(new Set(row.supplier_payments.map((p: any) => p.payment_method)));
+              newRow[c.key] = methods.join(', ');
+            }
+          }
+          if (reportType === 'purchase_orders' && c.key === 'status') {
+              const paid = Number(row.paid_amount || 0);
+              const total = Number(row.total_amount || 0);
+              newRow[c.key] = (total > 0 && paid >= total) ? 'PAID' : 'PENDING';
+          }
+
           if (reportType === 'movements' && c.key === 'item') newRow[c.key] = row.inventory_items?.name;
           if (reportType === 'movements' && c.key === 'user') newRow[c.key] = row.profiles?.username;
           if (reportType === 'movements' && c.key === 'reason') newRow[c.key] = row.movement_reasons?.name;
