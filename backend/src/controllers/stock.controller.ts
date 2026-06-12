@@ -6,7 +6,7 @@ import { logAudit } from '../services/audit.service';
 
 export const createStockMovement = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { itemId, batchId, type, quantity, unitId, reasonId, price, receiptNumber } = req.body;
+    const { itemId, batchId, type, quantity, unitId, reasonId, price, receiptNumber, date } = req.body;
 
     if (!itemId || !type || !quantity || !unitId || !reasonId) {
       throw new BadRequestError('Item, type, quantity, unit, and reason are required.');
@@ -46,7 +46,7 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
           batch_number: batchNumber,
           item_id: itemId,
           supplier_id: item.supplier_id || null,
-          received_date: new Date().toISOString().split('T')[0],
+          received_date: date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           current_qty: 0, // Starts at 0, process_stock_movement_transaction RPC will add qtyBase
           available_qty: 0,
           status: 'ACTIVE'
@@ -95,6 +95,15 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
     if (dbError) {
       console.error('[STOCK MOVEMENT ERROR]:', dbError);
       throw new BadRequestError(dbError.message || 'Failed to process stock movement');
+    }
+
+    if (date && movementId) {
+      try {
+        const isoDate = new Date(date).toISOString();
+        await supabase.from('stock_movements').update({ created_at: isoDate }).eq('id', movementId);
+      } catch (e) {
+        console.error('[STOCK MOVEMENT DATE UPDATE ERROR]:', e);
+      }
     }
 
     // Update the global item cost_price if a new price is provided during STOCK_IN

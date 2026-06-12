@@ -152,12 +152,6 @@ export const Dashboard: React.FC = () => {
       bg: 'bg-indigo-50 border-indigo-100',
     },
     {
-      title: 'JAT Total Cost',
-      value: `LKR ${jatTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-      icon: <TrendingDown size={24} className="text-purple-500" />,
-      bg: 'bg-purple-50 border-purple-100',
-    },
-    {
       title: 'JAT Unsettled Balance',
       value: `LKR ${jatUnsettled.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       icon: <AlertTriangle size={24} className="text-pink-500" />,

@@ -218,7 +218,8 @@ export const Adjustments: React.FC = () => {
             unitId: item?.base_unit_id,
             reasonId: selectedReasonId,
             price: movementType === 'STOCK_IN' && line.price ? Number(line.price) : undefined,
-            receiptNumber
+            receiptNumber,
+            date: movementDate
           };
           await api.post('/stock/movements', payload);
         } catch (err: any) {
