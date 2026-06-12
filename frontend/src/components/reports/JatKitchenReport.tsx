@@ -8,8 +8,22 @@ interface JatKitchenReportProps {
   day?: string; // YYYY-MM-DD
 }
 
+interface TransactionRow {
+  receipt: string;
+  date: string;
+  reason: string;
+  totalCost: number;
+  items: {
+    name: string;
+    quantity: number;
+    cost_price: number;
+    total: number;
+  }[];
+}
+
 export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }) => {
-  const [data, setData] = useState<{ date: string; kitchen: number; jat: number }[]>([]);
+  const [data, setData] = useState<TransactionRow[]>([]);
+  const [selectedReceipt, setSelectedReceipt] = useState<TransactionRow | null>(null);
   const [settlements, setSettlements] = useState<any[]>([]);
   const [monthlyKitchen, setMonthlyKitchen] = useState(0);
   const [monthlyJat, setMonthlyJat] = useState(0);
@@ -51,25 +65,45 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
       // 3. Fetch Stock Movements for this date range
       const { data: movements } = await supabase
         .from('stock_movements')
-        .select('created_at, quantity, cost_price, reason_id')
+        .select('created_at, quantity, cost_price, reason_id, reference_type, inventory_items(name)')
         .eq('type', 'STOCK_OUT')
         .gte('created_at', start)
         .lte('created_at', end);
 
-      const daily: Record<string, { kitchen: number; jat: number }> = {};
+      const transactions: Record<string, TransactionRow> = {};
       let mKitchen = 0;
       let mJat = 0;
 
       if (movements) {
         movements.forEach(m => {
-          const date = m.created_at.split('T')[0];
-          if (!daily[date]) daily[date] = { kitchen: 0, jat: 0 };
+          const receipt = m.reference_type || 'Unknown';
           const cost = (Number(m.quantity) || 0) * (Number(m.cost_price) || 0);
+
+          if (!transactions[receipt]) {
+            let reasonName = 'Other';
+            if (m.reason_id === jatReason) reasonName = 'JAT';
+            else if (m.reason_id === kitchenReason) reasonName = 'Kitchen Usage';
+
+            transactions[receipt] = {
+              receipt,
+              date: m.created_at.split('T')[0],
+              reason: reasonName,
+              totalCost: 0,
+              items: []
+            };
+          }
+
+          transactions[receipt].totalCost += cost;
+          transactions[receipt].items.push({
+            name: (m.inventory_items as any)?.name || 'Unknown Item',
+            quantity: Number(m.quantity) || 0,
+            cost_price: Number(m.cost_price) || 0,
+            total: cost
+          });
+
           if (m.reason_id === jatReason) {
-            daily[date].jat += cost;
             mJat += cost;
           } else if (m.reason_id === kitchenReason) {
-            daily[date].kitchen += cost;
             mKitchen += cost;
           }
         });
@@ -77,7 +111,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
 
       setMonthlyKitchen(mKitchen);
       setMonthlyJat(mJat);
-      setData(Object.entries(daily).map(([date, vals]) => ({ date, ...vals })).sort((a, b) => b.date.localeCompare(a.date)));
+      setData(Object.values(transactions).sort((a, b) => b.date.localeCompare(a.date)));
 
       // 4. Fetch All-Time Unsettled Balance for JAT
       // Total JAT All-Time
@@ -191,29 +225,40 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Day-wise Stock Out Table */}
+        {/* Transaction Details Table */}
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
           <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-            <h3 className="font-bold text-slate-800">Day-wise Costs</h3>
+            <h3 className="font-bold text-slate-800">Transaction Details</h3>
           </div>
           <div className="overflow-x-auto flex-1">
             <table className="w-full text-sm text-left">
               <thead className="bg-slate-50 text-slate-500">
                 <tr>
                   <th className="px-4 py-3 font-bold">Date</th>
-                  <th className="px-4 py-3 font-bold text-right">Kitchen Usage</th>
-                  <th className="px-4 py-3 font-bold text-right">JAT Cost</th>
+                  <th className="px-4 py-3 font-bold">Reason</th>
+                  <th className="px-4 py-3 font-bold text-right">Total Cost</th>
+                  <th className="px-4 py-3 font-bold text-center">Receipt</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {data.length === 0 ? (
-                  <tr><td colSpan={3} className="px-4 py-6 text-center text-slate-400">No data found</td></tr>
+                  <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">No data found</td></tr>
                 ) : (
                   data.map(row => (
-                    <tr key={row.date} className="hover:bg-slate-50/50">
+                    <tr key={row.receipt} className="hover:bg-slate-50/50">
                       <td className="px-4 py-3 font-medium text-slate-700">{format(parseISO(row.date), 'MMM dd, yyyy')}</td>
-                      <td className="px-4 py-3 text-right">LKR {row.kitchen.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td className="px-4 py-3 text-right font-semibold">LKR {row.jat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-3">
+                        <span className={`px-2 py-1 text-xs font-bold rounded-lg ${row.reason === 'JAT' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>{row.reason}</span>
+                      </td>
+                      <td className="px-4 py-3 text-right font-semibold">LKR {row.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      <td className="px-4 py-3 text-center">
+                        <button
+                          onClick={() => setSelectedReceipt(row)}
+                          className="text-primary hover:text-blue-700 font-semibold underline decoration-blue-300 underline-offset-2 transition-colors"
+                        >
+                          {row.receipt}
+                        </button>
+                      </td>
                     </tr>
                   ))
                 )}
@@ -354,6 +399,51 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      {/* Receipt Details Modal */}
+      {selectedReceipt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+              <h3 className="font-bold text-lg text-slate-800">
+                Receipt Details: <span className="text-primary">{selectedReceipt.receipt}</span>
+              </h3>
+              <button onClick={() => setSelectedReceipt(null)} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-colors">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto">
+              <div className="flex items-center gap-4 mb-4 text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <div><span className="font-bold text-slate-500">Date:</span> {format(parseISO(selectedReceipt.date), 'MMMM dd, yyyy')}</div>
+                <div><span className="font-bold text-slate-500">Reason:</span> {selectedReceipt.reason}</div>
+                <div><span className="font-bold text-slate-500">Total:</span> LKR {selectedReceipt.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+              </div>
+
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50 text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 font-bold">Item Name</th>
+                      <th className="px-4 py-3 font-bold text-right">Quantity</th>
+                      <th className="px-4 py-3 font-bold text-right">Unit Cost</th>
+                      <th className="px-4 py-3 font-bold text-right">Total Cost</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {selectedReceipt.items.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50">
+                        <td className="px-4 py-3 font-medium text-slate-700">{item.name}</td>
+                        <td className="px-4 py-3 text-right">{item.quantity}</td>
+                        <td className="px-4 py-3 text-right text-slate-500">LKR {item.cost_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-700">LKR {item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </div>
       )}
