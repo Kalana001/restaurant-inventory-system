@@ -252,6 +252,27 @@ export const Reports: React.FC = () => {
           }},
           { key: 'status', header: 'Status', render: (r) => <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-xs font-bold">Active</span> }
         ];
+      case 'purchase_orders':
+        return [
+          { key: 'po_number', header: 'PO Number', sortable: true },
+          { key: 'created_at', header: 'Date', render: (r) => r.created_at ? format(new Date(r.created_at), 'dd/MM/yyyy') : '-', sortable: true },
+          { key: 'supplier', header: 'Supplier', render: (r) => r.suppliers?.name },
+          { key: 'total_amount', header: 'Total Amount', render: (r) => `LKR ${Number(r.total_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
+          { key: 'paid_amount', header: 'Paid Amount', render: (r) => `LKR ${Number(r.paid_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}` },
+          { key: 'payment_methods', header: 'Payment Methods', render: (r) => {
+            if (!r.supplier_payments || r.supplier_payments.length === 0) return '-';
+            const methods = Array.from(new Set(r.supplier_payments.map((p: any) => p.payment_method)));
+            return methods.join(', ');
+          }},
+          { key: 'status', header: 'Status', render: (r) => {
+              const paid = Number(r.paid_amount || 0);
+              const total = Number(r.total_amount || 0);
+              const isPaid = total > 0 && paid >= total;
+              return <span className={`px-2 py-1 rounded text-xs font-bold ${isPaid ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                {isPaid ? 'PAID' : 'PENDING'}
+              </span>;
+          }}
+        ];
       case 'movements':
         return [
           { key: 'created_at', header: 'Date & Time', render: (r) => r.created_at ? format(new Date(r.created_at), 'dd/MM/yyyy HH:mm') : '-', sortable: true },
