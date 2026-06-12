@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { format, parseISO, startOfMonth, endOfMonth, isWithinInterval } from 'date-fns';
-import { FileText, DollarSign, RefreshCw, XCircle } from 'lucide-react';
+import { FileText, DollarSign, RefreshCw, XCircle, CheckCircle } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { FilterPanel } from './FilterPanel';
 import { JatPaymentModal } from './JatPaymentModal';
@@ -193,6 +193,9 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
     fetchData();
   }, [month, day]);
 
+  const totalSettled = transactions.reduce((acc, curr) => acc + curr.paid, 0);
+  const totalUnsettled = transactions.reduce((acc, curr) => acc + curr.remaining, 0);
+
   return (
     <div className="space-y-6 animate-in fade-in duration-500">
       <div className="flex justify-between items-center">
@@ -215,6 +218,27 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
           >
             <DollarSign size={18} /> Record Payment
           </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500">
+            <DollarSign size={24} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Unsettled Amount</p>
+            <p className="text-2xl font-black text-rose-600 mt-1">LKR {totalUnsettled.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+          </div>
+        </div>
+        <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center text-emerald-500">
+            <CheckCircle size={24} />
+          </div>
+          <div>
+            <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Settled Amount</p>
+            <p className="text-2xl font-black text-emerald-600 mt-1">LKR {totalSettled.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+          </div>
         </div>
       </div>
 
