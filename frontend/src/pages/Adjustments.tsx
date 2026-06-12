@@ -679,8 +679,8 @@ export const Adjustments: React.FC = () => {
                   <span>
                     {movementType === 'STOCK_OUT' ? 'Removing' : 'Adding'}{' '}
                     {lines.filter(l => l.itemId).length} item line{lines.filter(l => l.itemId).length !== 1 ? 's' : ''} from stock
-                    {selectedReasonId ? ` Â· Reason: ${reasons.find(r => r.id === selectedReasonId)?.name}` : ''}
-                    {' Â· Date: '}{movementDate}
+                    {selectedReasonId ? ` | Reason: ${reasons.find(r => r.id === selectedReasonId)?.name}` : ''}
+                    {' | Date: '}{movementDate}
                   </span>
                 </div>
               )}
