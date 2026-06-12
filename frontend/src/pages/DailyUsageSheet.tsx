@@ -15,7 +15,7 @@ export const DailyUsageSheet: React.FC = () => {
   const [items, setItems] = useState<SheetItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [dates, setDates] = useState(['', '', '']);
+  const [dates, setDates] = useState(['', '']);
   const [monthInput, setMonthInput] = useState('');
   const [dateRangeInput, setDateRangeInput] = useState('');
 
@@ -156,10 +156,10 @@ export const DailyUsageSheet: React.FC = () => {
       <thead>
         <tr className="bg-slate-100">
           <th className="border border-slate-300 p-2 text-left w-32" rowSpan={2}>Item Name</th>
-          {[0, 1, 2].map(dayIndex => (
+          {[0, 1].map(dayIndex => (
             <th key={dayIndex} className="border border-slate-300 p-1 text-center" colSpan={2}>
               {exporting ? (
-                <span className="font-bold inline-block min-h-[18px] min-w-[50px]">{dates[dayIndex] || '\u00A0'}</span>
+                <span className="font-bold inline-block min-h-[18px] min-w-[80px]">{dates[dayIndex] || '\u00A0'}</span>
               ) : (
                 <input 
                   type="text" 
@@ -176,10 +176,10 @@ export const DailyUsageSheet: React.FC = () => {
           ))}
         </tr>
         <tr className="bg-slate-50">
-          {[1, 2, 3].map(day => (
+          {[1, 2].map(day => (
             <React.Fragment key={`sub-${day}`}>
-              <th className="border border-slate-300 p-1.5 text-center font-semibold text-orange-700 bg-orange-50/50 w-12">JAT</th>
-              <th className="border border-slate-300 p-1.5 text-center font-semibold text-blue-700 bg-blue-50/50 w-12">Sigiri</th>
+              <th className="border border-slate-300 p-1.5 text-center font-semibold text-blue-700 bg-blue-50/50 w-20">Sigiri</th>
+              <th className="border border-slate-300 p-1.5 text-center font-semibold text-orange-700 bg-orange-50/50 w-20">JAT</th>
             </React.Fragment>
           ))}
         </tr>
@@ -210,7 +210,7 @@ export const DailyUsageSheet: React.FC = () => {
                 )}
               </div>
             </td>
-            {[1, 2, 3].map(day => (
+            {[1, 2].map(day => (
               <React.Fragment key={`cell-${day}`}>
                 <td className="border border-slate-300 p-2"></td>
                 <td className="border border-slate-300 p-2"></td>
@@ -222,7 +222,7 @@ export const DailyUsageSheet: React.FC = () => {
         {tableItems.length < leftItems.length && Array.from({ length: leftItems.length - tableItems.length }).map((_, i) => (
           <tr key={`empty-row-${i}`} className="bg-white">
              <td className="border border-slate-300 p-2 h-[33px]"></td>
-             {[1, 2, 3].map(day => (
+             {[1, 2].map(day => (
               <React.Fragment key={`empty-cell-${day}-${i}`}>
                 <td className="border border-slate-300 p-2"></td>
                 <td className="border border-slate-300 p-2"></td>
@@ -267,7 +267,7 @@ export const DailyUsageSheet: React.FC = () => {
         {/* Print Header */}
         <div className="mb-6 flex justify-between items-end">
           <div>
-            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Daily Usage Sheet (3 Days)</h1>
+            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Daily Usage Sheet (2 Days)</h1>
             <p className="text-sm font-semibold text-slate-500 mt-1">Sigiri Catering Services</p>
           </div>
           <div className="flex gap-8 text-sm font-bold text-slate-700 items-center">
