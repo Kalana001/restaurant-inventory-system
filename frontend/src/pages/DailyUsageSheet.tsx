@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Printer, CalendarDays, X } from 'lucide-react';
+import { Download, CalendarDays, X } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 interface SheetItem {
   id: string;
@@ -10,6 +12,10 @@ interface SheetItem {
 export const DailyUsageSheet: React.FC = () => {
   const [items, setItems] = useState<SheetItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [dates, setDates] = useState(['', '', '']);
+  const [monthInput, setMonthInput] = useState('');
+  const [dateRangeInput, setDateRangeInput] = useState('');
 
   useEffect(() => {
     const fetchItems = async () => {
@@ -45,8 +51,38 @@ export const DailyUsageSheet: React.FC = () => {
     fetchItems();
   }, []);
 
-  const handlePrint = () => {
-    window.print();
+  const handleExportPDF = async () => {
+    const element = document.getElementById('pdf-area');
+    if (!element) return;
+    
+    setExporting(true);
+    // Add a slight delay to allow UI to settle if needed, or directly capture
+    try {
+      const canvas = await html2canvas(element, { 
+        scale: 2,
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      });
+      const imgData = canvas.toDataURL('image/png');
+      
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = (canvas.height * pdfWidth) / canvas.width;
+      
+      // Calculate margins if we want it centered, but for a full sheet top-left is fine
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, pdfHeight);
+      pdf.save('Daily_Usage_Sheet.pdf');
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      alert('Failed to export PDF.');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const handleNameChange = (id: string, newName: string) => {
@@ -75,8 +111,20 @@ export const DailyUsageSheet: React.FC = () => {
       <thead>
         <tr className="bg-slate-100">
           <th className="border border-slate-300 p-1.5 text-left" rowSpan={2}>Item Name</th>
-          {[1, 2, 3].map(day => (
-            <th key={day} className="border border-slate-300 p-1.5 text-center" colSpan={2}>Day {day}</th>
+          {[0, 1, 2].map(dayIndex => (
+            <th key={dayIndex} className="border border-slate-300 p-1 text-center" colSpan={2}>
+              <input 
+                type="text" 
+                placeholder="Date..." 
+                value={dates[dayIndex]} 
+                onChange={e => {
+                  const newDates = [...dates];
+                  newDates[dayIndex] = e.target.value;
+                  setDates(newDates);
+                }}
+                className="w-full text-center bg-transparent outline-none placeholder:text-slate-400 font-bold"
+              />
+            </th>
           ))}
         </tr>
         <tr className="bg-slate-50">
@@ -143,24 +191,41 @@ export const DailyUsageSheet: React.FC = () => {
           <p className="text-sm text-slate-500 mt-1">Customize your items, remove rows, and print for manual tracking.</p>
         </div>
         <button
-          onClick={handlePrint}
-          className="px-6 py-2.5 bg-primary text-white font-bold rounded-xl shadow-md hover:bg-opacity-90 flex items-center gap-2 transition-all active:scale-95"
+          onClick={handleExportPDF}
+          disabled={exporting}
+          className="px-6 py-2.5 bg-primary text-white font-bold rounded-xl shadow-md hover:bg-opacity-90 flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
         >
-          <Printer size={18} /> Print Sheet
+          <Download size={18} /> {exporting ? 'Generating PDF...' : 'Export to PDF'}
         </button>
       </div>
 
       {/* Printable Area */}
-      <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 w-full overflow-hidden">
+      <div id="pdf-area" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 w-full overflow-hidden">
         {/* Print Header */}
         <div className="mb-4 flex justify-between items-end">
           <div>
             <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">Daily Usage Sheet (3 Days)</h1>
             <p className="text-xs font-semibold text-slate-500 mt-1">Sigiri Catering Services</p>
           </div>
-          <div className="flex gap-6 text-xs font-bold text-slate-700">
-            <div>Month: <span className="inline-block w-24 border-b border-slate-300 border-dotted" /></div>
-            <div>Date Range: <span className="inline-block w-32 border-b border-slate-300 border-dotted" /></div>
+          <div className="flex gap-6 text-xs font-bold text-slate-700 items-center">
+            <div className="flex items-center gap-2">
+              Month: 
+              <input 
+                type="text" 
+                value={monthInput}
+                onChange={e => setMonthInput(e.target.value)}
+                className="w-24 border-b border-slate-300 border-dotted outline-none bg-transparent" 
+              />
+            </div>
+            <div className="flex items-center gap-2">
+              Date Range: 
+              <input 
+                type="text" 
+                value={dateRangeInput}
+                onChange={e => setDateRangeInput(e.target.value)}
+                className="w-32 border-b border-slate-300 border-dotted outline-none bg-transparent" 
+              />
+            </div>
           </div>
         </div>
 
@@ -171,7 +236,7 @@ export const DailyUsageSheet: React.FC = () => {
         </div>
         
         {/* Print Footer */}
-        <div className="mt-6 flex justify-between text-[10px] font-bold text-slate-500 hidden print:flex">
+        <div className="mt-6 flex justify-between text-[10px] font-bold text-slate-500">
           <div>Prepared By: _____________________</div>
           <div>Checked By: _____________________</div>
         </div>
