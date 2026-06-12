@@ -131,7 +131,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
 
   useEffect(() => {
     fetchData();
-  }, [month]);
+  }, [month, day]);
 
 
 
@@ -185,7 +185,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
                 ) : (
                   data.map(row => (
                     <tr key={row.receipt} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-700">{format(parseISO(row.date), 'MMM dd, yyyy')}</td>
+                      <td className="px-4 py-3 font-medium text-slate-700">{format(parseISO(row.date), 'dd MMM')}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 text-xs font-bold rounded-lg ${row.reason === 'JAT' ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>{row.reason}</span>
                       </td>

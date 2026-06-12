@@ -23,7 +23,12 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   users
 }) => {
   const handleChange = (key: string, value: any) => {
-    setFilters({ ...filters, [key]: value });
+    const updated = { ...filters, [key]: value };
+    setFilters(updated);
+    // JAT reports auto-apply on filter change (no button click needed)
+    if (reportType === 'jat_kitchen' || reportType === 'jat_transactions') {
+      setTimeout(() => onApply(), 0);
+    }
   };
 
   const renderValuationFilters = () => (
@@ -227,13 +232,27 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         />
       </div>
       <div className="space-y-1">
-        <label className="text-xs font-bold text-slate-500 uppercase">Day (Optional)</label>
+        <label className="text-xs font-bold text-slate-500 uppercase flex items-center justify-between">
+          <span>Specific Day</span>
+          {filters.day && (
+            <button
+              type="button"
+              onClick={() => handleChange('day', '')}
+              className="text-rose-400 hover:text-rose-600 text-[10px] font-bold uppercase ml-2"
+            >
+              ✕ Clear
+            </button>
+          )}
+        </label>
         <input 
           type="date" 
           value={filters.day || ''} 
           onChange={(e) => handleChange('day', e.target.value)}
           className="w-full p-2 border border-slate-200 rounded-lg text-sm"
         />
+        {filters.day && (
+          <p className="text-[10px] text-slate-400">Showing only: <span className="font-bold text-slate-600">{(() => { const [y,m,d] = filters.day.split('-'); return `${d}/${m}/${y}`; })()}</span></p>
+        )}
       </div>
     </>
   );
