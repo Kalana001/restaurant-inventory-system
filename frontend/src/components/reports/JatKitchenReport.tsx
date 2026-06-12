@@ -22,9 +22,9 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month }) => 
     settlement_date: format(new Date(), 'yyyy-MM-dd'),
     amount: '',
     payment_method: 'CASH',
-    for_date: '',
+    for_date: format(new Date(), 'yyyy-MM-dd'),
     cheque_number: '',
-    cheque_realize_date: '',
+    cheque_realize_date: format(new Date(), 'yyyy-MM-dd'),
     notes: ''
   });
 
@@ -142,9 +142,9 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month }) => 
         settlement_date: format(new Date(), 'yyyy-MM-dd'),
         amount: '',
         payment_method: 'CASH',
-        for_date: '',
+        for_date: format(new Date(), 'yyyy-MM-dd'),
         cheque_number: '',
-        cheque_realize_date: '',
+        cheque_realize_date: format(new Date(), 'yyyy-MM-dd'),
         notes: ''
       });
       fetchData();

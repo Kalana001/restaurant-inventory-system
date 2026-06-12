@@ -79,7 +79,7 @@ export const PurchaseOrders: React.FC = () => {
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payMethod, setPayMethod] = useState<string>('Cash');
   const [payDate, setPayDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [chequeDate, setChequeDate] = useState<string>('');
+  const [chequeDate, setChequeDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [payError, setPayError] = useState<string | null>(null);
   const [payLoading, setPayLoading] = useState(false);
 
@@ -320,7 +320,7 @@ export const PurchaseOrders: React.FC = () => {
         unit: i.inventory_items?.units?.abbreviation || 'pcs',
         quantity: i.quantity,
         costPrice: Number(i.cost_price),
-        expiryDate: ''
+        expiryDate: new Date().toISOString().split('T')[0]
       })));
     }
     setGrnModalOpen(true);
@@ -365,7 +365,7 @@ export const PurchaseOrders: React.FC = () => {
     setPayAmount(Number(po.total_amount) - Number(po.paid_amount || 0));
     setPayMethod('Cash');
     setPayDate(new Date().toISOString().split('T')[0]);
-    setChequeDate('');
+    setChequeDate(new Date().toISOString().split('T')[0]);
     setPayError(null);
     setPayModalOpen(true);
   };

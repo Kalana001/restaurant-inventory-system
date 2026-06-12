@@ -52,7 +52,7 @@ export const Inventory: React.FC = () => {
   // Opening stock states (only shown on Add, not Edit)
   const [openingQty, setOpeningQty] = useState('');
   const [openingBatchNo, setOpeningBatchNo] = useState('');
-  const [openingExpiryDate, setOpeningExpiryDate] = useState('');
+  const [openingExpiryDate, setOpeningExpiryDate] = useState(new Date().toISOString().split('T')[0]);
 
   // Confirm Modal States
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -152,7 +152,7 @@ export const Inventory: React.FC = () => {
     setIsExpiryTracked(false);
     setOpeningQty('');
     setOpeningBatchNo('');
-    setOpeningExpiryDate('');
+    setOpeningExpiryDate(new Date().toISOString().split('T')[0]);
     setFormError(null);
     setCategoryDropdownOpen(false);
     setModalOpen(true);

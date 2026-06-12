@@ -101,7 +101,7 @@ export const GRNs: React.FC = () => {
           quantity: Number(line.quantity), // Default to full PO load
           costPrice: Number(line.cost_price),
           batchNumber: `B-${line.inventory_items?.sku}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
-          expiryDate: '' // Blank by default
+          expiryDate: new Date().toISOString().split('T')[0]
         }));
         setGrnItems(mapped);
       }
