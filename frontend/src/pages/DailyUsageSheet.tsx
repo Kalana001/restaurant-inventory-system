@@ -131,7 +131,7 @@ export const DailyUsageSheet: React.FC = () => {
           {[1, 2, 3].map(day => (
             <React.Fragment key={`sub-${day}`}>
               <th className="border border-slate-300 p-1 text-center font-semibold text-orange-700 bg-orange-50/50 w-10">JAT</th>
-              <th className="border border-slate-300 p-1 text-center font-semibold text-blue-700 bg-blue-50/50 w-10">Rest.</th>
+              <th className="border border-slate-300 p-1 text-center font-semibold text-blue-700 bg-blue-50/50 w-10">Sigiri</th>
             </React.Fragment>
           ))}
         </tr>
