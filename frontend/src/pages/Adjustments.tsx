@@ -32,10 +32,12 @@ const newLine = (): BulkLine => ({
   showDropdown: false,
 });
 
-const generateReceiptNumber = () => {
-  const date = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+const generateReceiptNumber = (selectedDate?: string) => {
+  // Use selected date (YYYY-MM-DD) so receipt number reflects the actual movement date, not UTC submission time
+  const dateStr = selectedDate || new Date().toISOString().slice(0, 10);
+  const datePart = dateStr.replace(/-/g, '');
   const rand = Math.floor(1000 + Math.random() * 9000);
-  return `RCP-${date}-${rand}`;
+  return `RCP-${datePart}-${rand}`;
 };
 
 export const Adjustments: React.FC = () => {
@@ -200,7 +202,7 @@ export const Adjustments: React.FC = () => {
     setSubmitting(true);
     const errors: string[] = [];
     // One receipt number for the whole bulk submission - sent to backend in each payload
-    const receiptNumber = generateReceiptNumber();
+    const receiptNumber = generateReceiptNumber(movementDate);
 
     try {
       for (const line of validLines) {
@@ -419,14 +421,7 @@ export const Adjustments: React.FC = () => {
                         <td className="px-6 py-4 font-semibold text-slate-800">{parseFloat(mvs.reduce((sum: number, m: any) => sum + Number(m.quantity), 0).toFixed(3))}</td>
                         <td className="px-6 py-4 text-slate-500 font-medium">{mvs[0]?.movement_reasons?.name}</td>
                         <td className="px-6 py-4 text-slate-400">{mvs[0]?.profiles?.username || 'System'}</td>
-                        <td className="px-6 py-4 text-slate-400 text-xs">{(() => {
-                          // Parse date from receipt number (RCP-YYYYMMDD-XXXX) as the most reliable source
-                          const rcpMatch = row.receiptNum?.match(/RCP-(\d{4})(\d{2})(\d{2})-/);
-                          if (rcpMatch) return `${rcpMatch[3]}/${rcpMatch[2]}/${rcpMatch[1]}`;
-                          // Fallback: use created_at split to avoid timezone shift
-                          if (row.created_at) { const [y,m,d] = row.created_at.split('T')[0].split('-'); return `${d}/${m}/${y}`; }
-                          return '—';
-                        })()}</td>
+                        <td className="px-6 py-4 text-slate-400 text-xs">{row.created_at ? (() => { const [y,m,d] = row.created_at.split('T')[0].split('-'); return `${d}/${m}/${y}`; })() : '—'}</td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${allApproved ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
                             {allApproved ? 'APPROVED' : 'PARTIAL'}
