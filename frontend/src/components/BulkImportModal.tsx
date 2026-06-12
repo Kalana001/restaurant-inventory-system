@@ -164,7 +164,7 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
         }
 
         itemsToInsert.push({
-          sku: row.SKU || `IMP-${i + 1}`,
+          sku: row.SKU || `IMP-${Date.now().toString().slice(-4)}${Math.floor(1000 + Math.random() * 9000)}`,
           name: row.Name,
           description: row.Description || null,
           category_id: category.id,

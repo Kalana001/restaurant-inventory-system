@@ -230,8 +230,7 @@ export const Inventory: React.FC = () => {
         setFormError('Please select or create a category before saving.');
         return;
       }
-      const totalItemsCount = items.length;
-      const finalSku = sku.trim() || `INT-${String(totalItemsCount + 1).padStart(4,'0')}`;
+      const finalSku = sku.trim() || `INT-${Date.now().toString().slice(-4)}${Math.floor(1000 + Math.random() * 9000)}`;
 
       const itemPayload = {
         sku: finalSku,
