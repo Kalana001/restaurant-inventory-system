@@ -809,7 +809,8 @@ export const Inventory: React.FC = () => {
                            <td className="px-4 py-3 text-right font-medium text-slate-700">
                              {(() => {
                                const stockIn = batch.stock_movements?.find((m: any) => m.type === 'STOCK_IN' && m.cost_price > 0);
-                               return stockIn ? Number(stockIn.cost_price).toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '-';
+                               const price = stockIn ? Number(stockIn.cost_price) : Number(selectedBatchItem.cost_price || 0);
+                               return price > 0 ? price.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '-';
                              })()}
                            </td>
                            <td className="px-4 py-3 text-right font-medium">{batch.current_qty}</td>
