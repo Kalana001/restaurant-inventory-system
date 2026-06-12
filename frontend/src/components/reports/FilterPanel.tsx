@@ -11,6 +11,7 @@ export interface FilterPanelProps {
   suppliers: any[];
   users: any[];
   poPaymentMethods?: string[];
+  jatKitchenTotals?: { jat: number, kitchen: number };
 }
 
 export const FilterPanel: React.FC<FilterPanelProps> = ({
@@ -22,7 +23,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   categories,
   suppliers,
   users,
-  poPaymentMethods = []
+  poPaymentMethods = [],
+  jatKitchenTotals
 }) => {
   const handleChange = (key: string, value: any) => {
     const updated = { ...filters, [key]: value };
@@ -295,6 +297,19 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
           <p className="text-[10px] text-slate-400">Showing only: <span className="font-bold text-slate-600">{(() => { const [y,m,d] = filters.day.split('-'); return `${d}/${m}/${y}`; })()}</span></p>
         )}
       </div>
+
+      {jatKitchenTotals && (
+        <div className="md:col-span-2 flex gap-4 ml-0 md:ml-auto w-full">
+          <div className="bg-orange-50 text-orange-700 px-4 py-2 rounded-xl flex-1 flex flex-col justify-center border border-orange-100">
+            <span className="text-[10px] uppercase font-bold opacity-70">JAT Total</span>
+            <span className="font-black text-lg">LKR {jatKitchenTotals.jat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+          <div className="bg-blue-50 text-blue-700 px-4 py-2 rounded-xl flex-1 flex flex-col justify-center border border-blue-100">
+            <span className="text-[10px] uppercase font-bold opacity-70">Kitchen Total</span>
+            <span className="font-black text-lg">LKR {jatKitchenTotals.kitchen.toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+          </div>
+        </div>
+      )}
     </>
   );
 

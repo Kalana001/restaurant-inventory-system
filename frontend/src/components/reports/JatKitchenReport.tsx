@@ -8,6 +8,7 @@ import autoTable from 'jspdf-autotable';
 interface JatKitchenReportProps {
   month?: string; // YYYY-MM
   day?: string; // YYYY-MM-DD
+  onTotalsUpdate?: (jat: number, kitchen: number) => void;
 }
 
 interface TransactionRow {
@@ -23,7 +24,7 @@ interface TransactionRow {
   }[];
 }
 
-export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }) => {
+export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, onTotalsUpdate }) => {
   const [data, setData] = useState<TransactionRow[]>([]);
   const [selectedReceipt, setSelectedReceipt] = useState<TransactionRow | null>(null);
   const [loading, setLoading] = useState(true);
@@ -173,6 +174,9 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
 
       setMonthlyKitchen(mKitchen);
       setMonthlyJat(mJat);
+      if (onTotalsUpdate) {
+        onTotalsUpdate(mJat, mKitchen);
+      }
       setData(Object.values(transactions).sort((a, b) => b.date.localeCompare(a.date)));
 
       // 4. Fetch Today's Stats
@@ -327,7 +331,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
   return (
     <div className="space-y-6">
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm md:col-span-1">
           <h3 className="text-xs font-bold text-slate-500 uppercase">JAT Unsettled Balance</h3>
           <p className="text-xl font-black text-rose-600 mt-2">LKR {unsettledBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
@@ -339,14 +343,6 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
         <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm md:col-span-1">
           <h3 className="text-xs font-bold text-slate-500 uppercase">Kitchen Usage (Today)</h3>
           <p className="text-xl font-black text-slate-800 mt-2">LKR {todayKitchen.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm md:col-span-1">
-          <h3 className="text-xs font-bold text-slate-500 uppercase">JAT Cost (This Month)</h3>
-          <p className="text-xl font-black text-slate-800 mt-2">LKR {monthlyJat.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
-        </div>
-        <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm md:col-span-1">
-          <h3 className="text-xs font-bold text-slate-500 uppercase">Kitchen Usage (This Month)</h3>
-          <p className="text-xl font-black text-slate-800 mt-2">LKR {monthlyKitchen.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
         </div>
       </div>
 

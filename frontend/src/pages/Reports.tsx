@@ -23,6 +23,7 @@ export const Reports: React.FC = () => {
   const [loading, setLoading] = useState(false);
   
   const [exporting, setExporting] = useState(false);
+  const [jatKitchenTotals, setJatKitchenTotals] = useState({ jat: 0, kitchen: 0 });
 
   // Reference data for filters
   const [categories, setCategories] = useState<any[]>([]);
@@ -399,10 +400,15 @@ export const Reports: React.FC = () => {
         suppliers={suppliers}
         users={users}
         poPaymentMethods={poPaymentMethods}
+        jatKitchenTotals={jatKitchenTotals}
       />
 
       {reportType === 'jat_kitchen' ? (
-        <JatKitchenReport month={filters.month} day={filters.day} />
+        <JatKitchenReport 
+          month={filters.month} 
+          day={filters.day} 
+          onTotalsUpdate={(jat, kitchen) => setJatKitchenTotals({ jat, kitchen })}
+        />
       ) : reportType === 'jat_transactions' ? (
         <JatTransactionsReport 
           month={filters.month} 
