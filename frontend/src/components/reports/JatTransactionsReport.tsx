@@ -17,11 +17,11 @@ interface TransactionRow {
 }
 
 interface JatTransactionsReportProps {
-  dateRange: { start: string; end: string };
+  month?: string;
   day?: string;
 }
 
-export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ dateRange, day }) => {
+export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ month, day }) => {
   const [transactions, setTransactions] = useState<TransactionRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<TransactionRow | null>(null);
@@ -44,8 +44,9 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ da
         const end = new Date(day + 'T23:59:59.999Z').toISOString();
         query = query.gte('created_at', start).lte('created_at', end);
       } else {
-        const start = new Date(dateRange.start + 'T00:00:00.000Z').toISOString();
-        const end = new Date(dateRange.end + 'T23:59:59.999Z').toISOString();
+        const targetDate = month ? new Date(month + '-01') : new Date();
+        const start = startOfMonth(targetDate).toISOString();
+        const end = endOfMonth(targetDate).toISOString();
         query = query.gte('created_at', start).lte('created_at', end);
       }
 
@@ -119,7 +120,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ da
 
   useEffect(() => {
     fetchData();
-  }, [dateRange, day]);
+  }, [month, day]);
 
   return (
     <div className="space-y-6 animate-in fade-in duration-500">

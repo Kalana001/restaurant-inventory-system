@@ -313,7 +313,7 @@ export const Reports: React.FC = () => {
         <JatKitchenReport month={filters.month} day={filters.day} />
       ) : reportType === 'jat_transactions' ? (
         <JatTransactionsReport 
-          dateRange={{ start: filters.dateRange?.start || format(new Date(), 'yyyy-MM-01'), end: filters.dateRange?.end || format(new Date(), 'yyyy-MM-dd') }} 
+          month={filters.month} 
           day={filters.day} 
         />
       ) : (

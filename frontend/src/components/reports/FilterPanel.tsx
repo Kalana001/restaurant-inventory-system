@@ -269,7 +269,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         {reportType === 'expiry' && renderExpiryFilters()}
         {reportType === 'outstanding' && renderOutstandingFilters()}
         {reportType === 'movements' && renderMovementsFilters()}
-        {reportType === 'jat_kitchen' && renderJatKitchenFilters()}
+        {(reportType === 'jat_kitchen' || reportType === 'jat_transactions') && renderJatKitchenFilters()}
       </div>
 
       <div className="flex items-center justify-end gap-3 pt-2">
