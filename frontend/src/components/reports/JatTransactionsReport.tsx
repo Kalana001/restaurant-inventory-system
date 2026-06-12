@@ -117,7 +117,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
               txMap[receipt] = {
                 receipt,
                 date,
-                reason: 'JAT',
+                reason: 'JAT / Vege',
                 totalCost: 0,
                 paid: 0,
                 remaining: 0,

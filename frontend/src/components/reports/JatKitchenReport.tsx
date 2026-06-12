@@ -115,7 +115,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
             transactions[receipt] = {
               receipt,
               date: dp.date,
-              reason: dp.department === 'JAT' ? 'JAT' : 'Kitchen Usage',
+              reason: dp.department === 'JAT' ? 'JAT / Vege' : 'Kitchen Usage / Vege',
               totalCost: 0,
               items: []
             };
