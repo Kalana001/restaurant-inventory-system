@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { Download, CalendarDays, X } from 'lucide-react';
+import { Download, CalendarDays, X, RotateCcw } from 'lucide-react';
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
 
@@ -8,6 +8,8 @@ interface SheetItem {
   id: string;
   customName: string;
 }
+
+const LOCAL_STORAGE_KEY = 'dailyUsageSheet_custom';
 
 export const DailyUsageSheet: React.FC = () => {
   const [items, setItems] = useState<SheetItem[]>([]);
@@ -28,6 +30,9 @@ export const DailyUsageSheet: React.FC = () => {
           
         if (error) throw error;
         
+        const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+        const customizations = savedData ? JSON.parse(savedData) : { removedIds: [], customNames: {} };
+
         // Filter out boxes, bags, packaging, etc.
         const filtered = (data || []).filter((item: any) => {
           const cat = (item.categories?.name || '').toLowerCase();
@@ -38,8 +43,14 @@ export const DailyUsageSheet: React.FC = () => {
           if (unit.includes('box') || unit.includes('bag') || unit.includes('pack')) return false;
           if (name.includes('box') || name.includes('bag')) return false;
           
+          // Filter out removed items based on saved state
+          if (customizations.removedIds.includes(item.id)) return false;
+          
           return true;
-        }).map(item => ({ id: item.id, customName: item.name }));
+        }).map(item => ({ 
+          id: item.id, 
+          customName: customizations.customNames[item.id] || item.name 
+        }));
 
         setItems(filtered);
       } catch (err) {
@@ -50,6 +61,17 @@ export const DailyUsageSheet: React.FC = () => {
     };
     fetchItems();
   }, []);
+
+  const saveCustomizations = (newItems: SheetItem[]) => {
+    const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const customizations = savedData ? JSON.parse(savedData) : { removedIds: [], customNames: {} };
+    
+    newItems.forEach(item => {
+      customizations.customNames[item.id] = item.customName;
+    });
+    
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(customizations));
+  };
 
   const handleExportPDF = async () => {
     const element = document.getElementById('pdf-area');
@@ -92,11 +114,28 @@ export const DailyUsageSheet: React.FC = () => {
   };
 
   const handleNameChange = (id: string, newName: string) => {
-    setItems(items.map(item => item.id === id ? { ...item, customName: newName } : item));
+    const newItems = items.map(item => item.id === id ? { ...item, customName: newName } : item);
+    setItems(newItems);
+    saveCustomizations(newItems);
   };
 
   const handleRemove = (id: string) => {
-    setItems(items.filter(item => item.id !== id));
+    const newItems = items.filter(item => item.id !== id);
+    setItems(newItems);
+    
+    const savedData = localStorage.getItem(LOCAL_STORAGE_KEY);
+    const customizations = savedData ? JSON.parse(savedData) : { removedIds: [], customNames: {} };
+    if (!customizations.removedIds.includes(id)) {
+      customizations.removedIds.push(id);
+    }
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(customizations));
+  };
+
+  const handleReset = () => {
+    if (window.confirm('Are you sure you want to reset all names and restore removed items?')) {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      window.location.reload();
+    }
   };
 
   if (loading) {
@@ -113,7 +152,7 @@ export const DailyUsageSheet: React.FC = () => {
   const rightItems = items.slice(mid);
 
   const renderTable = (tableItems: SheetItem[]) => (
-    <table className="w-full text-[11.5px] border-collapse border border-slate-300">
+    <table className="w-full text-[13.5px] border-collapse border border-slate-300">
       <thead>
         <tr className="bg-slate-100">
           <th className="border border-slate-300 p-2 text-left w-32" rowSpan={2}>Item Name</th>
@@ -205,13 +244,22 @@ export const DailyUsageSheet: React.FC = () => {
           </h2>
           <p className="text-sm text-slate-500 mt-1">Customize your items, remove rows, and print for manual tracking.</p>
         </div>
-        <button
-          onClick={handleExportPDF}
-          disabled={exporting}
-          className="px-6 py-2.5 bg-primary text-white font-bold rounded-xl shadow-md hover:bg-opacity-90 flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
-        >
-          <Download size={18} /> {exporting ? 'Generating PDF...' : 'Export to PDF'}
-        </button>
+        <div className="flex gap-3">
+          <button
+            onClick={handleReset}
+            disabled={exporting}
+            className="px-4 py-2.5 bg-slate-100 text-slate-600 font-bold rounded-xl shadow-sm hover:bg-slate-200 flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+          >
+            <RotateCcw size={18} /> Reset Layout
+          </button>
+          <button
+            onClick={handleExportPDF}
+            disabled={exporting}
+            className="px-6 py-2.5 bg-primary text-white font-bold rounded-xl shadow-md hover:bg-opacity-90 flex items-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+          >
+            <Download size={18} /> {exporting ? 'Generating PDF...' : 'Export to PDF'}
+          </button>
+        </div>
       </div>
 
       {/* Printable Area */}
@@ -256,12 +304,6 @@ export const DailyUsageSheet: React.FC = () => {
         <div className="grid grid-cols-2 gap-4 items-start">
           {renderTable(leftItems)}
           {renderTable(rightItems)}
-        </div>
-        
-        {/* Print Footer */}
-        <div className="mt-6 flex justify-between text-[10px] font-bold text-slate-500">
-          <div>Prepared By: _____________________</div>
-          <div>Checked By: _____________________</div>
         </div>
       </div>
       
