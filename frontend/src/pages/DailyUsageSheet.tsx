@@ -113,10 +113,10 @@ export const DailyUsageSheet: React.FC = () => {
   const rightItems = items.slice(mid);
 
   const renderTable = (tableItems: SheetItem[]) => (
-    <table className="w-full text-[10px] border-collapse border border-slate-300 print:text-[9px]">
+    <table className="w-full text-[13px] border-collapse border border-slate-300">
       <thead>
         <tr className="bg-slate-100">
-          <th className="border border-slate-300 p-1.5 text-left" rowSpan={2}>Item Name</th>
+          <th className="border border-slate-300 p-2 text-left w-32" rowSpan={2}>Item Name</th>
           {[0, 1, 2].map(dayIndex => (
             <th key={dayIndex} className="border border-slate-300 p-1 text-center" colSpan={2}>
               {exporting ? (
@@ -139,8 +139,8 @@ export const DailyUsageSheet: React.FC = () => {
         <tr className="bg-slate-50">
           {[1, 2, 3].map(day => (
             <React.Fragment key={`sub-${day}`}>
-              <th className="border border-slate-300 p-1 text-center font-semibold text-orange-700 bg-orange-50/50 w-10">JAT</th>
-              <th className="border border-slate-300 p-1 text-center font-semibold text-blue-700 bg-blue-50/50 w-10">Sigiri</th>
+              <th className="border border-slate-300 p-1.5 text-center font-semibold text-orange-700 bg-orange-50/50 w-12">JAT</th>
+              <th className="border border-slate-300 p-1.5 text-center font-semibold text-blue-700 bg-blue-50/50 w-12">Sigiri</th>
             </React.Fragment>
           ))}
         </tr>
@@ -149,15 +149,15 @@ export const DailyUsageSheet: React.FC = () => {
         {tableItems.map((item, idx) => (
           <tr key={item.id} className={`${idx % 2 === 0 ? 'bg-white' : 'bg-slate-50/30'} group`}>
             <td className="border border-slate-300 p-0 relative">
-              <div className="flex items-center w-full">
+              <div className="flex items-center w-full min-h-[32px]">
                 {exporting ? (
-                  <span className="w-full p-1.5 font-medium text-slate-800">{item.customName}</span>
+                  <span className="w-full p-2 font-medium text-slate-800 leading-tight">{item.customName}</span>
                 ) : (
                   <input
                     type="text"
                     value={item.customName}
                     onChange={(e) => handleNameChange(item.id, e.target.value)}
-                    className="w-full p-1.5 bg-transparent outline-none font-medium text-slate-800"
+                    className="w-full p-2 bg-transparent outline-none font-medium text-slate-800 leading-tight"
                   />
                 )}
                 {!exporting && (
@@ -173,8 +173,8 @@ export const DailyUsageSheet: React.FC = () => {
             </td>
             {[1, 2, 3].map(day => (
               <React.Fragment key={`cell-${day}`}>
-                <td className="border border-slate-300 p-1.5"></td>
-                <td className="border border-slate-300 p-1.5"></td>
+                <td className="border border-slate-300 p-2"></td>
+                <td className="border border-slate-300 p-2"></td>
               </React.Fragment>
             ))}
           </tr>
@@ -182,11 +182,11 @@ export const DailyUsageSheet: React.FC = () => {
         {/* Fill empty rows if right table is shorter */}
         {tableItems.length < leftItems.length && Array.from({ length: leftItems.length - tableItems.length }).map((_, i) => (
           <tr key={`empty-row-${i}`} className="bg-white">
-             <td className="border border-slate-300 p-1.5 h-[27px]"></td>
+             <td className="border border-slate-300 p-2 h-[33px]"></td>
              {[1, 2, 3].map(day => (
               <React.Fragment key={`empty-cell-${day}-${i}`}>
-                <td className="border border-slate-300 p-1.5"></td>
-                <td className="border border-slate-300 p-1.5"></td>
+                <td className="border border-slate-300 p-2"></td>
+                <td className="border border-slate-300 p-2"></td>
               </React.Fragment>
             ))}
           </tr>
@@ -215,14 +215,14 @@ export const DailyUsageSheet: React.FC = () => {
       </div>
 
       {/* Printable Area */}
-      <div id="pdf-area" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 w-full overflow-hidden">
+      <div id="pdf-area" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 w-full overflow-hidden" style={{ minWidth: exporting ? '1100px' : 'auto' }}>
         {/* Print Header */}
-        <div className="mb-4 flex justify-between items-end">
+        <div className="mb-6 flex justify-between items-end">
           <div>
-            <h1 className="text-xl font-black text-slate-900 uppercase tracking-tight">Daily Usage Sheet (3 Days)</h1>
-            <p className="text-xs font-semibold text-slate-500 mt-1">Sigiri Catering Services</p>
+            <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Daily Usage Sheet (3 Days)</h1>
+            <p className="text-sm font-semibold text-slate-500 mt-1">Sigiri Catering Services</p>
           </div>
-          <div className="flex gap-6 text-xs font-bold text-slate-700 items-center">
+          <div className="flex gap-8 text-sm font-bold text-slate-700 items-center">
             <div className="flex items-center gap-2">
               Month: 
               {exporting ? (
