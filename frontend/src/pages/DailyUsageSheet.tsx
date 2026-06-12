@@ -152,7 +152,7 @@ export const DailyUsageSheet: React.FC = () => {
   const rightItems = items.slice(mid);
 
   const renderTable = (tableItems: SheetItem[]) => (
-    <table className="w-full text-[13.5px] border-collapse border border-slate-300">
+    <table className="w-full text-[13.5px] border-collapse border border-slate-300" style={{ height: exporting ? '100%' : 'auto' }}>
       <thead>
         <tr className="bg-slate-100">
           <th className="border border-slate-300 p-2 text-left w-32" rowSpan={2}>Item Name</th>
@@ -263,9 +263,9 @@ export const DailyUsageSheet: React.FC = () => {
       </div>
 
       {/* Printable Area */}
-      <div id="pdf-area" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 w-full overflow-hidden" style={{ minWidth: exporting ? '1100px' : 'auto' }}>
+      <div id="pdf-area" className="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 print:shadow-none print:border-none print:p-0 print:m-0 w-full flex flex-col" style={{ minWidth: exporting ? '1100px' : 'auto', height: exporting ? '1556px' : 'auto', padding: exporting ? '40px' : undefined }}>
         {/* Print Header */}
-        <div className="mb-6 flex justify-between items-end">
+        <div className="mb-6 flex justify-between items-end flex-shrink-0">
           <div>
             <h1 className="text-2xl font-black text-slate-900 uppercase tracking-tight">Daily Usage Sheet (2 Days)</h1>
             <p className="text-sm font-semibold text-slate-500 mt-1">Sigiri Catering Services</p>
@@ -301,7 +301,7 @@ export const DailyUsageSheet: React.FC = () => {
         </div>
 
         {/* 2-Column Tables */}
-        <div className="grid grid-cols-2 gap-4 items-start">
+        <div className="grid grid-cols-2 gap-4 items-stretch flex-grow">
           {renderTable(leftItems)}
           {renderTable(rightItems)}
         </div>
