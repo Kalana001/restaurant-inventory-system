@@ -107,7 +107,11 @@ export const DailyUsageSheet: React.FC = () => {
     );
   }
 
-  // We now render a single vertical table as requested
+  // Split into two arrays for side-by-side rendering
+  const mid = Math.ceil(items.length / 2);
+  const leftItems = items.slice(0, mid);
+  const rightItems = items.slice(mid);
+
   const renderTable = (tableItems: SheetItem[]) => (
     <table className="w-full text-[10px] border-collapse border border-slate-300 print:text-[9px]">
       <thead>
@@ -175,6 +179,18 @@ export const DailyUsageSheet: React.FC = () => {
             ))}
           </tr>
         ))}
+        {/* Fill empty rows if right table is shorter */}
+        {tableItems.length < leftItems.length && Array.from({ length: leftItems.length - tableItems.length }).map((_, i) => (
+          <tr key={`empty-row-${i}`} className="bg-white">
+             <td className="border border-slate-300 p-1.5 h-[27px]"></td>
+             {[1, 2, 3].map(day => (
+              <React.Fragment key={`empty-cell-${day}-${i}`}>
+                <td className="border border-slate-300 p-1.5"></td>
+                <td className="border border-slate-300 p-1.5"></td>
+              </React.Fragment>
+            ))}
+          </tr>
+        ))}
       </tbody>
     </table>
   );
@@ -236,9 +252,10 @@ export const DailyUsageSheet: React.FC = () => {
           </div>
         </div>
 
-        {/* Single Table */}
-        <div className="w-full">
-          {renderTable(items)}
+        {/* 2-Column Tables */}
+        <div className="grid grid-cols-2 gap-4 items-start">
+          {renderTable(leftItems)}
+          {renderTable(rightItems)}
         </div>
         
         {/* Print Footer */}
