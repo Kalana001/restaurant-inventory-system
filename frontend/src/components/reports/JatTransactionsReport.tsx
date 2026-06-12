@@ -67,7 +67,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ da
         const txMap: Record<string, TransactionRow> = {};
         movements.forEach(m => {
           const receipt = m.reference_type || 'MANUAL';
-          const date = m.created_at.split('T')[0];
+          const date = format(new Date(m.created_at), 'yyyy-MM-dd');
           const cost = m.quantity * m.cost_price;
 
           if (!txMap[receipt]) {

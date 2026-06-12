@@ -69,7 +69,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day }
 
             transactions[receipt] = {
               receipt,
-              date: m.created_at.split('T')[0],
+              date: format(new Date(m.created_at), 'yyyy-MM-dd'),
               reason: reasonName,
               totalCost: 0,
               items: []

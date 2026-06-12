@@ -5,6 +5,7 @@ import { Plus, Search, Edit3, Trash2, SlidersHorizontal, AlertCircle, Upload, X 
 import { ConfirmModal } from '../components/ConfirmModal';
 import { BulkImportModal } from '../components/BulkImportModal';
 import { useSearchParams } from 'react-router-dom';
+import { format } from 'date-fns';
 
 export const Inventory: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -52,7 +53,7 @@ export const Inventory: React.FC = () => {
   // Opening stock states (only shown on Add, not Edit)
   const [openingQty, setOpeningQty] = useState('');
   const [openingBatchNo, setOpeningBatchNo] = useState('');
-  const [openingExpiryDate, setOpeningExpiryDate] = useState(new Date().toISOString().split('T')[0]);
+  const [openingExpiryDate, setOpeningExpiryDate] = useState(format(new Date(), 'yyyy-MM-dd'));
 
   // Confirm Modal States
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
@@ -152,7 +153,7 @@ export const Inventory: React.FC = () => {
     setIsExpiryTracked(false);
     setOpeningQty('');
     setOpeningBatchNo('');
-    setOpeningExpiryDate(new Date().toISOString().split('T')[0]);
+    setOpeningExpiryDate(format(new Date(), 'yyyy-MM-dd'));
     setFormError(null);
     setCategoryDropdownOpen(false);
     setModalOpen(true);

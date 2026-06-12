@@ -21,6 +21,7 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
     notes: ''
   });
   const [allocations, setAllocations] = useState<Record<string, number>>({});
+  const [selectedReceipts, setSelectedReceipts] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchPending = async () => {
@@ -52,7 +53,7 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
             const receipt = m.reference_type || 'MANUAL';
             const cost = m.quantity * m.cost_price;
             if (!txMap[receipt]) {
-              txMap[receipt] = { receipt, date: m.created_at.split('T')[0], totalCost: 0, paid: 0, remaining: 0 };
+              txMap[receipt] = { receipt, date: format(new Date(m.created_at), 'yyyy-MM-dd'), totalCost: 0, paid: 0, remaining: 0 };
             }
             txMap[receipt].totalCost += cost;
           });
@@ -73,25 +74,55 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
     fetchPending();
   }, []);
 
-  const totalAmount = Object.values(allocations).reduce((sum, val) => sum + (val || 0), 0);
+  const totalAmount = Object.entries(allocations)
+    .filter(([k, v]) => selectedReceipts.has(k))
+    .reduce((sum, [k, val]) => sum + (val || 0), 0);
+
+  const handleToggleReceipt = (receipt: string, remaining: number) => {
+    const nextSet = new Set(selectedReceipts);
+    if (nextSet.has(receipt)) {
+      nextSet.delete(receipt);
+      const nextAlloc = { ...allocations };
+      delete nextAlloc[receipt];
+      setAllocations(nextAlloc);
+    } else {
+      nextSet.add(receipt);
+      setAllocations({ ...allocations, [receipt]: allocations[receipt] !== undefined ? allocations[receipt] : remaining });
+    }
+    setSelectedReceipts(nextSet);
+  };
 
   const handleAllocationChange = (receipt: string, val: string, max: number) => {
     const num = parseFloat(val);
+    const newAlloc = { ...allocations };
     if (isNaN(num)) {
-      const newAlloc = { ...allocations };
       delete newAlloc[receipt];
-      setAllocations(newAlloc);
     } else {
-      setAllocations({ ...allocations, [receipt]: Math.min(Math.max(0, num), max) });
+      newAlloc[receipt] = Math.min(Math.max(0, num), max);
+    }
+    setAllocations(newAlloc);
+    
+    // Automatically select the receipt if they type a valid amount
+    if (!isNaN(num) && num > 0 && !selectedReceipts.has(receipt)) {
+      const nextSet = new Set(selectedReceipts);
+      nextSet.add(receipt);
+      setSelectedReceipts(nextSet);
     }
   };
 
-  const handleAutoFill = () => {
-    const newAlloc: Record<string, number> = {};
-    pendingReceipts.forEach(r => {
-      if (r.remaining > 0) newAlloc[r.receipt] = r.remaining;
-    });
-    setAllocations(newAlloc);
+  const handleSelectAll = () => {
+    if (selectedReceipts.size === pendingReceipts.length && pendingReceipts.length > 0) {
+      setSelectedReceipts(new Set());
+      setAllocations({});
+    } else {
+      const all = new Set(pendingReceipts.map(r => r.receipt));
+      const nextAlloc = { ...allocations };
+      pendingReceipts.forEach(r => {
+        nextAlloc[r.receipt] = r.remaining;
+      });
+      setSelectedReceipts(all);
+      setAllocations(nextAlloc);
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -103,9 +134,16 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Not authenticated');
 
+      const finalAllocations: Record<string, number> = {};
+      Object.entries(allocations).forEach(([k, v]) => {
+        if (selectedReceipts.has(k) && v > 0) {
+          finalAllocations[k] = v;
+        }
+      });
+
       const notesPayload = JSON.stringify({
         user_note: form.notes,
-        allocations: allocations
+        allocations: finalAllocations
       });
 
       const { error } = await supabase.from('jat_settlements').insert([{
@@ -147,14 +185,22 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
             <div className="bg-slate-50 border border-slate-200 rounded-xl overflow-hidden flex flex-col max-h-[40vh]">
               <div className="p-3 bg-slate-100 border-b border-slate-200 flex justify-between items-center">
                 <h4 className="font-bold text-sm text-slate-700">Select Receipts to Pay</h4>
-                <button type="button" onClick={handleAutoFill} className="text-xs font-bold bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-primary hover:bg-slate-50">
-                  Auto-fill All Remaining
+                <button type="button" onClick={handleSelectAll} className="text-xs font-bold bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-primary hover:bg-slate-50">
+                  {selectedReceipts.size === pendingReceipts.length && pendingReceipts.length > 0 ? 'Deselect All' : 'Select All & Auto-fill'}
                 </button>
               </div>
               <div className="overflow-y-auto p-0">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-white sticky top-0 shadow-sm">
                     <tr>
+                      <th className="px-4 py-2 w-12 text-center">
+                        <input 
+                          type="checkbox" 
+                          className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300"
+                          checked={selectedReceipts.size === pendingReceipts.length && pendingReceipts.length > 0}
+                          onChange={handleSelectAll}
+                        />
+                      </th>
                       <th className="px-4 py-2 font-bold text-slate-500">Receipt</th>
                       <th className="px-4 py-2 font-bold text-slate-500">Date</th>
                       <th className="px-4 py-2 font-bold text-slate-500 text-right">Total Cost</th>
@@ -164,10 +210,18 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
                     {pendingReceipts.length === 0 ? (
-                      <tr><td colSpan={5} className="p-6 text-center text-slate-400">No pending receipts found.</td></tr>
+                      <tr><td colSpan={6} className="p-6 text-center text-slate-400">No pending receipts found.</td></tr>
                     ) : (
                       pendingReceipts.map(r => (
-                        <tr key={r.receipt} className="hover:bg-slate-50">
+                        <tr key={r.receipt} className={`hover:bg-slate-50 ${selectedReceipts.has(r.receipt) ? 'bg-emerald-50/50' : ''}`}>
+                          <td className="px-4 py-2 text-center">
+                            <input 
+                              type="checkbox" 
+                              className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300"
+                              checked={selectedReceipts.has(r.receipt)}
+                              onChange={() => handleToggleReceipt(r.receipt, r.remaining)}
+                            />
+                          </td>
                           <td className="px-4 py-2 font-semibold text-slate-700">{r.receipt}</td>
                           <td className="px-4 py-2 text-slate-500">{format(parseISO(r.date), 'MMM dd, yyyy')}</td>
                           <td className="px-4 py-2 text-right text-slate-600">LKR {r.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
@@ -178,7 +232,8 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
                               min="0" 
                               max={r.remaining} 
                               step="0.01"
-                              className="w-full px-2 py-1 border border-slate-200 rounded-lg text-right font-bold text-emerald-600 focus:border-emerald-500 outline-none"
+                              disabled={!selectedReceipts.has(r.receipt)}
+                              className="w-full px-2 py-1 border border-slate-200 rounded-lg text-right font-bold text-emerald-600 focus:border-emerald-500 outline-none disabled:bg-slate-100 disabled:text-slate-400"
                               placeholder="0.00"
                               value={allocations[r.receipt] || ''}
                               onChange={e => handleAllocationChange(r.receipt, e.target.value, r.remaining)}

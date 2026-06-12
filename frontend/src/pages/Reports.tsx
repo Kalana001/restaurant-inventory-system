@@ -79,7 +79,7 @@ export const Reports: React.FC = () => {
           .not('expiry_date', 'is', null);
 
         if (filters.showExpired === 'no') {
-          query = query.gte('expiry_date', new Date().toISOString().split('T')[0]);
+          query = query.gte('expiry_date', format(new Date(), 'yyyy-MM-dd'));
         }
 
       } else if (reportType === 'outstanding') {

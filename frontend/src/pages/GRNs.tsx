@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Eye, AlertCircle, FileText, Calendar } from 'lucide-react';
+import { format } from 'date-fns';
 
 export const GRNs: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -101,7 +102,7 @@ export const GRNs: React.FC = () => {
           quantity: Number(line.quantity), // Default to full PO load
           costPrice: Number(line.cost_price),
           batchNumber: `B-${line.inventory_items?.sku}-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}`,
-          expiryDate: new Date().toISOString().split('T')[0]
+          expiryDate: format(new Date(), 'yyyy-MM-dd')
         }));
         setGrnItems(mapped);
       }

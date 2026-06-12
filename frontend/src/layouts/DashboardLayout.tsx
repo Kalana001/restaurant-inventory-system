@@ -1,3 +1,4 @@
+import { format } from 'date-fns';
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation, useNavigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -70,7 +71,7 @@ export const DashboardLayout: React.FC = () => {
           .select('id, batch_number, expiry_date, inventory_items(name)')
           .gt('available_qty', 0)
           .not('expiry_date', 'is', null)
-          .lte('expiry_date', thresholdDate.toISOString().split('T')[0]);
+          .lte('expiry_date', format(thresholdDate, 'yyyy-MM-dd'));
 
         if (expiring) {
           expiring.forEach(batch => {
@@ -89,7 +90,7 @@ export const DashboardLayout: React.FC = () => {
         // Fetch cheque realization alerts
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowStr = tomorrow.toISOString().split('T')[0];
+        const tomorrowStr = format(tomorrow, 'yyyy-MM-dd');
         
         const { data: cheques } = await supabase
           .from('jat_settlements')
@@ -391,3 +392,4 @@ export const DashboardLayout: React.FC = () => {
   );
 };
 export default DashboardLayout;
+

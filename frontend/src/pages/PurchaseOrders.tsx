@@ -4,6 +4,7 @@ import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useAutoSave, loadDraft } from '../hooks/useAutoSave';
 import {
+import { format } from 'date-fns';
   Plus, Search, Eye, AlertCircle, ShoppingCart, Trash2,
   PackageSearch, Banknote, UserPlus, ChevronDown, XCircle,
   PackageCheck, Clock, CheckCircle2, DollarSign
@@ -78,8 +79,8 @@ export const PurchaseOrders: React.FC = () => {
   const [payPo, setPayPo] = useState<any | null>(null);
   const [payAmount, setPayAmount] = useState<number>(0);
   const [payMethod, setPayMethod] = useState<string>('Cash');
-  const [payDate, setPayDate] = useState<string>(new Date().toISOString().split('T')[0]);
-  const [chequeDate, setChequeDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [payDate, setPayDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+  const [chequeDate, setChequeDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [payError, setPayError] = useState<string | null>(null);
   const [payLoading, setPayLoading] = useState(false);
 
@@ -320,7 +321,7 @@ export const PurchaseOrders: React.FC = () => {
         unit: i.inventory_items?.units?.abbreviation || 'pcs',
         quantity: i.quantity,
         costPrice: Number(i.cost_price),
-        expiryDate: new Date().toISOString().split('T')[0]
+        expiryDate: format(new Date(), 'yyyy-MM-dd')
       })));
     }
     setGrnModalOpen(true);
@@ -364,8 +365,8 @@ export const PurchaseOrders: React.FC = () => {
     setPayPo(po);
     setPayAmount(Number(po.total_amount) - Number(po.paid_amount || 0));
     setPayMethod('Cash');
-    setPayDate(new Date().toISOString().split('T')[0]);
-    setChequeDate(new Date().toISOString().split('T')[0]);
+    setPayDate(format(new Date(), 'yyyy-MM-dd'));
+    setChequeDate(format(new Date(), 'yyyy-MM-dd'));
     setPayError(null);
     setPayModalOpen(true);
   };
