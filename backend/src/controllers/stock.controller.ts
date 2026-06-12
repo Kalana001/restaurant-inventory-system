@@ -99,7 +99,9 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
 
     if (date && movementId) {
       try {
-        const isoDate = new Date(date).toISOString();
+        // Store as noon UTC on the selected date so local timezones (e.g. IST +5:30)
+        // never shift the displayed date to the previous/next day.
+        const isoDate = `${date}T12:00:00.000Z`;
         await supabase.from('stock_movements').update({ created_at: isoDate }).eq('id', movementId);
       } catch (e) {
         console.error('[STOCK MOVEMENT DATE UPDATE ERROR]:', e);

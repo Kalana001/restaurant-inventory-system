@@ -419,7 +419,7 @@ export const Adjustments: React.FC = () => {
                         <td className="px-6 py-4 font-semibold text-slate-800">{parseFloat(mvs.reduce((sum: number, m: any) => sum + Number(m.quantity), 0).toFixed(3))}</td>
                         <td className="px-6 py-4 text-slate-500 font-medium">{mvs[0]?.movement_reasons?.name}</td>
                         <td className="px-6 py-4 text-slate-400">{mvs[0]?.profiles?.username || 'System'}</td>
-                        <td className="px-6 py-4 text-slate-400 text-xs">{new Date(row.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 text-slate-400 text-xs">{row.created_at ? (() => { const [y,m,d] = row.created_at.split('T')[0].split('-'); return `${d}/${m}/${y}`; })() : '—'}</td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${allApproved ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-600'}`}>
                             {allApproved ? 'APPROVED' : 'PARTIAL'}
@@ -451,7 +451,7 @@ export const Adjustments: React.FC = () => {
                         <td className="px-6 py-4 font-semibold">{move.quantity} {move.inventory_items?.base_unit?.abbreviation}</td>
                         <td className="px-6 py-4 text-slate-500 font-medium">{move.movement_reasons?.name}</td>
                         <td className="px-6 py-4 text-slate-400">{move.profiles?.username || 'System'}</td>
-                        <td className="px-6 py-4 text-slate-400 text-xs">{new Date(move.created_at).toLocaleDateString()}</td>
+                        <td className="px-6 py-4 text-slate-400 text-xs">{move.created_at ? (() => { const [y,m,d] = move.created_at.split('T')[0].split('-'); return `${d}/${m}/${y}`; })() : '—'}</td>
                         <td className="px-6 py-4">
                           <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase
                             ${move.status === 'APPROVED' ? 'bg-green-50 text-green-700' : ''}
