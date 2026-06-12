@@ -75,6 +75,7 @@ export const Reports: React.FC = () => {
         if (filters.stockStatus === 'in_stock') query = query.gt('current_stock', 0);
         if (filters.stockStatus === 'out_of_stock') query = query.lte('current_stock', 0);
         if (filters.stockStatus === 'low_stock') query = query.lte('current_stock', 10);
+        if (filters.search) query = query.ilike('name', `%${filters.search}%`);
 
       } else if (reportType === 'expiry') {
         query = supabase

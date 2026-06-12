@@ -58,16 +58,14 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         </select>
       </div>
       <div className="space-y-1">
-        <label className="text-xs font-bold text-slate-500 uppercase">Sort By</label>
-        <select
-          value={filters.sortBy || 'name'}
-          onChange={(e) => handleChange('sortBy', e.target.value)}
+        <label className="text-xs font-bold text-slate-500 uppercase">Search Item</label>
+        <input
+          type="text"
+          placeholder="Search by item name..."
+          value={filters.search || ''}
+          onChange={(e) => handleChange('search', e.target.value)}
           className="w-full p-2 border border-slate-200 rounded-lg text-sm"
-        >
-          <option value="name">Item Name</option>
-          <option value="cost_desc">Unit Cost (High→Low)</option>
-          <option value="value_desc">Total Value (High→Low)</option>
-        </select>
+        />
       </div>
     </>
   );
