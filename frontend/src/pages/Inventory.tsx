@@ -279,67 +279,17 @@ export const Inventory: React.FC = () => {
           const qty = Number(openingQty);
           const batchNo = openingBatchNo.trim() || `INIT-${finalSku}`;
 
-          // 1. Create the batch
-          const { data: batch, error: batchErr } = await supabase
-            .from('batches')
-            .insert({
-              batch_number: batchNo,
-              item_id: savedItemId,
-              supplier_id: supplierId || null,
-              received_date: new Date().toISOString().split('T')[0],
-              expiry_date: openingExpiryDate || null,
-              current_qty: qty,
-              available_qty: qty,
-              status: 'ACTIVE'
-            })
-            .select('id')
-            .single();
-          if (batchErr) throw batchErr;
-
-          // 2. Find or use the "Opening Stock" reason
-          let reasonId: string | null = null;
-          const { data: reasons } = await supabase
-            .from('movement_reasons')
-            .select('id, name')
-            .ilike('name', '%opening%')
-            .limit(1);
-          if (reasons && reasons.length > 0) {
-            reasonId = reasons[0].id;
-          } else {
-            // Fallback to "Correction In"
-            const { data: fallback } = await supabase
-              .from('movement_reasons')
-              .select('id')
-              .ilike('name', '%correction in%')
-              .limit(1);
-            reasonId = fallback?.[0]?.id || null;
-          }
-
-          if (!reasonId) {
-            // Create opening stock reason if none exists
-            const { data: newReason, error: rErr } = await supabase
-              .from('movement_reasons')
-              .insert({ name: 'Opening Stock', type: 'STOCK_IN', is_system: true })
-              .select('id')
-              .single();
-            if (!rErr && newReason) reasonId = newReason.id;
-          }
-
-          if (reasonId && batch?.id) {
-            // 3. Create stock movement
-            const movNum = `STK-OPEN-${finalSku}-${Date.now()}`;
-            await supabase.from('stock_movements').insert({
-              movement_number: movNum,
-              item_id: savedItemId,
-              batch_id: batch.id,
-              type: 'STOCK_IN',
-              quantity: qty,
-              cost_price: Number(costPrice),
-              reason_id: reasonId,
-              created_by: user?.id,
-              reference_type: 'OPENING_STOCK',
-              status: 'APPROVED'
+            const { error: rpcErr } = await supabase.rpc('process_opening_stock', {
+              p_item_id: savedItemId,
+              p_supplier_id: supplierId || null,
+              p_qty: qty,
+              p_cost_price: Number(costPrice) || 0,
+              p_batch_number: batchNo,
+              p_expiry_date: openingExpiryDate || null,
+              p_created_by: user?.id
             });
+
+            if (rpcErr) throw rpcErr;
           }
         }
       }
