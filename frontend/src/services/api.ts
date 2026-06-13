@@ -22,4 +22,32 @@ api.interceptors.request.use(
   }
 );
 
+// Response interceptor to automatically refresh token on 401 errors
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If we get a 401 Unauthorized and we haven't already tried to retry this request
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Force the system to silently get a brand new login token
+        const { data, error: refreshError } = await supabase.auth.refreshSession();
+        
+        if (data.session?.access_token) {
+          // Attach the fresh token to the request and try saving again!
+          originalRequest.headers.Authorization = `Bearer ${data.session.access_token}`;
+          return api(originalRequest);
+        }
+      } catch (refreshErr) {
+        console.error('Session auto-refresh failed:', refreshErr);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
 export default api;
