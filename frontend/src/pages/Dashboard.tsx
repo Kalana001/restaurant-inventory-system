@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { format } from 'date-fns';
 import { supabase } from '../lib/supabase';
 import { 
   TrendingUp,
@@ -97,8 +98,8 @@ export const Dashboard: React.FC = () => {
         const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
         
         // For DP and TC, dates are stored as YYYY-MM-DD
-        const monthStartStr = now.toISOString().split('T')[0].substring(0, 8) + '01'; // YYYY-MM-01
-        const todayStr = now.toISOString().split('T')[0];
+        const todayStr = format(now, 'yyyy-MM-dd');
+        const monthStartStr = todayStr.substring(0, 8) + '01'; // YYYY-MM-01
 
         let mTotalKitchen = 0;
         let dTotalKitchen = 0;

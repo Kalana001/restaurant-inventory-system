@@ -40,8 +40,8 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
         .eq('reason_id', jatReason.id);
 
       if (day) {
-        const start = new Date(day + 'T00:00:00.000Z').toISOString();
-        const end = new Date(day + 'T23:59:59.999Z').toISOString();
+        const start = new Date(day + 'T00:00:00').toISOString();
+        const end = new Date(day + 'T23:59:59.999').toISOString();
         query = query.gte('created_at', start).lte('created_at', end);
       } else {
         const targetDate = month ? new Date(month + '-01') : new Date();

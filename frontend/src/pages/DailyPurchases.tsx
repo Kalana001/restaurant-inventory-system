@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { ShoppingBag, Plus, Trash2, Calendar, Save, ClipboardList } from 'lucide-react';
+import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
 
 interface DailyPurchase {
@@ -40,7 +41,7 @@ export const DailyPurchases: React.FC = () => {
   const { user } = useAuth();
   const [purchases, setPurchases] = useState<DailyPurchase[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   
   // Bulk Entry State
   const [bulkItems, setBulkItems] = useState<BulkItem[]>([

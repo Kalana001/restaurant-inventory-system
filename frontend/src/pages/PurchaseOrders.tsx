@@ -247,7 +247,7 @@ export const PurchaseOrders: React.FC = () => {
       const subTotal = poLines.reduce((acc, curr) => acc + curr.totalCost, 0);
       const discountAmount = poDiscountType === 'percentage' ? subTotal * (poDiscount / 100) : poDiscount;
       const grandTotal = Math.max(0, subTotal - discountAmount);
-      const generatedPoNumber = `PO-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const generatedPoNumber = `PO-${format(new Date(), 'yyyyMMdd')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
       const { data: poHeader, error: poErr } = await supabase.from('purchase_orders').insert({
         po_number: generatedPoNumber,

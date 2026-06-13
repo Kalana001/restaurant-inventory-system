@@ -48,8 +48,8 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
       // 2. Determine date range
       let start: string, end: string;
       if (day) {
-        start = new Date(day + 'T00:00:00.000Z').toISOString();
-        end = new Date(day + 'T23:59:59.999Z').toISOString();
+        start = new Date(day + 'T00:00:00').toISOString();
+        end = new Date(day + 'T23:59:59.999').toISOString();
       } else {
         const targetDate = month ? new Date(month + '-01') : new Date();
         start = startOfMonth(targetDate).toISOString();
