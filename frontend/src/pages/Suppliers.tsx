@@ -405,8 +405,8 @@ export const Suppliers: React.FC = () => {
 
       {/* ── Record Payment Modal ── */}
       {settlementOpen && targetSupplier && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-md p-6 space-y-5 card-shadow">
+        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900/40 overflow-y-auto">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-md p-6 space-y-5 card-shadow my-6 shrink-0">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">Record Payment</h3>
