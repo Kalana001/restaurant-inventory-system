@@ -138,9 +138,9 @@ export const DailyPurchases: React.FC = () => {
       // Reset form to one empty row
       setBulkItems([{ id: Date.now().toString(), item_name: '', quantity: '', unit_price: '', total_cost: '', department: 'JAT' }]);
       fetchPurchases();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error adding purchases:', err);
-      alert('Failed to save bulk purchases. Ensure the database table exists.');
+      alert(err.message || 'Failed to save bulk purchases. Please try again.');
     } finally {
       setSubmitting(false);
     }

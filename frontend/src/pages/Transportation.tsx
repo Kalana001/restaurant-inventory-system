@@ -102,9 +102,9 @@ export const Transportation: React.FC = () => {
       // Reset form to one empty row
       setBulkItems([{ id: Date.now().toString(), reason: '', cost: '', department: 'JAT' }]);
       fetchCosts();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error adding transportation costs:', err);
-      alert('Failed to save transportation costs. Ensure the database table exists.');
+      alert(err.message || 'Failed to save transportation costs. Please try again.');
     } finally {
       setSubmitting(false);
     }
