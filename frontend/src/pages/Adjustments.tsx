@@ -53,6 +53,7 @@ export const Adjustments: React.FC = () => {
   // Filters
   const [filterType, setFilterType] = useState('ALL');
   const [filterReason, setFilterReason] = useState('ALL');
+  const [filterDate, setFilterDate] = useState('');
 
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
@@ -287,6 +288,9 @@ export const Adjustments: React.FC = () => {
     if (filterReason !== 'ALL') {
       filteredMovements = filteredMovements.filter(m => m.movement_reasons?.name === filterReason);
     }
+    if (filterDate) {
+      filteredMovements = filteredMovements.filter(m => format(new Date(m.created_at), 'yyyy-MM-dd') === filterDate);
+    }
 
     const receipts: Record<string, any[]> = {};
     const nonReceipt: any[] = [];
@@ -369,6 +373,27 @@ export const Adjustments: React.FC = () => {
               <option key={r.id} value={r.name}>{r.name}</option>
             ))}
           </select>
+        </div>
+        
+        <div className="flex-1 space-y-1.5">
+          <label className="text-xs font-bold text-slate-500 uppercase">Date</label>
+          <div className="relative">
+            <input 
+              type="date"
+              value={filterDate}
+              onChange={(e) => setFilterDate(e.target.value)}
+              className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+            {filterDate && (
+              <button 
+                onClick={() => setFilterDate('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 bg-white"
+                title="Clear date filter"
+              >
+                <XCircle size={16} />
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
