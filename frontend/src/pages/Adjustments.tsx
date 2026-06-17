@@ -50,6 +50,10 @@ export const Adjustments: React.FC = () => {
   const [reasons, setReasons] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Filters
+  const [filterType, setFilterType] = useState('ALL');
+  const [filterReason, setFilterReason] = useState('ALL');
+
   // Modal state
   const [modalOpen, setModalOpen] = useState(false);
   const [catalogItems, setCatalogItems] = useState<any[]>([]);
@@ -275,9 +279,18 @@ export const Adjustments: React.FC = () => {
 
   // Build receipt-grouped list for display
   const groupedView = (() => {
+    let filteredMovements = movements;
+    
+    if (filterType !== 'ALL') {
+      filteredMovements = filteredMovements.filter(m => m.type === filterType);
+    }
+    if (filterReason !== 'ALL') {
+      filteredMovements = filteredMovements.filter(m => m.movement_reasons?.name === filterReason);
+    }
+
     const receipts: Record<string, any[]> = {};
     const nonReceipt: any[] = [];
-    movements.forEach(m => {
+    filteredMovements.forEach(m => {
       const rt = m.reference_type;
       if (rt && rt.startsWith('RCP-')) {
         if (!receipts[rt]) receipts[rt] = [];
@@ -327,6 +340,36 @@ export const Adjustments: React.FC = () => {
             <Plus size={18} /><span>Stock Movement</span>
           </button>
         )}
+      </div>
+
+      {/* Filters */}
+      <div className="flex flex-col sm:flex-row gap-4 bg-white p-4 rounded-2xl border border-slate-100 card-shadow">
+        <div className="flex-1 space-y-1.5">
+          <label className="text-xs font-bold text-slate-500 uppercase">Movement Type</label>
+          <select 
+            value={filterType} 
+            onChange={(e) => setFilterType(e.target.value)}
+            className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="ALL">All Types</option>
+            <option value="STOCK_IN">Stock In</option>
+            <option value="STOCK_OUT">Stock Out</option>
+          </select>
+        </div>
+        
+        <div className="flex-1 space-y-1.5">
+          <label className="text-xs font-bold text-slate-500 uppercase">Reason</label>
+          <select 
+            value={filterReason} 
+            onChange={(e) => setFilterReason(e.target.value)}
+            className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+          >
+            <option value="ALL">All Reasons</option>
+            {reasons.map(r => (
+              <option key={r.id} value={r.name}>{r.name}</option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Pending approvals */}
