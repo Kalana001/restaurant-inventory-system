@@ -81,12 +81,12 @@ var supabaseKey = process.env.VITE_SUPABASE_SERVICE_ROLE_KEY;
 var supabase = (0, supabase_js_1.createClient)(supabaseUrl, supabaseKey);
 function deletePO() {
     return __awaiter(this, void 0, void 0, function () {
-        var poNumber, po, grnErr, lineErr, finalErr, err_1;
+        var poNumber, po, grn, batches, batchIds, smErr, grnErr, lineErr, finalErr, err_1;
         return __generator(this, function (_a) {
             switch (_a.label) {
                 case 0:
-                    _a.trys.push([0, 5, , 6]);
-                    poNumber = 'PO-20260613-6033';
+                    _a.trys.push([0, 10, , 11]);
+                    poNumber = 'PO-20260612-4743';
                     return [4 /*yield*/, supabase
                             .from('purchase_orders')
                             .select('*')
@@ -94,23 +94,43 @@ function deletePO() {
                             .single()];
                 case 1:
                     po = (_a.sent()).data;
-                    if (!po)
+                    if (!po) {
+                        console.log('PO not found!');
                         return [2 /*return*/];
-                    return [4 /*yield*/, supabase
-                            .from('grns')
-                            .delete()
-                            .eq('po_id', po.id)];
+                    }
+                    return [4 /*yield*/, supabase.from('grns').select('id').eq('po_id', po.id).single()];
                 case 2:
+                    grn = (_a.sent()).data;
+                    if (!grn) return [3 /*break*/, 7];
+                    return [4 /*yield*/, supabase.from('batches').select('id').eq('grn_id', grn.id)];
+                case 3:
+                    batches = (_a.sent()).data;
+                    if (!(batches && batches.length > 0)) return [3 /*break*/, 5];
+                    batchIds = batches.map(function (b) { return b.id; });
+                    return [4 /*yield*/, supabase.from('stock_movements').delete().in('batch_id', batchIds)];
+                case 4:
+                    smErr = (_a.sent()).error;
+                    if (smErr)
+                        console.error('Failed to delete stock_movements:', smErr);
+                    else
+                        console.log('Deleted stock_movements');
+                    _a.label = 5;
+                case 5: return [4 /*yield*/, supabase
+                        .from('grns')
+                        .delete()
+                        .eq('id', grn.id)];
+                case 6:
                     grnErr = (_a.sent()).error;
                     if (!grnErr)
-                        console.log('Deleted GRNs');
+                        console.log('Deleted GRNs (and cascading batches/items)');
                     else
                         console.error('GRN Delete Err:', grnErr);
-                    return [4 /*yield*/, supabase
-                            .from('po_lines')
-                            .delete()
-                            .eq('po_id', po.id)];
-                case 3:
+                    _a.label = 7;
+                case 7: return [4 /*yield*/, supabase
+                        .from('po_lines')
+                        .delete()
+                        .eq('po_id', po.id)];
+                case 8:
                     lineErr = (_a.sent()).error;
                     if (!lineErr)
                         console.log('Deleted PO lines');
@@ -118,18 +138,18 @@ function deletePO() {
                             .from('purchase_orders')
                             .delete()
                             .eq('id', po.id)];
-                case 4:
+                case 9:
                     finalErr = (_a.sent()).error;
                     if (!finalErr)
                         console.log('Deleted PO successfully!');
                     else
                         console.error('Failed to delete PO:', finalErr);
-                    return [3 /*break*/, 6];
-                case 5:
+                    return [3 /*break*/, 11];
+                case 10:
                     err_1 = _a.sent();
                     console.error(err_1);
-                    return [3 /*break*/, 6];
-                case 6: return [2 /*return*/];
+                    return [3 /*break*/, 11];
+                case 11: return [2 /*return*/];
             }
         });
     });

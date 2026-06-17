@@ -10,7 +10,7 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function deletePO() {
   try {
-    const poNumber = 'PO-20260613-6033';
+    const poNumber = 'PO-20260612-4743';
     
     const { data: po } = await supabase
       .from('purchase_orders')
@@ -18,15 +18,34 @@ async function deletePO() {
       .eq('po_number', poNumber)
       .single();
       
-    if (!po) return;
+    if (!po) {
+      console.log('PO not found!');
+      return;
+    }
     
-    // Delete from grns first
-    const { error: grnErr } = await supabase
-      .from('grns')
-      .delete()
-      .eq('po_id', po.id);
-    if (!grnErr) console.log('Deleted GRNs');
-    else console.error('GRN Delete Err:', grnErr);
+    // Find associated GRN
+    const { data: grn } = await supabase.from('grns').select('id').eq('po_id', po.id).single();
+
+    if (grn) {
+      // Find batches for this GRN
+      const { data: batches } = await supabase.from('batches').select('id').eq('grn_id', grn.id);
+      
+      if (batches && batches.length > 0) {
+        const batchIds = batches.map(b => b.id);
+        // Delete stock_movements for these batches
+        const { error: smErr } = await supabase.from('stock_movements').delete().in('batch_id', batchIds);
+        if (smErr) console.error('Failed to delete stock_movements:', smErr);
+        else console.log('Deleted stock_movements');
+      }
+
+      // Delete from grns
+      const { error: grnErr } = await supabase
+        .from('grns')
+        .delete()
+        .eq('id', grn.id);
+      if (!grnErr) console.log('Deleted GRNs (and cascading batches/items)');
+      else console.error('GRN Delete Err:', grnErr);
+    }
     
     // Delete PO lines
     const { error: lineErr } = await supabase

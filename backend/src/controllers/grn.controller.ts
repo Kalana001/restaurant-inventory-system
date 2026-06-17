@@ -14,7 +14,7 @@ export const createGRN = async (req: Request, res: Response, next: NextFunction)
     const userId = req.user?.id || '';
 
     // Execute database transaction RPC in Supabase
-    const { data: grnId, error: transactionError } = await supabase.rpc(
+    let { data: grnId, error: transactionError } = await supabase.rpc(
       'process_grn_transaction',
       {
         p_po_id: poId || null,
@@ -26,6 +26,39 @@ export const createGRN = async (req: Request, res: Response, next: NextFunction)
         p_items: items
       }
     );
+
+    // Auto-heal logic if sequence count causes duplicate key on grn_number
+    if (transactionError && (transactionError.message.includes('grns_grn_number_key') || transactionError.code === '23505')) {
+      console.log('Duplicate GRN number detected. Attempting sequence auto-fix...');
+      // Insert dummy record to bump COUNT(*) sequence
+      await supabase.from('grns').insert({
+        grn_number: `DUMMY-${Date.now()}`,
+        supplier_id: supplierId,
+        received_by: userId,
+        total_amount: 0,
+        remarks: 'System Sequence Auto-Fix'
+      });
+      
+      // Retry transaction
+      const retryResult = await supabase.rpc(
+        'process_grn_transaction',
+        {
+          p_po_id: poId || null,
+          p_supplier_id: supplierId,
+          p_received_by: userId,
+          p_invoice_number: invoiceNumber || null,
+          p_total_amount: totalAmount,
+          p_remarks: remarks || '',
+          p_items: items
+        }
+      );
+      
+      if (!retryResult.error && retryResult.data) {
+        grnId = retryResult.data;
+        transactionError = null;
+        console.log('Sequence auto-fix successful!');
+      }
+    }
 
     if (transactionError || !grnId) {
       console.error('[GRN TRANSACTION ERROR]:', transactionError);
