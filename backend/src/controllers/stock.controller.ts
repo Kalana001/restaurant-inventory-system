@@ -76,7 +76,7 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
     }
 
     // 6. Call PostgreSQL stored function to insert movement and update stock
-    const { data: movementId, error: dbError } = await supabase.rpc(
+    let { data: movementId, error: dbError } = await supabase.rpc(
       'process_stock_movement_transaction',
       {
         p_item_id: itemId,
@@ -91,6 +91,43 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
         p_reference_type: receiptNumber || 'MANUAL'
       }
     );
+
+    // Auto-heal logic if sequence count causes duplicate key on movement_number
+    if (dbError && (dbError.message.includes('stock_movements_movement_number_key') || dbError.code === '23505')) {
+      console.log('Duplicate movement number detected. Attempting sequence auto-fix...');
+      await supabase.from('stock_movements').insert({
+        movement_number: `DUMMY-${Date.now()}`,
+        item_id: itemId,
+        type: 'ADJUSTMENT',
+        quantity: 0,
+        cost_price: 0,
+        reason_id: reasonId,
+        created_by: userId,
+        status: 'APPROVED'
+      });
+      
+      const retryResult = await supabase.rpc(
+        'process_stock_movement_transaction',
+        {
+          p_item_id: itemId,
+          p_batch_id: finalBatchId || null,
+          p_type: type,
+          p_qty_base: qtyBase,
+          p_cost_base: costPriceBase,
+          p_reason_id: reasonId,
+          p_created_by: userId,
+          p_status: status,
+          p_reference_id: null,
+          p_reference_type: receiptNumber || 'MANUAL'
+        }
+      );
+      
+      if (!retryResult.error && retryResult.data) {
+        movementId = retryResult.data;
+        dbError = null;
+        console.log('Stock movement sequence auto-fix successful!');
+      }
+    }
 
     if (dbError) {
       console.error('[STOCK MOVEMENT ERROR]:', dbError);
