@@ -153,6 +153,12 @@ export const DashboardLayout: React.FC = () => {
       permission: null 
     },
     { 
+      label: 'Expenses', 
+      path: '/expenses', 
+      icon: <Wallet size={20} />, 
+      permission: null 
+    },
+    { 
       label: 'Purchase Orders', 
       path: '/purchase-orders', 
       icon: <ClipboardList size={20} />, 

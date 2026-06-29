@@ -21,6 +21,7 @@ import ActivityLog from './pages/ActivityLog';
 import DailyUsageSheet from './pages/DailyUsageSheet';
 import { DailyPurchases } from './pages/DailyPurchases';
 import { Transportation } from './pages/Transportation';
+import { Expenses } from './pages/Expenses';
 
 function App() {
   return (
@@ -62,6 +63,7 @@ function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/daily-purchases" element={<DailyPurchases />} />
               <Route path="/transportation" element={<Transportation />} />
+              <Route path="/expenses" element={<Expenses />} />
             </Route>
 
             <Route element={<ProtectedRoute requiredPermission="reports:read" />}>
