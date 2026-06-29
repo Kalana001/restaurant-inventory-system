@@ -99,7 +99,7 @@ export const Adjustments: React.FC = () => {
           inventory_items ( name, sku, base_unit:units!inventory_items_base_unit_id_fkey ( abbreviation ) ),
           movement_reasons ( name ),
           profiles:created_by ( username )
-        `, { count: 'exact' })
+        `)
         .order('created_at', { ascending: false });
 
       if (filterType !== 'ALL') query = query.eq('type', filterType);
@@ -119,15 +119,12 @@ export const Adjustments: React.FC = () => {
                      .lte('created_at', filterDate + 'T23:59:59');
       }
 
-      // Pagination
-      const from = (page - 1) * pageSize;
-      const to = from + pageSize - 1;
-      query = query.range(from, to);
+      // Limit to 1000 to avoid huge payloads, client side pagination will handle display
+      query = query.limit(1000);
 
-      const { data: moves, count } = await query;
+      const { data: moves } = await query;
 
       if (moves) setMovements(moves);
-      if (count !== null) setTotalCount(count);
 
       if (hasPermission('stock:approve')) {
         try {
@@ -489,7 +486,7 @@ export const Adjustments: React.FC = () => {
               ) : groupedView.length === 0 ? (
                 <tr><td colSpan={8} className="text-center py-8 text-slate-400">No stock movements found.</td></tr>
               ) : (
-                groupedView.map((row, idx) => {
+                groupedView.slice((page - 1) * pageSize, page * pageSize).map((row, idx) => {
                   if (row.isReceipt) {
                     const mvs: any[] = row.movements;
                     const type = mvs[0]?.type;
@@ -572,10 +569,10 @@ export const Adjustments: React.FC = () => {
             </tbody>
           </table>
         </div>
-        {!loading && movements.length > 0 && (
+        {!loading && groupedView.length > 0 && (
           <Pagination
             currentPage={page}
-            totalCount={totalCount}
+            totalCount={groupedView.length}
             pageSize={pageSize}
             onPageChange={setPage}
             onPageSizeChange={setPageSize}
