@@ -94,6 +94,13 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         .gte('date', dpStartStr)
         .lte('date', dpEndStr);
 
+      const { data: expensesList } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('category', 'RESTAURANT')
+        .gte('date', dpStartStr)
+        .lte('date', dpEndStr);
+
       const transactions: Record<string, TransactionRow> = {};
       let mKitchen = 0;
       let mJat = 0;
@@ -189,6 +196,33 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         });
       }
 
+      if (expensesList) {
+        expensesList.forEach((e: any) => {
+          const receipt = `EXP-${e.date}-${e.id.substring(0,6)}`;
+          const cost = Number(e.total_amount) || 0;
+
+          if (!transactions[receipt]) {
+            transactions[receipt] = {
+              receipt,
+              date: e.date,
+              reason: 'Kitchen Usage / Expenses',
+              totalCost: 0,
+              items: []
+            };
+          }
+
+          transactions[receipt].totalCost += cost;
+          transactions[receipt].items.push({
+            name: `${e.expense_type} - ${e.description || ''}`,
+            quantity: 1,
+            cost_price: cost,
+            total: cost
+          });
+
+          mKitchen += cost;
+        });
+      }
+
       let trueMonthJat = 0;
       let trueMonthKitchen = 0;
 
@@ -199,7 +233,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
       const mStartStr = format(currentMonthDate, 'yyyy-MM-01');
       const mEndStr = format(endOfMonth(currentMonthDate), 'yyyy-MM-dd');
 
-      const [mMovements, mDp, mTc] = await Promise.all([
+      const [mMovements, mDp, mTc, mExp] = await Promise.all([
         supabase
           .from('stock_movements')
           .select('quantity, cost_price, reason_id')
@@ -214,6 +248,12 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         supabase
           .from('transportation_costs')
           .select('cost, department')
+          .gte('date', mStartStr)
+          .lte('date', mEndStr),
+        supabase
+          .from('expenses')
+          .select('total_amount')
+          .eq('category', 'RESTAURANT')
           .gte('date', mStartStr)
           .lte('date', mEndStr)
       ]);
@@ -237,6 +277,12 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
           const cost = Number(tc.cost) || 0;
           if (tc.department === 'JAT') trueMonthJat += cost;
           else if (tc.department === 'KITCHEN') trueMonthKitchen += cost;
+        });
+      }
+      if (mExp.data) {
+        mExp.data.forEach(e => {
+          const cost = Number(e.total_amount) || 0;
+          trueMonthKitchen += cost;
         });
       }
 
