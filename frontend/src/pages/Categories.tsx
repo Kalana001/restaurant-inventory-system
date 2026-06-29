@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Pencil, Trash2, AlertCircle, ChevronDown, ChevronRight, Tag, FolderOpen } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { Pagination } from '../components/ui/Pagination';
 
 export const Categories: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -33,14 +34,24 @@ export const Categories: React.FC = () => {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; name: string; type: 'category' | 'subcategory' } | null>(null);
 
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [{ data: cats }, { data: subs }] = await Promise.all([
-        supabase.from('categories').select('*').order('name'),
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      const [{ data: cats, count }, { data: subs }] = await Promise.all([
+        supabase.from('categories').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range(from, to),
         supabase.from('subcategories').select('*').order('name'),
       ]);
+      
       if (cats) setCategories(cats);
+      if (count !== null) setTotalCount(count);
       if (subs) setSubcategories(subs);
     } catch (err) {
       console.error(err);
@@ -49,7 +60,7 @@ export const Categories: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [page, pageSize]);
 
   const toggleExpand = (id: string) => {
     setExpandedCats(prev => {
@@ -341,6 +352,15 @@ export const Categories: React.FC = () => {
               );
             })}
           </div>
+        )}
+        {!loading && categories.length > 0 && (
+          <Pagination
+            currentPage={page}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
         )}
       </div>
 

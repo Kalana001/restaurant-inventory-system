@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { Truck, Plus, Trash2, Calendar, Save, ClipboardList } from 'lucide-react';
 import { format } from 'date-fns';
 import { useAuth } from '../contexts/AuthContext';
+import { Pagination } from '../components/ui/Pagination';
 
 interface TransportCost {
   id: string;
@@ -32,24 +33,47 @@ export const Transportation: React.FC = () => {
   ]);
   const [submitting, setSubmitting] = useState(false);
 
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+  const [totalJat, setTotalJat] = useState(0);
+  const [totalKitchen, setTotalKitchen] = useState(0);
+
   useEffect(() => {
     fetchCosts();
-  }, [selectedDate]);
+  }, [selectedDate, page, pageSize]);
 
   const fetchCosts = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('transportation_costs')
-        .select('*')
-        .eq('date', selectedDate)
-        .order('created_at', { ascending: false });
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
 
-      if (error) {
-        if (error.code !== 'PGRST205') console.error(error);
-        setCosts([]);
+      // 1. Fetch paginated data
+      const { data, count, error } = await supabase
+        .from('transportation_costs')
+        .select('*', { count: 'exact' })
+        .eq('date', selectedDate)
+        .order('created_at', { ascending: false })
+        .range(from, to);
+
+      if (error && error.code !== 'PGRST205') console.error(error);
+      setCosts(data || []);
+      if (count !== null) setTotalCount(count);
+
+      // 2. Fetch totals for the day (unpaginated for accurate summary)
+      const { data: allData } = await supabase
+        .from('transportation_costs')
+        .select('department, cost')
+        .eq('date', selectedDate);
+        
+      if (allData) {
+        setTotalJat(allData.filter(p => p.department === 'JAT').reduce((sum, p) => sum + Number(p.cost), 0));
+        setTotalKitchen(allData.filter(p => p.department === 'KITCHEN').reduce((sum, p) => sum + Number(p.cost), 0));
       } else {
-        setCosts(data || []);
+        setTotalJat(0);
+        setTotalKitchen(0);
       }
     } catch (err) {
       console.error(err);
@@ -120,9 +144,6 @@ export const Transportation: React.FC = () => {
       console.error('Error deleting:', err);
     }
   };
-
-  const totalJat = costs.filter(p => p.department === 'JAT').reduce((sum, p) => sum + Number(p.cost), 0);
-  const totalKitchen = costs.filter(p => p.department === 'KITCHEN').reduce((sum, p) => sum + Number(p.cost), 0);
 
   return (
     <div className="space-y-6">
@@ -298,6 +319,15 @@ export const Transportation: React.FC = () => {
                   </tbody>
                 </table>
               </div>
+            )}
+            {!loading && costs.length > 0 && (
+              <Pagination
+                currentPage={page}
+                totalCount={totalCount}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+              />
             )}
           </div>
         </div>

@@ -4,6 +4,7 @@ import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useAutoSave, loadDraft } from '../hooks/useAutoSave';
 import { format } from 'date-fns';
+import { Pagination } from '../components/ui/Pagination';
 import {
   Plus, Search, Eye, AlertCircle, ShoppingCart, Trash2,
   PackageSearch, Banknote, UserPlus, ChevronDown, XCircle,
@@ -16,6 +17,11 @@ export const PurchaseOrders: React.FC = () => {
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [catalogItems, setCatalogItems] = useState<any[]>([]);
@@ -95,12 +101,17 @@ export const PurchaseOrders: React.FC = () => {
   const fetchPOs = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      const { data, count, error } = await supabase
         .from('purchase_orders')
-        .select(`*, suppliers ( name, code ), profiles:created_by ( username )`)
-        .order('created_at', { ascending: false });
+        .select(`*, suppliers ( name, code ), profiles:created_by ( username )`, { count: 'exact' })
+        .order('created_at', { ascending: false })
+        .range(from, to);
 
       if (!error && data) setPos(data);
+      if (count !== null) setTotalCount(count);
 
       if (suppliers.length === 0) {
         const { data: sups } = await supabase.from('suppliers').select('*').eq('status', 'ACTIVE');
@@ -119,7 +130,7 @@ export const PurchaseOrders: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchPOs(); }, []);
+  useEffect(() => { fetchPOs(); }, [page, pageSize]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -503,7 +514,7 @@ export const PurchaseOrders: React.FC = () => {
       {/* Search */}
       <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 w-full max-w-sm">
         <Search size={16} className="text-slate-400" />
-        <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by PO number or supplier..." className="flex-1 text-sm outline-none bg-transparent" />
+        <input type="text" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search current page..." className="flex-1 text-sm outline-none bg-transparent" />
       </div>
 
       {/* PO Table */}
@@ -592,6 +603,15 @@ export const PurchaseOrders: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {!loading && filteredPos.length > 0 && (
+          <Pagination
+            currentPage={page}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
 
       {/* ── Create PO Modal ────────────────────────────────────── */}

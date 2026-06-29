@@ -98,11 +98,14 @@ export const Reports: React.FC = () => {
         query = supabase
           .from('stock_movements')
           .select(`*, profiles:created_by (username), inventory_items (name, units:units!inventory_items_base_unit_id_fkey(abbreviation)), movement_reasons (name)`)
-          .order('created_at', { ascending: false })
-          .limit(1000);
+          .order('created_at', { ascending: false });
 
         if (filters.userId) query = query.eq('created_by', filters.userId);
         if (filters.type) query = query.eq('type', filters.type);
+        if (filters.date) {
+          query = query.gte('created_at', filters.date + 'T00:00:00')
+                       .lte('created_at', filters.date + 'T23:59:59');
+        }
       } else if (reportType === 'purchase_orders') {
         query = supabase
           .from('purchase_orders')
@@ -115,10 +118,24 @@ export const Reports: React.FC = () => {
         return;
       }
 
-      const { data: result, error } = await query;
-      if (error) throw error;
+      let finalData: any[] = [];
+      let fetchMore = true;
+      let from = 0;
+      const step = 1000;
 
-      let finalData = result || [];
+      while (fetchMore) {
+        // Create a new query object with the range to prevent mutating the original query state inappropriately, though supabase JS handles overriding range well
+        const { data: chunk, error } = await query.range(from, from + step - 1);
+        if (error) throw error;
+        
+        if (!chunk || chunk.length === 0) {
+          fetchMore = false;
+        } else {
+          finalData = [...finalData, ...chunk];
+          from += step;
+          if (chunk.length < step) fetchMore = false;
+        }
+      }
 
       if (reportType === 'purchase_orders') {
         const methods = new Set<string>();

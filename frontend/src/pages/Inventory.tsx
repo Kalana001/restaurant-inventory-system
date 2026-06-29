@@ -6,6 +6,7 @@ import { ConfirmModal } from '../components/ConfirmModal';
 import { BulkImportModal } from '../components/BulkImportModal';
 import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
+import { Pagination } from '../components/ui/Pagination';
 
 export const Inventory: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -22,6 +23,11 @@ export const Inventory: React.FC = () => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [units, setUnits] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Filter States
   const [search, setSearch] = useState('');
@@ -82,8 +88,10 @@ export const Inventory: React.FC = () => {
           subcategories ( name ),
           units:units!inventory_items_base_unit_id_fkey ( abbreviation ),
           batches ( id, batch_number, current_qty, available_qty, received_date, expiry_date, status, stock_movements ( type, cost_price ) )
-        `)
+        `, { count: 'exact' })
         .eq('status', 'ACTIVE');
+      
+      query = query.order('created_at', { ascending: false });
 
       if (selectedCategory) {
         query = query.eq('category_id', selectedCategory);
@@ -92,10 +100,16 @@ export const Inventory: React.FC = () => {
         query = query.ilike('name', `%${search}%`);
       }
 
-      const { data: itemData, error } = await query;
+      // Pagination
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+
+      const { data: itemData, count, error } = await query;
       if (!error && itemData) {
         setItems(itemData);
       }
+      if (count !== null) setTotalCount(count);
 
       // 2. Fetch Helper Lists (Only once on load)
       if (categories.length === 0) {
@@ -118,7 +132,7 @@ export const Inventory: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchCatalogData(); }, [search, selectedCategory]);
+  useEffect(() => { fetchCatalogData(); }, [search, selectedCategory, page, pageSize]);
 
   useEffect(() => {
     const batchId = searchParams.get('openBatchId');
@@ -357,7 +371,7 @@ export const Inventory: React.FC = () => {
             type="text"
             placeholder="Search by name or description..."
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
           />
         </div>
@@ -366,7 +380,7 @@ export const Inventory: React.FC = () => {
           <SlidersHorizontal className="text-slate-400" size={18} />
           <select
             value={selectedCategory}
-            onChange={(e) => setSelectedCategory(e.target.value)}
+            onChange={(e) => { setSelectedCategory(e.target.value); setPage(1); }}
             className="flex-1 md:w-48 px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm bg-white text-slate-700"
           >
             <option value="">All Categories</option>
@@ -457,6 +471,15 @@ export const Inventory: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {!loading && items.length > 0 && (
+          <Pagination
+            currentPage={page}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
 
       {/* Modals */}

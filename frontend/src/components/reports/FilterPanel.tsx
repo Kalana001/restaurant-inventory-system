@@ -238,6 +238,15 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         />
       </div>
       <div className="space-y-1">
+        <label className="text-xs font-bold text-slate-500 uppercase">Date</label>
+        <input
+          type="date"
+          value={filters.date || ''}
+          onChange={(e) => handleChange('date', e.target.value)}
+          className="w-full p-2 border border-slate-200 rounded-lg text-sm"
+        />
+      </div>
+      <div className="space-y-1">
         <label className="text-xs font-bold text-slate-500 uppercase">Staff Member</label>
         <select
           value={filters.userId || ''}

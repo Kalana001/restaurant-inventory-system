@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown } from 'lucide-react';
+import { Pagination } from '../ui/Pagination';
 
 export interface ColumnDef {
   key: string;
@@ -24,11 +25,10 @@ export const ReportTable: React.FC<ReportTableProps> = ({
   onSort
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
-  const rowsPerPage = 25;
+  const [pageSize, setPageSize] = useState(25);
 
-  const totalPages = Math.ceil(data.length / rowsPerPage);
-  const startIndex = (currentPage - 1) * rowsPerPage;
-  const paginatedData = data.slice(startIndex, startIndex + rowsPerPage);
+  const startIndex = (currentPage - 1) * pageSize;
+  const paginatedData = data.slice(startIndex, startIndex + pageSize);
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col mb-24">
@@ -100,30 +100,13 @@ export const ReportTable: React.FC<ReportTableProps> = ({
 
       {/* Pagination Footer */}
       {!loading && data.length > 0 && (
-        <div className="bg-slate-50 border-t border-slate-200 px-6 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <p className="text-sm text-slate-600 font-medium">
-            Showing <span className="font-bold text-slate-800">{startIndex + 1}</span> to <span className="font-bold text-slate-800">{Math.min(startIndex + rowsPerPage, data.length)}</span> of <span className="font-bold text-slate-800">{data.length}</span> results
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white transition-colors"
-            >
-              <ChevronLeft size={18} />
-            </button>
-            <span className="text-sm font-semibold text-slate-700 px-2">
-              Page {currentPage} of {totalPages}
-            </span>
-            <button
-              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-              disabled={currentPage === totalPages}
-              className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-500 hover:bg-slate-50 disabled:opacity-50 disabled:hover:bg-white transition-colors"
-            >
-              <ChevronRight size={18} />
-            </button>
-          </div>
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalCount={data.length}
+          pageSize={pageSize}
+          onPageChange={setCurrentPage}
+          onPageSizeChange={setPageSize}
+        />
       )}
     </div>
   );

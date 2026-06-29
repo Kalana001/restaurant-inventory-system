@@ -56,14 +56,29 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         end = endOfMonth(targetDate).toISOString();
       }
 
-      // 3. Fetch Stock Movements for this date range
-      const { data: movements } = await supabase
-        .from('stock_movements')
-        .select('created_at, quantity, cost_price, reason_id, reference_type, inventory_items(name)')
-        .eq('type', 'STOCK_OUT')
-        .gte('created_at', start)
-        .lte('created_at', end);
-
+      // 3. Fetch Stock Movements for this date range (Auto-pagination to bypass 1000 limit)
+      let movements: any[] = [];
+      let fetchMore = true;
+      let from = 0;
+      const step = 1000;
+      
+      while (fetchMore) {
+        const { data: chunk, error } = await supabase
+          .from('stock_movements')
+          .select('created_at, quantity, cost_price, reason_id, reference_type, inventory_items(name)')
+          .eq('type', 'STOCK_OUT')
+          .gte('created_at', start)
+          .lte('created_at', end)
+          .range(from, from + step - 1);
+          
+        if (error || !chunk || chunk.length === 0) {
+          fetchMore = false;
+        } else {
+          movements = [...movements, ...chunk];
+          from += step;
+          if (chunk.length < step) fetchMore = false;
+        }
+      }
       const dpStartStr = day ? day : format(new Date(start), 'yyyy-MM-dd');
       const dpEndStr = day ? day : format(new Date(end), 'yyyy-MM-dd');
 

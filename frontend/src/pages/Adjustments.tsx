@@ -8,6 +8,7 @@ import {
   Plus, Check, X, AlertCircle, Layers, Trash2,
   PackageOpen, PackagePlus, FileText, Calendar, XCircle, TrendingUp, TrendingDown, Settings
 } from 'lucide-react';
+import { Pagination } from '../components/ui/Pagination';
 
 interface BulkLine {
   id: string;
@@ -83,20 +84,50 @@ export const Adjustments: React.FC = () => {
   const [selectedReceiptNum, setSelectedReceiptNum] = useState('');
   const [receiptLoading, setReceiptLoading] = useState(false);
 
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: moves } = await supabase
+      let query = supabase
         .from('stock_movements')
         .select(`
           id, movement_number, type, quantity, status, created_at, reference_id, reference_type,
           inventory_items ( name, sku, base_unit:units!inventory_items_base_unit_id_fkey ( abbreviation ) ),
           movement_reasons ( name ),
           profiles:created_by ( username )
-        `)
+        `, { count: 'exact' })
         .order('created_at', { ascending: false });
 
+      if (filterType !== 'ALL') query = query.eq('type', filterType);
+      
+      // If we need to filter by reason, it's harder in a single query since it's a join,
+      // but we can query movement_reasons first or rely on client-side filtering for reasons if we really have to.
+      // Actually, Supabase allows filtering on joined tables:
+      if (filterReason !== 'ALL') {
+        const { data: matchedReasons } = await supabase.from('movement_reasons').select('id').eq('name', filterReason);
+        if (matchedReasons && matchedReasons.length > 0) {
+          query = query.in('reason_id', matchedReasons.map((r: any) => r.id));
+        }
+      }
+
+      if (filterDate) {
+        query = query.gte('created_at', filterDate + 'T00:00:00')
+                     .lte('created_at', filterDate + 'T23:59:59');
+      }
+
+      // Pagination
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+
+      const { data: moves, count } = await query;
+
       if (moves) setMovements(moves);
+      if (count !== null) setTotalCount(count);
 
       if (hasPermission('stock:approve')) {
         try {
@@ -124,7 +155,7 @@ export const Adjustments: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => { fetchData(); }, [page, pageSize, filterType, filterReason, filterDate]);
 
   useEffect(() => {
     if (reasons.length === 0) return;
@@ -352,7 +383,7 @@ export const Adjustments: React.FC = () => {
           <label className="text-xs font-bold text-slate-500 uppercase">Movement Type</label>
           <select 
             value={filterType} 
-            onChange={(e) => setFilterType(e.target.value)}
+            onChange={(e) => { setFilterType(e.target.value); setPage(1); }}
             className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="ALL">All Types</option>
@@ -365,7 +396,7 @@ export const Adjustments: React.FC = () => {
           <label className="text-xs font-bold text-slate-500 uppercase">Reason</label>
           <select 
             value={filterReason} 
-            onChange={(e) => setFilterReason(e.target.value)}
+            onChange={(e) => { setFilterReason(e.target.value); setPage(1); }}
             className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="ALL">All Reasons</option>
@@ -381,7 +412,10 @@ export const Adjustments: React.FC = () => {
             <input 
               type="date"
               value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
+              onChange={(e) => {
+                setFilterDate(e.target.value);
+                setPage(1);
+              }}
               className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
             {filterDate && (
@@ -538,6 +572,15 @@ export const Adjustments: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {!loading && movements.length > 0 && (
+          <Pagination
+            currentPage={page}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
 
       {/* â”€â”€ Bulk Movement Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}

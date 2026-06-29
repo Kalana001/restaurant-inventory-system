@@ -2,11 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { createUserSchema, updateUserSchema, formatZodError } from '../lib/validation';
 import { Users as UsersIcon, Plus, Edit3, ShieldCheck, Mail, AlertCircle } from 'lucide-react';
+import { Pagination } from '../components/ui/Pagination';
 
 export const Users: React.FC = () => {
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Modal states
   const [modalOpen, setModalOpen] = useState(false);
@@ -25,12 +31,16 @@ export const Users: React.FC = () => {
   const fetchUsersData = async () => {
     setLoading(true);
     try {
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
       const [usersRes, rolesRes] = await Promise.all([
-        supabase.from('profiles').select('*, roles(name)'),
+        supabase.from('profiles').select('*, roles(name)', { count: 'exact' }).order('created_at', { ascending: false }).range(from, to),
         supabase.from('roles').select('*').order('name')
       ]);
 
       if (usersRes.data) setUsers(usersRes.data);
+      if (usersRes.count !== null) setTotalCount(usersRes.count);
       if (rolesRes.data) {
         setRoles(rolesRes.data);
         if (rolesRes.data.length > 0 && !roleId) {
@@ -46,7 +56,7 @@ export const Users: React.FC = () => {
 
   useEffect(() => {
     fetchUsersData();
-  }, []);
+  }, [page, pageSize]);
 
   const openAddModal = () => {
     setEditingUser(null);
@@ -226,6 +236,15 @@ export const Users: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {!loading && users.length > 0 && (
+          <Pagination
+            currentPage={page}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
 
       {modalOpen && (

@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Edit3, Trash2, CreditCard, AlertCircle, X, Clock, Package, DollarSign } from 'lucide-react';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { format } from 'date-fns';
+import { Pagination } from '../components/ui/Pagination';
 
 const PAYMENT_METHODS = ['By Home', 'From Ovin', 'By Restaurant', 'Cheque'];
 
@@ -12,6 +13,11 @@ export const Suppliers: React.FC = () => {
   const [suppliers, setSuppliers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Form Modal States
   const [modalOpen, setModalOpen] = useState(false);
@@ -47,10 +53,14 @@ export const Suppliers: React.FC = () => {
   const fetchSuppliers = async () => {
     setLoading(true);
     try {
-      let query = supabase.from('suppliers').select('*').eq('status', 'ACTIVE');
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      let query = supabase.from('suppliers').select('*', { count: 'exact' }).eq('status', 'ACTIVE');
       if (search) query = query.ilike('name', `%${search}%`);
-      const { data, error } = await query.order('name');
+      const { data, count, error } = await query.order('created_at', { ascending: false }).range(from, to);
       if (!error && data) setSuppliers(data);
+      if (count !== null) setTotalCount(count);
     } catch (err) {
       console.error(err);
     } finally {
@@ -58,7 +68,7 @@ export const Suppliers: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchSuppliers(); }, [search]);
+  useEffect(() => { fetchSuppliers(); }, [search, page, pageSize]);
 
   const openAddModal = () => {
     setEditingSupplier(null);
@@ -256,9 +266,11 @@ export const Suppliers: React.FC = () => {
         <div className="relative w-full">
           <Search className="absolute left-3.5 top-3.5 text-slate-400" size={18} />
           <input
-            type="text" placeholder="Search by supplier name..."
-            value={search} onChange={(e) => setSearch(e.target.value)}
-            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm"
+            type="text"
+            placeholder="Search suppliers by name..."
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+            className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent text-sm"
           />
         </div>
       </div>
@@ -347,6 +359,15 @@ export const Suppliers: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {!loading && suppliers.length > 0 && (
+          <Pagination
+            currentPage={page}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
 
       {/* ── Add/Edit Supplier Modal ── */}

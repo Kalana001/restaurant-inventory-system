@@ -4,6 +4,7 @@ import api from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Eye, AlertCircle, FileText, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
+import { Pagination } from '../components/ui/Pagination';
 
 export const GRNs: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -28,22 +29,32 @@ export const GRNs: React.FC = () => {
   const [detailItems, setDetailItems] = useState<any[]>([]);
   const [detailLoading, setDetailLoading] = useState(false);
 
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
+
   const fetchGRNs = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+
+      const { data, count, error } = await supabase
         .from('grns')
         .select(`
           *,
           suppliers ( name, code ),
           purchase_orders ( po_number ),
           profiles:received_by ( username )
-        `)
-        .order('received_date', { ascending: false });
+        `, { count: 'exact' })
+        .order('received_date', { ascending: false })
+        .range(from, to);
 
       if (!error && data) {
         setGrns(data);
       }
+      if (count !== null) setTotalCount(count);
 
       // Load approved POs on modal request
       const { data: pos } = await supabase
@@ -63,7 +74,7 @@ export const GRNs: React.FC = () => {
 
   useEffect(() => {
     fetchGRNs();
-  }, []);
+  }, [page, pageSize]);
 
   // When user selects a PO in create wizard, populate item fields
   const handleSelectPO = async (poId: string) => {
@@ -281,6 +292,15 @@ export const GRNs: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {!loading && grns.length > 0 && (
+          <Pagination
+            currentPage={page}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
 
       {/* Receive Goods intake Wizard Modal */}

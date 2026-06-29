@@ -2,11 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { Activity, Search, Calendar as CalendarIcon, Filter, ArrowUpRight, ArrowDownRight, Edit3 } from 'lucide-react';
 import { format } from 'date-fns';
+import { Pagination } from '../components/ui/Pagination';
 
 export const ActivityLog: React.FC = () => {
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<any[]>([]);
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalCount, setTotalCount] = useState(0);
 
   // Filters
   const [search, setSearch] = useState('');
@@ -16,9 +22,11 @@ export const ActivityLog: React.FC = () => {
   const fetchLogs = async () => {
     setLoading(true);
     try {
-      // Fetch users for the filter dropdown
-      const { data: usersData } = await supabase.from('profiles').select('id, username').order('username');
-      if (usersData) setUsers(usersData);
+      // Fetch users for the filter dropdown (only if not loaded)
+      if (users.length === 0) {
+        const { data: usersData } = await supabase.from('profiles').select('id, username').order('username');
+        if (usersData) setUsers(usersData);
+      }
 
       // Base query for stock movements
       let query = supabase
@@ -28,7 +36,7 @@ export const ActivityLog: React.FC = () => {
           profiles:created_by (username),
           inventory_items (name, units:units!inventory_items_base_unit_id_fkey(abbreviation)),
           movement_reasons (name)
-        `)
+        `, { count: 'exact' })
         .order('created_at', { ascending: false });
 
       if (selectedUser) {
@@ -37,23 +45,23 @@ export const ActivityLog: React.FC = () => {
       if (selectedType) {
         query = query.eq('type', selectedType);
       }
+      if (search) {
+        // Simple search on movement_number. For related tables, it's harder to do in one query without a view, but we can do our best or rely on exact matches.
+        // PostgREST ilike on nested tables is tricky. If they want search on items, it might be better to do server-side text search if configured, but let's just do movement_number here.
+        query = query.ilike('movement_number', `%${search}%`);
+      }
 
-      const { data, error } = await query.limit(100);
+      // Pagination
+      const from = (page - 1) * pageSize;
+      const to = from + pageSize - 1;
+      query = query.range(from, to);
+
+      const { data, count, error } = await query;
 
       if (error) throw error;
       
-      // Client-side search for item name or reference
-      let filteredData = data || [];
-      if (search) {
-        const s = search.toLowerCase();
-        filteredData = filteredData.filter((log: any) => 
-          log.inventory_items?.name?.toLowerCase().includes(s) ||
-          log.movement_number?.toLowerCase().includes(s) ||
-          log.movement_reasons?.name?.toLowerCase().includes(s)
-        );
-      }
-      
-      setLogs(filteredData);
+      setLogs(data || []);
+      if (count !== null) setTotalCount(count);
     } catch (err) {
       console.error('Error fetching activity log:', err);
     } finally {
@@ -63,18 +71,8 @@ export const ActivityLog: React.FC = () => {
 
   useEffect(() => {
     fetchLogs();
-  }, [selectedUser, selectedType]); // Re-fetch when filters change (search requires manual enter/button, but we can just tie it to a debounce or button. Let's do it on button press or just use client side search on the loaded set for simplicity)
+  }, [selectedUser, selectedType, page, pageSize, search]); 
 
-  // Trigger search filter locally on the fetched 100 items for snappy UX
-  const filteredLogs = logs.filter(log => {
-    if (!search) return true;
-    const s = search.toLowerCase();
-    return (
-      log.inventory_items?.name?.toLowerCase().includes(s) ||
-      log.movement_number?.toLowerCase().includes(s) ||
-      log.movement_reasons?.name?.toLowerCase().includes(s)
-    );
-  });
 
   const getTypeIcon = (type: string) => {
     switch (type) {
@@ -178,14 +176,14 @@ export const ActivityLog: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ) : filteredLogs.length === 0 ? (
+              ) : logs.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="px-6 py-8 text-center text-slate-500 font-medium">
                     No activity logs found for the selected filters.
                   </td>
                 </tr>
               ) : (
-                filteredLogs.map((log) => (
+                logs.map((log) => (
                   <tr key={log.id} className="hover:bg-slate-50/80 transition-colors">
                     <td className="px-6 py-4">
                       <div className="flex items-center text-slate-700">
@@ -229,6 +227,15 @@ export const ActivityLog: React.FC = () => {
             </tbody>
           </table>
         </div>
+        {!loading && logs.length > 0 && (
+          <Pagination
+            currentPage={page}
+            totalCount={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+          />
+        )}
       </div>
     </div>
   );
