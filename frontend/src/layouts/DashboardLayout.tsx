@@ -21,7 +21,8 @@ import {
   AlertTriangle,
   Clock,
   ShoppingBag,
-  Truck
+  Truck,
+  Wallet
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {

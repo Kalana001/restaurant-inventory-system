@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, Search, DollarSign, Wallet, Building2, User, ChevronDown, CheckCircle2, Clock } from 'lucide-react';
+import { Plus, Search, DollarSign, Wallet, Building2, User, ChevronDown, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 
 export const Expenses: React.FC = () => {
   const { hasPermission } = useAuth();
