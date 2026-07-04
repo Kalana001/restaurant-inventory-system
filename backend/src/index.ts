@@ -42,9 +42,11 @@ import { errorHandler } from './middlewares/errorHandler';
 // Centralized error handler
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`[server]: API Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
-});
+// Start server only if not running on Vercel
+if (!process.env.VERCEL) {
+  app.listen(PORT, () => {
+    console.log(`[server]: API Server is running on port ${PORT} in ${process.env.NODE_ENV || 'development'} mode`);
+  });
+}
 
 export default app;
