@@ -33,24 +33,41 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
       const { data: jatReason } = await supabase.from('movement_reasons').select('id').eq('name', 'JAT').single();
       if (!jatReason) return;
 
-      let query = supabase
-        .from('stock_movements')
-        .select('*, inventory_items(name)')
-        .eq('type', 'STOCK_OUT')
-        .eq('reason_id', jatReason.id);
+      let allMovements: any[] = [];
+      let fetchMore = true;
+      let from = 0;
+      const step = 1000;
 
-      if (day) {
-        const start = new Date(day + 'T00:00:00').toISOString();
-        const end = new Date(day + 'T23:59:59.999').toISOString();
-        query = query.gte('created_at', start).lte('created_at', end);
-      } else if (month) {
-        const targetDate = new Date(month + '-01');
-        const start = startOfMonth(targetDate).toISOString();
-        const end = endOfMonth(targetDate).toISOString();
-        query = query.gte('created_at', start).lte('created_at', end);
+      while (fetchMore && from < 5000) {
+        let chunkQuery = supabase
+          .from('stock_movements')
+          .select('*, inventory_items(name)')
+          .eq('type', 'STOCK_OUT')
+          .eq('reason_id', jatReason.id);
+
+        if (day) {
+          const start = new Date(day + 'T00:00:00').toISOString();
+          const end = new Date(day + 'T23:59:59.999').toISOString();
+          chunkQuery = chunkQuery.gte('created_at', start).lte('created_at', end);
+        } else if (month) {
+          const targetDate = new Date(month + '-01');
+          const start = startOfMonth(targetDate).toISOString();
+          const end = endOfMonth(targetDate).toISOString();
+          chunkQuery = chunkQuery.gte('created_at', start).lte('created_at', end);
+        }
+        
+        chunkQuery = chunkQuery.order('created_at', { ascending: false }).range(from, from + step - 1);
+        
+        const { data: chunk, error } = await chunkQuery;
+        
+        if (error || !chunk || chunk.length === 0) {
+          fetchMore = false;
+        } else {
+          allMovements = [...allMovements, ...chunk];
+          from += step;
+          if (chunk.length < step) fetchMore = false;
+        }
       }
-      
-      query = query.order('created_at', { ascending: false }).limit(5000);
 
       let dpQuery = supabase.from('daily_purchases').select('*').eq('department', 'JAT');
       let tcQuery = supabase.from('transportation_costs').select('*').eq('department', 'JAT');
@@ -65,7 +82,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
         tcQuery = tcQuery.gte('date', startStr).lte('date', endStr);
       }
 
-      const { data: movements } = await query;
+      const movements = allMovements;
       const { data: dailyPurchases } = await dpQuery;
       const { data: transCosts } = await tcQuery;
       const { data: settlements } = await supabase.from('jat_settlements').select('id, notes, status').neq('status', 'BOUNCED');

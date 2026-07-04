@@ -92,39 +92,52 @@ export const Adjustments: React.FC = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from('stock_movements')
-        .select(`
-          id, movement_number, type, quantity, status, created_at, reference_id, reference_type,
-          inventory_items ( name, sku, base_unit:units!inventory_items_base_unit_id_fkey ( abbreviation ) ),
-          movement_reasons ( name ),
-          profiles:created_by ( username )
-        `)
-        .order('created_at', { ascending: false });
-
-      if (filterType !== 'ALL') query = query.eq('type', filterType);
-      
-      // If we need to filter by reason, it's harder in a single query since it's a join,
-      // but we can query movement_reasons first or rely on client-side filtering for reasons if we really have to.
-      // Actually, Supabase allows filtering on joined tables:
+      let matchedReasons: any[] | null = null;
       if (filterReason !== 'ALL') {
-        const { data: matchedReasons } = await supabase.from('movement_reasons').select('id').eq('name', filterReason);
-        if (matchedReasons && matchedReasons.length > 0) {
-          query = query.in('reason_id', matchedReasons.map((r: any) => r.id));
+        const { data: res } = await supabase.from('movement_reasons').select('id').eq('name', filterReason);
+        matchedReasons = res;
+      }
+
+      let allMoves: any[] = [];
+      let fetchMore = true;
+      let from = 0;
+      const step = 1000;
+      
+      while (fetchMore && from < 5000) {
+        let chunkQuery = supabase
+          .from('stock_movements')
+          .select(`
+            id, movement_number, type, quantity, status, created_at, reference_id, reference_type,
+            inventory_items ( name, sku, base_unit:units!inventory_items_base_unit_id_fkey ( abbreviation ) ),
+            movement_reasons ( name ),
+            profiles:created_by ( username )
+          `)
+          .order('created_at', { ascending: false })
+          .range(from, from + step - 1);
+
+        if (filterType !== 'ALL') chunkQuery = chunkQuery.eq('type', filterType);
+        
+        if (filterReason !== 'ALL' && matchedReasons && matchedReasons.length > 0) {
+          chunkQuery = chunkQuery.in('reason_id', matchedReasons.map((r: any) => r.id));
+        }
+
+        if (filterDate) {
+          chunkQuery = chunkQuery.gte('created_at', filterDate + 'T00:00:00')
+                                 .lte('created_at', filterDate + 'T23:59:59');
+        }
+
+        const { data: chunk, error } = await chunkQuery;
+        
+        if (error || !chunk || chunk.length === 0) {
+          fetchMore = false;
+        } else {
+          allMoves = [...allMoves, ...chunk];
+          from += step;
+          if (chunk.length < step) fetchMore = false;
         }
       }
 
-      if (filterDate) {
-        query = query.gte('created_at', filterDate + 'T00:00:00')
-                     .lte('created_at', filterDate + 'T23:59:59');
-      }
-
-      // Limit to 5000 to avoid huge payloads while capturing history, client side pagination will handle display
-      query = query.limit(5000);
-
-      const { data: moves } = await query;
-
-      if (moves) setMovements(moves);
+      setMovements(allMoves);
 
       if (hasPermission('stock:approve')) {
         try {
