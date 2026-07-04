@@ -46,12 +46,12 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
       const kitchenReason = reasons?.find(r => r.name === 'Kitchen Usage')?.id;
 
       // 2. Determine date range
-      let start: string, end: string;
+      let start: string | undefined, end: string | undefined;
       if (day) {
         start = new Date(day + 'T00:00:00').toISOString();
         end = new Date(day + 'T23:59:59.999').toISOString();
-      } else {
-        const targetDate = month ? new Date(month + '-01') : new Date();
+      } else if (month) {
+        const targetDate = new Date(month + '-01');
         start = startOfMonth(targetDate).toISOString();
         end = endOfMonth(targetDate).toISOString();
       }
@@ -63,12 +63,17 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
       const step = 1000;
       
       while (fetchMore) {
-        const { data: chunk, error } = await supabase
+        let query = supabase
           .from('stock_movements')
           .select('created_at, quantity, cost_price, reason_id, reference_type, inventory_items(name)')
-          .eq('type', 'STOCK_OUT')
-          .gte('created_at', start)
-          .lte('created_at', end)
+          .eq('type', 'STOCK_OUT');
+          
+        if (start && end) {
+          query = query.gte('created_at', start).lte('created_at', end);
+        }
+        
+        const { data: chunk, error } = await query
+          .order('created_at', { ascending: false })
           .range(from, from + step - 1);
           
         if (error || !chunk || chunk.length === 0) {
@@ -79,27 +84,20 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
           if (chunk.length < step) fetchMore = false;
         }
       }
-      const dpStartStr = day ? day : format(new Date(start), 'yyyy-MM-dd');
-      const dpEndStr = day ? day : format(new Date(end), 'yyyy-MM-dd');
+      const dpStartStr = start ? format(new Date(start), 'yyyy-MM-dd') : undefined;
+      const dpEndStr = end ? format(new Date(end), 'yyyy-MM-dd') : undefined;
 
-      const { data: dailyPurchases } = await supabase
-        .from('daily_purchases')
-        .select('*')
-        .gte('date', dpStartStr)
-        .lte('date', dpEndStr);
+      let dpQuery = supabase.from('daily_purchases').select('*');
+      if (dpStartStr && dpEndStr) dpQuery = dpQuery.gte('date', dpStartStr).lte('date', dpEndStr);
+      const { data: dailyPurchases } = await dpQuery;
 
-      const { data: transCosts } = await supabase
-        .from('transportation_costs')
-        .select('*')
-        .gte('date', dpStartStr)
-        .lte('date', dpEndStr);
+      let tcQuery = supabase.from('transportation_costs').select('*');
+      if (dpStartStr && dpEndStr) tcQuery = tcQuery.gte('date', dpStartStr).lte('date', dpEndStr);
+      const { data: transCosts } = await tcQuery;
 
-      const { data: expensesList } = await supabase
-        .from('expenses')
-        .select('*')
-        .eq('category', 'RESTAURANT')
-        .gte('date', dpStartStr)
-        .lte('date', dpEndStr);
+      let expQuery = supabase.from('expenses').select('*').eq('category', 'RESTAURANT');
+      if (dpStartStr && dpEndStr) expQuery = expQuery.gte('date', dpStartStr).lte('date', dpEndStr);
+      const { data: expensesList } = await expQuery;
 
       const transactions: Record<string, TransactionRow> = {};
       let mKitchen = 0;

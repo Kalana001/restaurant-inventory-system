@@ -43,20 +43,22 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
         const start = new Date(day + 'T00:00:00').toISOString();
         const end = new Date(day + 'T23:59:59.999').toISOString();
         query = query.gte('created_at', start).lte('created_at', end);
-      } else {
-        const targetDate = month ? new Date(month + '-01') : new Date();
+      } else if (month) {
+        const targetDate = new Date(month + '-01');
         const start = startOfMonth(targetDate).toISOString();
         const end = endOfMonth(targetDate).toISOString();
         query = query.gte('created_at', start).lte('created_at', end);
       }
+      
+      query = query.order('created_at', { ascending: false }).limit(5000);
 
       let dpQuery = supabase.from('daily_purchases').select('*').eq('department', 'JAT');
       let tcQuery = supabase.from('transportation_costs').select('*').eq('department', 'JAT');
       if (day) {
         dpQuery = dpQuery.gte('date', day).lte('date', day);
         tcQuery = tcQuery.gte('date', day).lte('date', day);
-      } else {
-        const targetDate = month ? new Date(month + '-01') : new Date();
+      } else if (month) {
+        const targetDate = new Date(month + '-01');
         const startStr = format(startOfMonth(targetDate), 'yyyy-MM-dd');
         const endStr = format(endOfMonth(targetDate), 'yyyy-MM-dd');
         dpQuery = dpQuery.gte('date', startStr).lte('date', endStr);
