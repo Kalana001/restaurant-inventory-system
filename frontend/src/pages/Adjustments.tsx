@@ -119,8 +119,8 @@ export const Adjustments: React.FC = () => {
                      .lte('created_at', filterDate + 'T23:59:59');
       }
 
-      // Limit to 1000 to avoid huge payloads, client side pagination will handle display
-      query = query.limit(1000);
+      // Limit to 5000 to avoid huge payloads while capturing history, client side pagination will handle display
+      query = query.limit(5000);
 
       const { data: moves } = await query;
 
