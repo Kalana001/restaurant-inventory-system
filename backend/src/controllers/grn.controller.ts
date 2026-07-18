@@ -67,11 +67,13 @@ export const createGRN = async (req: Request, res: Response, next: NextFunction)
 
     // Update global item cost prices from the GRN items
     for (const item of items) {
-      if (item.costPrice !== undefined && item.costPrice !== null && item.costPrice !== '') {
+      const price = item.cost_price ?? item.costPrice;
+      const id = item.item_id ?? item.itemId;
+      if (price !== undefined && price !== null && price !== '') {
         await supabase
           .from('inventory_items')
-          .update({ cost_price: Number(item.costPrice) })
-          .eq('id', item.itemId);
+          .update({ cost_price: Number(price) })
+          .eq('id', id);
       }
     }
 
