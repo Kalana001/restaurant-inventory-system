@@ -71,20 +71,24 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
 
       let dpQuery = supabase.from('daily_purchases').select('*').eq('department', 'JAT');
       let tcQuery = supabase.from('transportation_costs').select('*').eq('department', 'JAT');
+      let expQuery = supabase.from('expenses').select('*').eq('category', 'JAT');
       if (day) {
         dpQuery = dpQuery.gte('date', day).lte('date', day);
         tcQuery = tcQuery.gte('date', day).lte('date', day);
+        expQuery = expQuery.gte('date', day).lte('date', day);
       } else if (month) {
         const targetDate = new Date(month + '-01');
         const startStr = format(startOfMonth(targetDate), 'yyyy-MM-dd');
         const endStr = format(endOfMonth(targetDate), 'yyyy-MM-dd');
         dpQuery = dpQuery.gte('date', startStr).lte('date', endStr);
         tcQuery = tcQuery.gte('date', startStr).lte('date', endStr);
+        expQuery = expQuery.gte('date', startStr).lte('date', endStr);
       }
 
       const movements = allMovements;
       const { data: dailyPurchases } = await dpQuery;
       const { data: transCosts } = await tcQuery;
+      const { data: jatExpenses } = await expQuery;
       const { data: settlements } = await supabase.from('jat_settlements').select('id, notes, status').neq('status', 'BOUNCED');
 
       if (movements) {
@@ -179,6 +183,34 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
             txMap[receipt].totalCost += cost;
             txMap[receipt].items.push({
               name: `${tc.reason} (Transport)`,
+              quantity: 1,
+              cost_price: cost,
+              total: cost
+            });
+          });
+        }
+
+        if (jatExpenses) {
+          jatExpenses.forEach((e: any) => {
+            const receipt = `EXP-${e.date}-${e.id.substring(0, 6)}`;
+            const date = e.date;
+            const cost = Number(e.total_amount) || 0;
+
+            if (!txMap[receipt]) {
+              txMap[receipt] = {
+                receipt,
+                date,
+                reason: 'JAT / Expenses',
+                totalCost: 0,
+                paid: 0,
+                remaining: 0,
+                status: 'PENDING',
+                items: []
+              };
+            }
+            txMap[receipt].totalCost += cost;
+            txMap[receipt].items.push({
+              name: `JAT / ${e.expense_type}`,
               quantity: 1,
               cost_price: cost,
               total: cost
