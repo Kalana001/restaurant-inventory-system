@@ -30,13 +30,13 @@ export const Expenses: React.FC = () => {
   const [newCategory, setNewCategory] = useState<'RESTAURANT' | 'PERSONAL' | 'JAT'>('RESTAURANT');
   const [newType, setNewType] = useState('ELECTRICITY');
   const [newDesc, setNewDesc] = useState('');
-  const [newAmount, setNewAmount] = useState<number>(0);
+  const [newAmount, setNewAmount] = useState<number | ''>('');
   const [createError, setCreateError] = useState<string | null>(null);
   const [createLoading, setCreateLoading] = useState(false);
 
   // Pay Form State
   const [payExpense, setPayExpense] = useState<any>(null);
-  const [payAmount, setPayAmount] = useState<number>(0);
+  const [payAmount, setPayAmount] = useState<number | ''>('');
   const [payMethod, setPayMethod] = useState('CASH');
   const [payDate, setPayDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [payNotes, setPayNotes] = useState('');
@@ -91,7 +91,8 @@ export const Expenses: React.FC = () => {
 
   const handleCreateExpense = async () => {
     setCreateError(null);
-    if (newAmount <= 0) {
+    const parsedAmount = Number(newAmount);
+    if (!parsedAmount || parsedAmount <= 0) {
        setCreateError("Amount must be greater than zero.");
        return;
     }
@@ -102,13 +103,13 @@ export const Expenses: React.FC = () => {
          category: newCategory,
          expense_type: newType,
          description: newDesc,
-         total_amount: newAmount,
+         total_amount: parsedAmount,
          status: 'UNPAID'
       });
       if (error) throw error;
       setCreateModalOpen(false);
       setNewDesc('');
-      setNewAmount(0);
+      setNewAmount('');
       fetchExpenses();
     } catch (err: any) {
       setCreateError(err.message || 'Failed to create expense');
@@ -119,7 +120,8 @@ export const Expenses: React.FC = () => {
 
   const handlePayExpense = async () => {
     setPayError(null);
-    if (payAmount <= 0) {
+    const parsedPayAmount = Number(payAmount);
+    if (!parsedPayAmount || parsedPayAmount <= 0) {
       setPayError("Payment amount must be greater than zero.");
       return;
     }
@@ -129,7 +131,7 @@ export const Expenses: React.FC = () => {
     try {
       const { error } = await supabase.from('expense_payments').insert({
          expense_id: payExpense.id,
-         amount: payAmount,
+         amount: parsedPayAmount,
          payment_date: payDate,
          payment_method: payMethod,
          notes: payNotes
@@ -137,7 +139,7 @@ export const Expenses: React.FC = () => {
       if (error) throw error;
 
       // Update expense status
-      const totalPaidNow = Number(payExpense.paid_amount) + Number(payAmount);
+      const totalPaidNow = Number(payExpense.paid_amount) + parsedPayAmount;
       const newStatus = totalPaidNow >= Number(payExpense.total_amount) ? 'PAID' : 'PARTIAL';
       
       await supabase.from('expenses').update({ status: newStatus }).eq('id', payExpense.id);
@@ -349,7 +351,7 @@ export const Expenses: React.FC = () => {
                 <label className="text-xs font-bold text-slate-500 uppercase">Amount</label>
                 <div className="relative">
                   <DollarSign size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="number" min="0" step="0.01" value={newAmount} onChange={e => setNewAmount(Number(e.target.value))} className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-800" />
+                  <input type="number" min="0" step="0.01" value={newAmount} onChange={e => setNewAmount(e.target.value === '' ? '' : Number(e.target.value))} className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-800" />
                 </div>
               </div>
 
@@ -420,7 +422,7 @@ export const Expenses: React.FC = () => {
                 <label className="text-xs font-bold text-slate-500 uppercase">Payment Amount</label>
                 <div className="relative">
                   <DollarSign size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="number" min="0" max={Number(payExpense.total_amount) - Number(payExpense.paid_amount)} step="0.01" value={payAmount} onChange={e => setPayAmount(Number(e.target.value))} className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-800" />
+                  <input type="number" min="0" max={Number(payExpense.total_amount) - Number(payExpense.paid_amount)} step="0.01" value={payAmount} onChange={e => setPayAmount(e.target.value === '' ? '' : Number(e.target.value))} className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-800" />
                 </div>
               </div>
 
