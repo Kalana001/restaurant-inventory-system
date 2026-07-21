@@ -30,14 +30,15 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
         const { data: jatReason } = await supabase.from('movement_reasons').select('id').eq('name', 'JAT').single();
         if (!jatReason) return;
 
-        const [ { data: movements }, { data: settlements }, { data: dailyPurchases }, { data: transCosts } ] = await Promise.all([
+        const [ { data: movements }, { data: settlements }, { data: dailyPurchases }, { data: transCosts }, { data: jatExpenses } ] = await Promise.all([
           supabase.from('stock_movements').select('quantity, cost_price, created_at, reference_type').eq('type', 'STOCK_OUT').eq('reason_id', jatReason.id),
           supabase.from('jat_settlements').select('notes').neq('status', 'BOUNCED'),
           supabase.from('daily_purchases').select('date, total_cost').eq('department', 'JAT'),
-          supabase.from('transportation_costs').select('date, cost').eq('department', 'JAT')
+          supabase.from('transportation_costs').select('date, cost').eq('department', 'JAT'),
+          supabase.from('expenses').select('id, date, expense_type, total_amount').eq('category', 'JAT')
         ]);
 
-        if (movements || dailyPurchases || transCosts) {
+        if (movements || dailyPurchases || transCosts || jatExpenses) {
           const allocationsByReceipt: Record<string, number> = {};
           const isAllocated: Record<string, boolean> = {};
           settlements?.forEach(s => {
@@ -82,6 +83,17 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
               const cost = Number(tc.cost) || 0;
               if (!txMap[receipt]) {
                 txMap[receipt] = { receipt, date: tc.date, reason: 'JAT / Trans', totalCost: 0, paid: 0, remaining: 0 };
+              }
+              txMap[receipt].totalCost += cost;
+            });
+          }
+
+          if (jatExpenses) {
+            jatExpenses.forEach((e: any) => {
+              const receipt = `EXP-${e.date}-${e.id.substring(0, 6)}`;
+              const cost = Number(e.total_amount) || 0;
+              if (!txMap[receipt]) {
+                txMap[receipt] = { receipt, date: e.date, reason: 'JAT / Expenses', totalCost: 0, paid: 0, remaining: 0 };
               }
               txMap[receipt].totalCost += cost;
             });
