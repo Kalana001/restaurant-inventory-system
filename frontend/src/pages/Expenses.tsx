@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, Search, DollarSign, Wallet, Building2, User, ChevronDown, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
+import { Plus, Search, DollarSign, Wallet, Building2, User, ChevronDown, CheckCircle2, Clock, AlertCircle, Pencil } from 'lucide-react';
 
 export const Expenses: React.FC = () => {
   const { hasPermission } = useAuth();
@@ -42,6 +42,14 @@ export const Expenses: React.FC = () => {
   const [payNotes, setPayNotes] = useState('');
   const [payError, setPayError] = useState<string | null>(null);
   const [payLoading, setPayLoading] = useState(false);
+
+  // Edit Form State
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editExpense, setEditExpense] = useState<any>(null);
+  const [editDate, setEditDate] = useState('');
+  const [editAmount, setEditAmount] = useState<number | ''>('');
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editLoading, setEditLoading] = useState(false);
 
   const fetchExpenses = async () => {
     setLoading(true);
@@ -163,6 +171,41 @@ export const Expenses: React.FC = () => {
     setPayModalOpen(true);
   };
 
+  const openEditModal = (expense: any) => {
+    setEditExpense(expense);
+    setEditDate(expense.date);
+    setEditAmount(Number(expense.total_amount));
+    setEditError(null);
+    setEditModalOpen(true);
+  };
+
+  const handleEditExpense = async () => {
+    setEditError(null);
+    const parsedAmount = Number(editAmount);
+    if (!parsedAmount || parsedAmount <= 0) {
+      setEditError('Amount must be greater than zero.');
+      return;
+    }
+    if (!editDate) {
+      setEditError('Please select a date.');
+      return;
+    }
+    setEditLoading(true);
+    try {
+      const { error } = await supabase
+        .from('expenses')
+        .update({ date: editDate, total_amount: parsedAmount })
+        .eq('id', editExpense.id);
+      if (error) throw error;
+      setEditModalOpen(false);
+      fetchExpenses();
+    } catch (err: any) {
+      setEditError(err.message || 'Failed to update expense.');
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -276,14 +319,24 @@ export const Expenses: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-6 py-4 text-right">
-                        {expense.status !== 'PAID' && hasPermission('expenses:manage') && (
-                          <button 
-                            onClick={() => openPayModal(expense)}
-                            className="text-primary hover:text-primary-dark font-bold text-xs bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
-                          >
-                            Pay
-                          </button>
-                        )}
+                        <div className="flex items-center justify-end gap-2">
+                          {hasPermission('expenses:manage') && (
+                            <button
+                              onClick={() => openEditModal(expense)}
+                              className="text-slate-500 hover:text-blue-600 font-bold text-xs bg-slate-100 hover:bg-blue-50 px-3 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1"
+                            >
+                              <Pencil size={12} /> Edit
+                            </button>
+                          )}
+                          {expense.status !== 'PAID' && hasPermission('expenses:manage') && (
+                            <button
+                              onClick={() => openPayModal(expense)}
+                              className="text-primary hover:text-primary-dark font-bold text-xs bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
+                            >
+                              Pay
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -438,6 +491,65 @@ export const Expenses: React.FC = () => {
               </button>
               <button onClick={handlePayExpense} disabled={payLoading} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50">
                 {payLoading ? 'Processing...' : 'Confirm Payment'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* EDIT EXPENSE MODAL */}
+      {editModalOpen && editExpense && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <h3 className="text-lg font-bold text-slate-800">Edit Expense</h3>
+              <button onClick={() => setEditModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-full hover:bg-slate-100">
+                <Plus className="rotate-45" size={24} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <p className="text-sm font-bold text-slate-700">{editExpense.category} / {editExpense.expense_type}</p>
+              </div>
+
+              {editError && (
+                <div className="p-3 bg-red-50 text-red-700 text-sm rounded-xl border border-red-100 flex items-center gap-2">
+                  <AlertCircle size={16} />{editError}
+                </div>
+              )}
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase">Date</label>
+                <input
+                  type="date"
+                  value={editDate}
+                  onChange={e => setEditDate(e.target.value)}
+                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase">Amount (LKR)</label>
+                <div className="relative">
+                  <DollarSign size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editAmount}
+                    onChange={e => setEditAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-800"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50">
+              <button onClick={() => setEditModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-bold text-sm hover:bg-slate-200 rounded-xl transition-colors">
+                Cancel
+              </button>
+              <button onClick={handleEditExpense} disabled={editLoading} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50">
+                {editLoading ? 'Saving...' : 'Save Changes'}
               </button>
             </div>
           </div>
