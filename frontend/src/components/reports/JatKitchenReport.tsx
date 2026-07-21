@@ -212,7 +212,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
 
           transactions[receipt].totalCost += cost;
           transactions[receipt].items.push({
-            name: `${e.category === 'JAT' ? 'JAT' : 'Restaurant'} / ${e.expense_type} - ${e.description || ''}`,
+            name: `${e.category === 'JAT' ? 'JAT' : 'Restaurant'} / ${e.expense_type}`,
             quantity: 1,
             cost_price: cost,
             total: cost
