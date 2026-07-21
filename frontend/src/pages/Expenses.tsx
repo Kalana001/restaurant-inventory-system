@@ -18,7 +18,7 @@ export const Expenses: React.FC = () => {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [filterCategory, setFilterCategory] = useState<'ALL' | 'RESTAURANT' | 'PERSONAL'>('ALL');
+  const [filterCategory, setFilterCategory] = useState<'ALL' | 'RESTAURANT' | 'PERSONAL' | 'JAT'>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'UNPAID' | 'PARTIAL' | 'PAID'>('ALL');
 
   // Modals
@@ -27,7 +27,7 @@ export const Expenses: React.FC = () => {
 
   // Create Form State
   const [newDate, setNewDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [newCategory, setNewCategory] = useState<'RESTAURANT' | 'PERSONAL'>('RESTAURANT');
+  const [newCategory, setNewCategory] = useState<'RESTAURANT' | 'PERSONAL' | 'JAT'>('RESTAURANT');
   const [newType, setNewType] = useState('ELECTRICITY');
   const [newDesc, setNewDesc] = useState('');
   const [newAmount, setNewAmount] = useState<number>(0);
@@ -196,8 +196,9 @@ export const Expenses: React.FC = () => {
              className="px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20 text-slate-700"
           >
              <option value="ALL">All Categories</option>
-             <option value="RESTAURANT">Restaurant Only</option>
-             <option value="PERSONAL">Personal Only</option>
+             <option value="RESTAURANT">Restaurant</option>
+             <option value="JAT">JAT</option>
+             <option value="PERSONAL">Personal</option>
           </select>
           <select
              value={filterStatus}
@@ -234,14 +235,15 @@ export const Expenses: React.FC = () => {
               ) : (
                 expenses.map((expense) => {
                   const isPersonal = expense.category === 'PERSONAL';
+                  const isJat = expense.category === 'JAT';
                   return (
                     <tr key={expense.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">{format(new Date(expense.date), 'MMM dd, yyyy')}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          {isPersonal ? <User size={14} className="text-purple-500" /> : <Building2 size={14} className="text-blue-500" />}
+                          {isPersonal ? <User size={14} className="text-purple-500" /> : isJat ? <Building2 size={14} className="text-amber-500" /> : <Building2 size={14} className="text-blue-500" />}
                           <div className="flex flex-col">
-                            <span className={`text-[10px] uppercase font-bold ${isPersonal ? 'text-purple-600' : 'text-blue-600'}`}>
+                            <span className={`text-[10px] uppercase font-bold ${isPersonal ? 'text-purple-600' : isJat ? 'text-amber-600' : 'text-blue-600'}`}>
                               {expense.category}
                             </span>
                             <span className="text-slate-800">{expense.expense_type}</span>
@@ -327,6 +329,7 @@ export const Expenses: React.FC = () => {
                   <label className="text-xs font-bold text-slate-500 uppercase">Category</label>
                   <select value={newCategory} onChange={e => setNewCategory(e.target.value as any)} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none">
                     <option value="RESTAURANT">Restaurant</option>
+                    <option value="JAT">JAT</option>
                     <option value="PERSONAL">Personal</option>
                   </select>
                 </div>

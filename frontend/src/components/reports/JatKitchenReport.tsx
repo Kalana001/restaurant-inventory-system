@@ -95,7 +95,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
       if (dpStartStr && dpEndStr) tcQuery = tcQuery.gte('date', dpStartStr).lte('date', dpEndStr);
       const { data: transCosts } = await tcQuery;
 
-      let expQuery = supabase.from('expenses').select('*').eq('category', 'RESTAURANT');
+      let expQuery = supabase.from('expenses').select('*').in('category', ['RESTAURANT', 'JAT']);
       if (dpStartStr && dpEndStr) expQuery = expQuery.gte('date', dpStartStr).lte('date', dpEndStr);
       const { data: expensesList } = await expQuery;
 
@@ -200,10 +200,11 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
           const cost = Number(e.total_amount) || 0;
 
           if (!transactions[receipt]) {
+            const reasonStr = e.category === 'JAT' ? 'JAT / Expenses' : 'Kitchen Usage / Expenses';
             transactions[receipt] = {
               receipt,
               date: e.date,
-              reason: 'Kitchen Usage / Expenses',
+              reason: reasonStr,
               totalCost: 0,
               items: []
             };
@@ -211,13 +212,17 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
 
           transactions[receipt].totalCost += cost;
           transactions[receipt].items.push({
-            name: `${e.expense_type} - ${e.description || ''}`,
+            name: `${e.category === 'JAT' ? 'JAT' : 'Restaurant'} / ${e.expense_type} - ${e.description || ''}`,
             quantity: 1,
             cost_price: cost,
             total: cost
           });
 
-          mKitchen += cost;
+          if (e.category === 'JAT') {
+            mJat += cost;
+          } else {
+            mKitchen += cost;
+          }
         });
       }
 
@@ -250,8 +255,8 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
           .lte('date', mEndStr),
         supabase
           .from('expenses')
-          .select('total_amount')
-          .eq('category', 'RESTAURANT')
+          .select('total_amount, category')
+          .in('category', ['RESTAURANT', 'JAT'])
           .gte('date', mStartStr)
           .lte('date', mEndStr)
       ]);
@@ -278,9 +283,12 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         });
       }
       if (mExp.data) {
-        mExp.data.forEach(e => {
-          const cost = Number(e.total_amount) || 0;
-          trueMonthKitchen += cost;
+        mExp.data.forEach((r: any) => {
+          if (r.category === 'JAT') {
+            trueMonthJat += Number(r.total_amount) || 0;
+          } else {
+            trueMonthKitchen += Number(r.total_amount) || 0;
+          }
         });
       }
 
