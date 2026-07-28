@@ -35,7 +35,7 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
           supabase.from('jat_settlements').select('notes').neq('status', 'BOUNCED'),
           supabase.from('daily_purchases').select('date, total_cost').eq('department', 'JAT'),
           supabase.from('transportation_costs').select('date, cost').eq('department', 'JAT'),
-          supabase.from('expenses').select('id, date, expense_type, total_amount').eq('category', 'JAT')
+          supabase.from('expenses').select('id, date, total_amount, expense_type').eq('category', 'JAT')
         ]);
 
         if (movements || dailyPurchases || transCosts || jatExpenses) {
@@ -89,7 +89,7 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
           }
 
           if (jatExpenses) {
-            jatExpenses.forEach((e: any) => {
+            jatExpenses.forEach(e => {
               const receipt = `EXP-${e.date}-${e.id.substring(0, 6)}`;
               const cost = Number(e.total_amount) || 0;
               if (!txMap[receipt]) {
