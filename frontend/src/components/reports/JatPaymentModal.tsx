@@ -23,6 +23,11 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
   const [allocations, setAllocations] = useState<Record<string, number>>({});
   const [selectedReceipts, setSelectedReceipts] = useState<Set<string>>(new Set());
 
+  // Filter Form State
+  const [filterMonth, setFilterMonth] = useState('');
+  const [filterDate, setFilterDate] = useState('');
+  const [filterSearch, setFilterSearch] = useState('');
+
   useEffect(() => {
     const fetchPending = async () => {
       setLoading(true);
@@ -115,6 +120,13 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
     fetchPending();
   }, []);
 
+  const filteredReceipts = pendingReceipts.filter(r => {
+    if (filterMonth && !r.date.startsWith(filterMonth)) return false;
+    if (filterDate && r.date !== filterDate) return false;
+    if (filterSearch && !r.receipt.toLowerCase().includes(filterSearch.toLowerCase())) return false;
+    return true;
+  });
+
   const totalAmount = Object.entries(allocations)
     .filter(([k, v]) => selectedReceipts.has(k))
     .reduce((sum, [k, val]) => sum + (val || 0), 0);
@@ -152,16 +164,26 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
   };
 
   const handleSelectAll = () => {
-    if (selectedReceipts.size === pendingReceipts.length && pendingReceipts.length > 0) {
-      setSelectedReceipts(new Set());
-      setAllocations({});
-    } else {
-      const all = new Set(pendingReceipts.map(r => r.receipt));
+    const filteredIds = filteredReceipts.map(r => r.receipt);
+    const allFilteredSelected = filteredIds.length > 0 && filteredIds.every(id => selectedReceipts.has(id));
+
+    if (allFilteredSelected && filteredReceipts.length > 0) {
+      const nextSet = new Set(selectedReceipts);
       const nextAlloc = { ...allocations };
-      pendingReceipts.forEach(r => {
+      filteredIds.forEach(id => {
+        nextSet.delete(id);
+        delete nextAlloc[id];
+      });
+      setSelectedReceipts(nextSet);
+      setAllocations(nextAlloc);
+    } else {
+      const nextSet = new Set(selectedReceipts);
+      const nextAlloc = { ...allocations };
+      filteredReceipts.forEach(r => {
+        nextSet.add(r.receipt);
         nextAlloc[r.receipt] = r.remaining;
       });
-      setSelectedReceipts(all);
+      setSelectedReceipts(nextSet);
       setAllocations(nextAlloc);
     }
   };
@@ -228,9 +250,42 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
               <div className="p-3 bg-slate-100 border-b border-slate-200 flex justify-between items-center">
                 <h4 className="font-bold text-sm text-slate-700">Select Receipts to Pay</h4>
                 <button type="button" onClick={handleSelectAll} className="text-xs font-bold bg-white border border-slate-200 px-3 py-1.5 rounded-lg text-primary hover:bg-slate-50">
-                  {selectedReceipts.size === pendingReceipts.length && pendingReceipts.length > 0 ? 'Deselect All' : 'Select All & Auto-fill'}
+                  {filteredReceipts.length > 0 && filteredReceipts.every(r => selectedReceipts.has(r.receipt)) ? 'Deselect All' : 'Select All & Auto-fill'}
                 </button>
               </div>
+
+              {/* Filters container */}
+              <div className="p-3 bg-slate-50 border-b border-slate-200 grid grid-cols-1 sm:grid-cols-3 gap-2 bg-slate-100/50">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Search Receipt</label>
+                  <input 
+                    type="text" 
+                    placeholder="Search receipt no..." 
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none" 
+                    value={filterSearch} 
+                    onChange={e => setFilterSearch(e.target.value)} 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Filter by Month</label>
+                  <input 
+                    type="month" 
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none" 
+                    value={filterMonth} 
+                    onChange={e => { setFilterMonth(e.target.value); setFilterDate(''); }} 
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1">Filter by Date</label>
+                  <input 
+                    type="date" 
+                    className="w-full px-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs outline-none" 
+                    value={filterDate} 
+                    onChange={e => { setFilterDate(e.target.value); setFilterMonth(''); }} 
+                  />
+                </div>
+              </div>
+
               <div className="overflow-y-auto p-0">
                 <table className="w-full text-sm text-left">
                   <thead className="bg-white sticky top-0 shadow-sm">
@@ -239,7 +294,7 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
                         <input 
                           type="checkbox" 
                           className="w-4 h-4 rounded text-primary focus:ring-primary border-slate-300"
-                          checked={selectedReceipts.size === pendingReceipts.length && pendingReceipts.length > 0}
+                          checked={filteredReceipts.length > 0 && filteredReceipts.every(r => selectedReceipts.has(r.receipt))}
                           onChange={handleSelectAll}
                         />
                       </th>
@@ -251,10 +306,10 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white">
-                    {pendingReceipts.length === 0 ? (
-                      <tr><td colSpan={6} className="p-6 text-center text-slate-400">No pending receipts found.</td></tr>
+                    {filteredReceipts.length === 0 ? (
+                      <tr><td colSpan={6} className="p-6 text-center text-slate-400">No matching receipts found.</td></tr>
                     ) : (
-                      pendingReceipts.map(r => (
+                      filteredReceipts.map(r => (
                         <tr key={r.receipt} className={`hover:bg-slate-50 ${selectedReceipts.has(r.receipt) ? 'bg-emerald-50/50' : ''}`}>
                           <td className="px-4 py-2 text-center">
                             <input 
@@ -266,8 +321,8 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
                           </td>
                           <td className="px-4 py-2 font-semibold text-slate-700">{r.receipt}</td>
                           <td className="px-4 py-2 text-slate-500">{format(parseISO(r.date), 'MMM dd, yyyy')}</td>
-                          <td className="px-4 py-2 text-right text-slate-600">LKR {r.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                          <td className="px-4 py-2 text-right font-bold text-rose-500">LKR {r.remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                          <td className="px-4 py-2 text-right text-slate-600">LKR {r.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                          <td className="px-4 py-2 text-right font-bold text-rose-500">LKR {r.remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                           <td className="px-4 py-2">
                             <input 
                               type="number" 
@@ -321,7 +376,7 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
               <div className="space-y-4">
                 <div className="p-4 bg-emerald-50 rounded-xl border border-emerald-100 flex flex-col justify-center items-center">
                   <p className="text-sm font-bold text-emerald-600 uppercase">Total Payment Amount</p>
-                  <p className="text-3xl font-black text-emerald-700 mt-1">LKR {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+                  <p className="text-3xl font-black text-emerald-700 mt-1">LKR {totalAmount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
 
                 <div className="space-y-1">

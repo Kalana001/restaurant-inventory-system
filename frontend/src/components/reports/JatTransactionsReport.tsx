@@ -279,7 +279,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
           </div>
           <div>
             <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Unsettled Amount</p>
-            <p className="text-2xl font-black text-rose-600 mt-1">LKR {totalUnsettled.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-black text-rose-600 mt-1">LKR {totalUnsettled.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
         </div>
         <div className="bg-white rounded-2xl p-6 border border-slate-100 shadow-sm flex items-center gap-4">
@@ -288,7 +288,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
           </div>
           <div>
             <p className="text-sm font-bold text-slate-500 uppercase tracking-wider">Settled Amount</p>
-            <p className="text-2xl font-black text-emerald-600 mt-1">LKR {totalSettled.toLocaleString(undefined, { minimumFractionDigits: 2 })}</p>
+            <p className="text-2xl font-black text-emerald-600 mt-1">LKR {totalSettled.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
           </div>
         </div>
       </div>
@@ -324,9 +324,9 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
                         {row.receipt}
                       </button>
                     </td>
-                    <td className="px-4 py-3 text-right font-semibold text-slate-700">LKR {row.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-3 text-right font-semibold text-emerald-600">LKR {row.paid.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                    <td className="px-4 py-3 text-right font-bold text-rose-500">LKR {row.remaining.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-slate-700">LKR {row.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right font-semibold text-emerald-600">LKR {row.paid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    <td className="px-4 py-3 text-right font-bold text-rose-500">LKR {row.remaining.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`px-2 py-1 text-xs font-bold rounded-lg ${
                         row.status === 'PAID' ? 'bg-emerald-100 text-emerald-700' :
@@ -367,7 +367,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
               <div className="flex items-center gap-4 mb-4 text-sm text-slate-600 bg-slate-50 p-4 rounded-xl border border-slate-100">
                 <div><span className="font-bold text-slate-500">Date:</span> {format(parseISO(selectedReceipt.date), 'MMMM dd, yyyy')}</div>
                 <div><span className="font-bold text-slate-500">Reason:</span> {selectedReceipt.reason}</div>
-                <div><span className="font-bold text-slate-500">Total:</span> LKR {selectedReceipt.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                <div><span className="font-bold text-slate-500">Total:</span> LKR {selectedReceipt.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               </div>
 
               <div className="border border-slate-200 rounded-xl overflow-hidden">
@@ -385,8 +385,8 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
                       <tr key={idx} className="hover:bg-slate-50">
                         <td className="px-4 py-3 font-medium text-slate-700">{item.name}</td>
                         <td className="px-4 py-3 text-right">{item.quantity}</td>
-                        <td className="px-4 py-3 text-right text-slate-500">LKR {item.cost_price.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-700">LKR {item.total.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 text-right text-slate-500">LKR {item.cost_price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                        <td className="px-4 py-3 text-right font-bold text-slate-700">LKR {item.total.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                       </tr>
                     ))}
                   </tbody>
