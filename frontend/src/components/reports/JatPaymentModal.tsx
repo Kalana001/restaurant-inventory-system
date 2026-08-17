@@ -105,8 +105,9 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
           }
 
           Object.values(txMap).forEach(tx => {
-            tx.paid = allocationsByReceipt[tx.receipt] || 0;
-            tx.remaining = Math.max(0, tx.totalCost - tx.paid);
+            tx.totalCost = Math.round(tx.totalCost * 100) / 100;
+            tx.paid = Math.round((allocationsByReceipt[tx.receipt] || 0) * 100) / 100;
+            tx.remaining = Math.max(0, Math.round((tx.totalCost - tx.paid) * 100) / 100);
           });
 
           setPendingReceipts(Object.values(txMap).filter(t => t.remaining > 0 || (t.totalCost === 0 && !isAllocated[t.receipt])).sort((a, b) => a.date.localeCompare(b.date)));

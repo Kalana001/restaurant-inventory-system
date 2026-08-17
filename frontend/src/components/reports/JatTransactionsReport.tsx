@@ -220,8 +220,9 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
 
         // Calculate statuses
         Object.values(txMap).forEach(tx => {
-          tx.paid = allocationsByReceipt[tx.receipt] || 0;
-          tx.remaining = Math.max(0, tx.totalCost - tx.paid);
+          tx.totalCost = Math.round(tx.totalCost * 100) / 100;
+          tx.paid = Math.round((allocationsByReceipt[tx.receipt] || 0) * 100) / 100;
+          tx.remaining = Math.max(0, Math.round((tx.totalCost - tx.paid) * 100) / 100);
           if (tx.paid >= tx.totalCost && tx.totalCost > 0) {
             tx.status = 'PAID';
           } else if (tx.paid > 0) {

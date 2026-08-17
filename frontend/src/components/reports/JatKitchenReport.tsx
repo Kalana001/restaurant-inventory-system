@@ -299,7 +299,11 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
       if (onTotalsUpdate) {
         onTotalsUpdate(mJat, mKitchen);
       }
-      setData(Object.values(transactions).sort((a, b) => b.date.localeCompare(a.date)));
+      const processedTransactions = Object.values(transactions).map((tx: any) => {
+        tx.totalCost = Math.round(tx.totalCost * 100) / 100;
+        return tx;
+      });
+      setData(processedTransactions.sort((a, b) => b.date.localeCompare(a.date)));
 
       // 4. Fetch Today's Stats
       const todayStart = new Date();
