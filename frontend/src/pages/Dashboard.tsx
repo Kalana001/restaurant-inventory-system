@@ -67,18 +67,19 @@ export const Dashboard: React.FC = () => {
         const jatReason = reasonsData.find(r => r.name === 'JAT');
         const kitchenReason = reasonsData.find(r => r.name === 'Kitchen Usage');
 
-        const [ { data: jatMoves }, { data: settledJatData }, { data: kitchenMoves }, { data: dailyPurchases }, { data: transCosts } ] = await Promise.all([
+        const [ { data: jatMoves }, { data: settledJatData }, { data: kitchenMoves }, { data: dailyPurchases }, { data: transCosts }, { data: jatExpenses } ] = await Promise.all([
           jatReason ? supabase.from('stock_movements').select('quantity, cost_price').eq('type', 'STOCK_OUT').eq('reason_id', jatReason.id) : Promise.resolve({ data: [] }),
           supabase.from('jat_settlements').select('amount').neq('status', 'BOUNCED'),
           kitchenReason ? supabase.from('stock_movements').select('quantity, cost_price, created_at').eq('type', 'STOCK_OUT').eq('reason_id', kitchenReason.id) : Promise.resolve({ data: [] }),
           supabase.from('daily_purchases').select('total_cost, department, date'),
-          supabase.from('transportation_costs').select('cost, department, date')
+          supabase.from('transportation_costs').select('cost, department, date'),
+          supabase.from('expenses').select('total_amount').eq('category', 'JAT')
         ]);
         
         let totalJat = jatMoves?.reduce((sum, row) => sum + (Number(row.quantity) * Number(row.cost_price)), 0) || 0;
         const settled = settledJatData?.reduce((sum, row) => sum + (Number(row.amount) || 0), 0) || 0;
         
-        // Add JAT purchases and trans costs to totalJat
+        // Add JAT purchases, trans costs, and expenses to totalJat
         if (dailyPurchases) {
           totalJat += dailyPurchases
             .filter(dp => dp.department === 'JAT')
@@ -89,9 +90,13 @@ export const Dashboard: React.FC = () => {
             .filter(tc => tc.department === 'JAT')
             .reduce((sum, tc) => sum + (Number(tc.cost) || 0), 0);
         }
+        if (jatExpenses) {
+          totalJat += jatExpenses
+            .reduce((sum, exp) => sum + (Number(exp.total_amount) || 0), 0);
+        }
 
         setJatTotal(totalJat);
-        setJatUnsettled(Math.max(0, totalJat - settled));
+        setJatUnsettled(Math.max(0, Math.round((totalJat - settled) * 100) / 100));
 
         const now = new Date();
         const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
