@@ -802,18 +802,18 @@ export const Inventory: React.FC = () => {
                </div>
              </div>
 
-             <div className="border border-slate-100 rounded-xl overflow-hidden shadow-sm">
+             <div className="border border-slate-100 rounded-xl overflow-y-auto max-h-[350px] shadow-sm">
                <div className="overflow-x-auto">
                  <table className="w-full text-left border-collapse text-xs">
-                   <thead>
-                     <tr className="bg-slate-50 border-b border-slate-100 font-bold text-slate-500 uppercase tracking-wider">
-                       <th className="px-4 py-3">Batch Number</th>
-                       <th className="px-4 py-3">Received Date</th>
-                       <th className="px-4 py-3">Expiry Date</th>
-                       <th className="px-4 py-3 text-right">Unit Price</th>
-                       <th className="px-4 py-3 text-right">Current Qty</th>
-                       <th className="px-4 py-3 text-right">Available Qty</th>
-                       <th className="px-4 py-3 text-center">Status</th>
+                   <thead className="sticky top-0 z-10 bg-slate-50">
+                     <tr className="border-b border-slate-100 font-bold text-slate-500 uppercase tracking-wider">
+                       <th className="px-4 py-3 bg-slate-50">Batch Number</th>
+                       <th className="px-4 py-3 bg-slate-50">Received Date</th>
+                       <th className="px-4 py-3 bg-slate-50">Expiry Date</th>
+                       <th className="px-4 py-3 bg-slate-50 text-right">Unit Price</th>
+                       <th className="px-4 py-3 bg-slate-50 text-right">Current Qty</th>
+                       <th className="px-4 py-3 bg-slate-50 text-right">Available Qty</th>
+                       <th className="px-4 py-3 bg-slate-50 text-center">Status</th>
                      </tr>
                    </thead>
                    <tbody className="divide-y divide-slate-100 text-slate-600">
