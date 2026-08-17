@@ -5,6 +5,7 @@ import { Plus, Search, Edit3, Trash2, CreditCard, AlertCircle, X, Clock, Package
 import { ConfirmModal } from '../components/ConfirmModal';
 import { format } from 'date-fns';
 import { Pagination } from '../components/ui/Pagination';
+import api from '../services/api';
 
 const PAYMENT_METHODS = ['By Home', 'From Ovin', 'By Restaurant', 'Cheque'];
 
@@ -153,28 +154,20 @@ export const Suppliers: React.FC = () => {
 
     setSettling(true);
     try {
-      const response = await fetch('http://localhost:3000/api/payments/supplier', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          supplierId: targetSupplier.id,
-          amount: amount,
-          paymentMethod: paymentMethod,
-          notes: paymentNotes,
-          allocations: allocations,
-          userId: user?.id
-        })
+      await api.post('/payments/supplier', {
+        supplierId: targetSupplier.id,
+        amount: amount,
+        paymentMethod: paymentMethod,
+        notes: paymentNotes,
+        allocations: allocations,
+        userId: user?.id
       });
-
-      if (!response.ok) {
-        const errData = await response.json();
-        throw new Error(errData.error || 'Payment failed');
-      }
 
       setSettlementOpen(false);
       fetchSuppliers();
     } catch (err: any) {
-      setFormError(err.message || 'Failed to record payment settlement.');
+      const errMsg = err.response?.data?.error || err.message || 'Failed to record payment settlement.';
+      setFormError(errMsg);
     } finally {
       setSettling(false);
     }
