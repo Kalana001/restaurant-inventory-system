@@ -118,7 +118,7 @@ export const PurchaseOrders: React.FC = () => {
 
       let query = supabase
         .from('purchase_orders')
-        .select(`*, suppliers ( name, code ), profiles:created_by ( username )`, { count: 'exact' });
+        .select(`*, suppliers ( name, code ), profiles:created_by ( username ), supplier_payments ( payment_date )`, { count: 'exact' });
 
       if (trimmedSearch) {
         if (supplierIds.length > 0) {
@@ -418,6 +418,7 @@ export const PurchaseOrders: React.FC = () => {
         po_id: payPo.id,
         amount,
         payment_method: payMethod,
+        payment_date: payDate,
         cheque_realize_date: payMethod === 'Cheque' ? chequeDate : null,
         notes: `Payment for ${payPo.po_number}`,
         paid_by: user?.id
@@ -510,6 +511,18 @@ export const PurchaseOrders: React.FC = () => {
     return 'UNPAID';
   };
 
+  const getPaymentDateDisplay = (po: any) => {
+    if (!po.supplier_payments || po.supplier_payments.length === 0) return '—';
+    const dates = Array.from(new Set(
+      po.supplier_payments
+        .map((p: any) => p.payment_date)
+        .filter(Boolean)
+    )).sort((a: any, b: any) => b.localeCompare(a));
+    
+    if (dates.length === 0) return '—';
+    return dates[0];
+  };
+
   const filteredPos = pos;
 
   const subTotal = poLines.reduce((acc, curr) => acc + curr.totalCost, 0);
@@ -547,14 +560,15 @@ export const PurchaseOrders: React.FC = () => {
                 <th className="px-6 py-4 text-right">Grand Total (LKR)</th>
                 <th className="px-6 py-4 text-center">GRN Status</th>
                 <th className="px-6 py-4 text-center">Payment</th>
+                <th className="px-6 py-4 text-center">Payment Date</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 text-sm">
               {loading ? (
-                <tr><td colSpan={7} className="text-center py-8 text-slate-400">Loading purchase orders...</td></tr>
+                <tr><td colSpan={8} className="text-center py-8 text-slate-400">Loading purchase orders...</td></tr>
               ) : filteredPos.length === 0 ? (
-                <tr><td colSpan={7} className="text-center py-8 text-slate-400">No purchase orders found.</td></tr>
+                <tr><td colSpan={8} className="text-center py-8 text-slate-400">No purchase orders found.</td></tr>
               ) : (
                 filteredPos.map((po) => {
                   const paymentStatus = getPaymentStatus(po);
@@ -581,6 +595,9 @@ export const PurchaseOrders: React.FC = () => {
                           ${paymentStatus === 'PARTIAL' ? 'bg-purple-50 text-purple-600' : ''}
                           ${paymentStatus === 'UNPAID' ? 'bg-slate-100 text-slate-500' : ''}
                         `}>{paymentStatus}</span>
+                      </td>
+                      <td className="px-6 py-4 text-center text-slate-500 font-medium">
+                        {getPaymentDateDisplay(po)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2 items-center">
