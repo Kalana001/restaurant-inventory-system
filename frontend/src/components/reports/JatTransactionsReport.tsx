@@ -28,7 +28,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
   const [selectedReceipt, setSelectedReceipt] = useState<TransactionRow | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [page, setPage] = useState(1);
-  const pageSize = 25;
+  const [pageSize, setPageSize] = useState(25);
 
   const fetchData = async () => {
     setLoading(true);
@@ -355,6 +355,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
               totalCount={transactions.length}
               pageSize={pageSize}
               onPageChange={setPage}
+              onPageSizeChange={setPageSize}
             />
           </div>
         )}

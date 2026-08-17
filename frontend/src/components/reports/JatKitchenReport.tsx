@@ -39,7 +39,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
   const [reasonFilter, setReasonFilter] = useState('ALL');
 
   const [page, setPage] = useState(1);
-  const pageSize = 25;
+  const [pageSize, setPageSize] = useState(25);
 
   const fetchData = async () => {
     setLoading(true);
@@ -553,6 +553,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
                         totalCount={filteredData.length}
                         pageSize={pageSize}
                         onPageChange={setPage}
+                        onPageSizeChange={setPageSize}
                       />
                     </div>
                   )}
