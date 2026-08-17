@@ -4,6 +4,7 @@ import { FileText, DollarSign, RefreshCw, XCircle, CheckCircle } from 'lucide-re
 import { supabase } from '../../lib/supabase';
 import { FilterPanel } from './FilterPanel';
 import { JatPaymentModal } from './JatPaymentModal';
+import { Pagination } from '../ui/Pagination';
 
 interface TransactionRow {
   receipt: string;
@@ -26,6 +27,8 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
   const [loading, setLoading] = useState(false);
   const [selectedReceipt, setSelectedReceipt] = useState<TransactionRow | null>(null);
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
 
   const fetchData = async () => {
     setLoading(true);
@@ -233,6 +236,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
         });
 
         setTransactions(Object.values(txMap).sort((a, b) => b.date.localeCompare(a.date)));
+        setPage(1); // Reset page to 1 on fresh fetch
       }
     } catch (err) {
       console.error(err);
@@ -314,7 +318,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
               {transactions.length === 0 ? (
                 <tr><td colSpan={6} className="px-4 py-6 text-center text-slate-400">No data found</td></tr>
               ) : (
-                transactions.map(row => (
+                transactions.slice((page - 1) * pageSize, page * pageSize).map(row => (
                   <tr key={row.receipt} className="hover:bg-slate-50/50">
                     <td className="px-4 py-3 font-medium text-slate-700">{format(parseISO(row.date), 'MMM dd, yyyy')}</td>
                     <td className="px-4 py-3">
@@ -343,6 +347,17 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
             </tbody>
           </table>
         </div>
+
+        {transactions.length > pageSize && (
+          <div className="p-4 border-t border-slate-100 flex justify-center bg-slate-50/30">
+            <Pagination
+              currentPage={page}
+              totalCount={transactions.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+            />
+          </div>
+        )}
       </div>
 
       {paymentModalOpen && (
