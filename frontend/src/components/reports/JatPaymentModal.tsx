@@ -211,8 +211,15 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
         allocations: finalAllocations
       });
 
-      const { error } = await supabase.from('jat_settlements').insert([{
+      const cleanForm = {
         ...form,
+        cheque_realize_date: form.cheque_realize_date || null,
+        for_date: form.for_date || null,
+        cheque_number: form.cheque_number || null,
+      };
+
+      const { error } = await supabase.from('jat_settlements').insert([{
+        ...cleanForm,
         amount: totalAmount,
         notes: notesPayload,
         created_by: user.id
