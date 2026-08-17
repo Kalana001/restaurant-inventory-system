@@ -223,7 +223,7 @@ export const JatTransactionsReport: React.FC<JatTransactionsReportProps> = ({ mo
           tx.totalCost = Math.round(tx.totalCost * 100) / 100;
           tx.paid = Math.round((allocationsByReceipt[tx.receipt] || 0) * 100) / 100;
           tx.remaining = Math.max(0, Math.round((tx.totalCost - tx.paid) * 100) / 100);
-          if (tx.paid >= tx.totalCost && tx.totalCost > 0) {
+          if (tx.paid >= tx.totalCost) {
             tx.status = 'PAID';
           } else if (tx.paid > 0) {
             tx.status = 'PARTIALLY PAID';
