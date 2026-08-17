@@ -361,26 +361,19 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
 
       // 5. Fetch All-Time Unsettled Balance for JAT
       // Total JAT All-Time
-      const { data: allJat } = await supabase
-        .from('stock_movements')
-        .select('quantity, cost_price')
-        .eq('type', 'STOCK_OUT')
-        .eq('reason_id', jatReason);
-      
-      const { data: allJatDp } = await supabase
-        .from('daily_purchases')
-        .select('total_cost')
-        .eq('department', 'JAT');
-
-      const { data: allJatTc } = await supabase
-        .from('transportation_costs')
-        .select('cost')
-        .eq('department', 'JAT');
+      const [ { data: allJat }, { data: allJatDp }, { data: allJatTc }, { data: allJatExp } ] = await Promise.all([
+        supabase.from('stock_movements').select('quantity, cost_price').eq('type', 'STOCK_OUT').eq('reason_id', jatReason),
+        supabase.from('daily_purchases').select('total_cost').eq('department', 'JAT'),
+        supabase.from('transportation_costs').select('cost').eq('department', 'JAT'),
+        supabase.from('expenses').select('total_amount').eq('category', 'JAT')
+      ]);
 
       const baseJatCost = allJat?.reduce((sum, m) => sum + ((Number(m.quantity) || 0) * (Number(m.cost_price) || 0)), 0) || 0;
       const dpJatCost = allJatDp?.reduce((sum, dp) => sum + (Number(dp.total_cost) || 0), 0) || 0;
       const tcJatCost = allJatTc?.reduce((sum, tc) => sum + (Number(tc.cost) || 0), 0) || 0;
-      const totalJatCost = baseJatCost + dpJatCost + tcJatCost;
+      const expJatCost = allJatExp?.reduce((sum, exp) => sum + (Number(exp.total_amount) || 0), 0) || 0;
+      
+      const totalJatCost = baseJatCost + dpJatCost + tcJatCost + expJatCost;
 
       // Total Settled (Cleared or Pending) - Assume pending counts as paid until bounced, or maybe just all?
       // Actually, let's sum all valid settlements
@@ -391,7 +384,8 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
       
       const totalSettled = allSettlements?.reduce((sum, s) => sum + (Number(s.amount) || 0), 0) || 0;
 
-      setUnsettledBalance(totalJatCost - totalSettled);
+      const finalUnsettled = Math.round((totalJatCost - totalSettled) * 100) / 100;
+      setUnsettledBalance(Math.max(0, finalUnsettled));
 
 
 
