@@ -1043,8 +1043,8 @@ export const PurchaseOrders: React.FC = () => {
       )}
 
       {payModalOpen && payPo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-6 card-shadow">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-6 card-shadow my-8">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Banknote className="text-primary" /> Pay Supplier</h3>
               <button onClick={() => setPayModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20} /></button>
@@ -1100,8 +1100,8 @@ export const PurchaseOrders: React.FC = () => {
 
       {/* ── Quick Create Supplier Modal ────────────────────────── */}
       {createSupplierOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900 bg-opacity-50 overflow-y-auto">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl my-8">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-primary/10 rounded-lg"><UserPlus size={18} className="text-primary" /></div>
