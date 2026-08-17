@@ -104,9 +104,31 @@ export const PurchaseOrders: React.FC = () => {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
 
-      const { data, count, error } = await supabase
+      let supplierIds: string[] = [];
+      const trimmedSearch = search.trim();
+      if (trimmedSearch) {
+        const { data: matchedSuppliers } = await supabase
+          .from('suppliers')
+          .select('id')
+          .ilike('name', `%${trimmedSearch}%`);
+        if (matchedSuppliers) {
+          supplierIds = matchedSuppliers.map(s => s.id);
+        }
+      }
+
+      let query = supabase
         .from('purchase_orders')
-        .select(`*, suppliers ( name, code ), profiles:created_by ( username )`, { count: 'exact' })
+        .select(`*, suppliers ( name, code ), profiles:created_by ( username )`, { count: 'exact' });
+
+      if (trimmedSearch) {
+        if (supplierIds.length > 0) {
+          query = query.or(`po_number.ilike.%${trimmedSearch}%,supplier_id.in.(${supplierIds.join(',')})`);
+        } else {
+          query = query.ilike('po_number', `%${trimmedSearch}%`);
+        }
+      }
+
+      const { data, count, error } = await query
         .order('created_at', { ascending: false })
         .range(from, to);
 
@@ -130,7 +152,7 @@ export const PurchaseOrders: React.FC = () => {
     }
   };
 
-  useEffect(() => { fetchPOs(); }, [page, pageSize]);
+  useEffect(() => { fetchPOs(); }, [page, pageSize, search]);
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -488,10 +510,7 @@ export const PurchaseOrders: React.FC = () => {
     return 'UNPAID';
   };
 
-  const filteredPos = pos.filter(p =>
-    p.po_number?.toLowerCase().includes(search.toLowerCase()) ||
-    p.suppliers?.name?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredPos = pos;
 
   const subTotal = poLines.reduce((acc, curr) => acc + curr.totalCost, 0);
   const discountAmount = poDiscountType === 'percentage' ? subTotal * (poDiscount / 100) : poDiscount;
@@ -511,10 +530,9 @@ export const PurchaseOrders: React.FC = () => {
         </button>
       </div>
 
-      {/* Search */}
       <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3 py-2.5 w-full max-w-sm">
         <Search size={16} className="text-slate-400" />
-        <input type="text" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search current page..." className="flex-1 text-sm outline-none bg-transparent" />
+        <input type="text" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search PO number or supplier name..." className="flex-1 text-sm outline-none bg-transparent" />
       </div>
 
       {/* PO Table */}
