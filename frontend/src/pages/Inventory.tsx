@@ -802,57 +802,55 @@ export const Inventory: React.FC = () => {
                </div>
              </div>
 
-             <div className="border border-slate-100 rounded-xl overflow-y-auto max-h-[350px] shadow-sm">
-               <div className="overflow-x-auto">
-                 <table className="w-full text-left border-collapse text-xs">
-                   <thead className="sticky top-0 z-10 bg-slate-50">
-                     <tr className="border-b border-slate-100 font-bold text-slate-500 uppercase tracking-wider">
-                       <th className="px-4 py-3 bg-slate-50">Batch Number</th>
-                       <th className="px-4 py-3 bg-slate-50">Received Date</th>
-                       <th className="px-4 py-3 bg-slate-50">Expiry Date</th>
-                       <th className="px-4 py-3 bg-slate-50 text-right">Unit Price</th>
-                       <th className="px-4 py-3 bg-slate-50 text-right">Current Qty</th>
-                       <th className="px-4 py-3 bg-slate-50 text-right">Available Qty</th>
-                       <th className="px-4 py-3 bg-slate-50 text-center">Status</th>
+             <div className="border border-slate-100 rounded-xl overflow-x-auto overflow-y-auto max-h-[350px] shadow-sm">
+               <table className="w-full text-left border-collapse text-xs min-w-[650px]">
+                 <thead className="sticky top-0 z-10 bg-slate-50">
+                   <tr className="border-b border-slate-100 font-bold text-slate-500 uppercase tracking-wider">
+                     <th className="px-4 py-3 bg-slate-50">Batch Number</th>
+                     <th className="px-4 py-3 bg-slate-50">Received Date</th>
+                     <th className="px-4 py-3 bg-slate-50">Expiry Date</th>
+                     <th className="px-4 py-3 bg-slate-50 text-right">Unit Price</th>
+                     <th className="px-4 py-3 bg-slate-50 text-right">Current Qty</th>
+                     <th className="px-4 py-3 bg-slate-50 text-right">Available Qty</th>
+                     <th className="px-4 py-3 bg-slate-50 text-center">Status</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-100 text-slate-600">
+                   {!selectedBatchItem.batches || selectedBatchItem.batches.length === 0 ? (
+                     <tr>
+                       <td colSpan={7} className="text-center py-6 text-slate-400 font-medium">
+                         No batches found for this item.
+                       </td>
                      </tr>
-                   </thead>
-                   <tbody className="divide-y divide-slate-100 text-slate-600">
-                     {!selectedBatchItem.batches || selectedBatchItem.batches.length === 0 ? (
-                       <tr>
-                         <td colSpan={7} className="text-center py-6 text-slate-400 font-medium">
-                           No batches found for this item.
+                   ) : (
+                     selectedBatchItem.batches.map((batch: any) => (
+                       <tr key={batch.id} className="hover:bg-slate-50/50 transition-colors">
+                         <td className="px-4 py-3 font-semibold text-slate-800">{batch.batch_number}</td>
+                         <td className="px-4 py-3">{batch.received_date || '-'}</td>
+                         <td className="px-4 py-3 text-rose-600">{batch.expiry_date || 'N/A'}</td>
+                         <td className="px-4 py-3 text-right font-medium text-slate-700">
+                           {(() => {
+                             const stockIn = batch.stock_movements?.find((m: any) => m.type === 'STOCK_IN' && m.cost_price > 0);
+                             const price = stockIn ? Number(stockIn.cost_price) : Number(selectedBatchItem.cost_price || 0);
+                             return price > 0 ? price.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '-';
+                           })()}
+                         </td>
+                         <td className="px-4 py-3 text-right font-medium">{batch.current_qty}</td>
+                         <td className="px-4 py-3 text-right font-bold text-slate-800">{batch.available_qty}</td>
+                         <td className="px-4 py-3 text-center">
+                           <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                             batch.status === 'ACTIVE' ? 'bg-green-50 text-green-700 border border-green-200' :
+                             batch.status === 'EXPIRED' ? 'bg-red-50 text-red-700 border border-red-200' :
+                             'bg-slate-50 text-slate-500 border border-slate-200'
+                           }`}>
+                             {batch.status}
+                           </span>
                          </td>
                        </tr>
-                     ) : (
-                       selectedBatchItem.batches.map((batch: any) => (
-                         <tr key={batch.id} className="hover:bg-slate-50/50 transition-colors">
-                           <td className="px-4 py-3 font-semibold text-slate-800">{batch.batch_number}</td>
-                           <td className="px-4 py-3">{batch.received_date || '-'}</td>
-                           <td className="px-4 py-3 text-rose-600">{batch.expiry_date || 'N/A'}</td>
-                           <td className="px-4 py-3 text-right font-medium text-slate-700">
-                             {(() => {
-                               const stockIn = batch.stock_movements?.find((m: any) => m.type === 'STOCK_IN' && m.cost_price > 0);
-                               const price = stockIn ? Number(stockIn.cost_price) : Number(selectedBatchItem.cost_price || 0);
-                               return price > 0 ? price.toLocaleString(undefined, { minimumFractionDigits: 3, maximumFractionDigits: 3 }) : '-';
-                             })()}
-                           </td>
-                           <td className="px-4 py-3 text-right font-medium">{batch.current_qty}</td>
-                           <td className="px-4 py-3 text-right font-bold text-slate-800">{batch.available_qty}</td>
-                           <td className="px-4 py-3 text-center">
-                             <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                               batch.status === 'ACTIVE' ? 'bg-green-50 text-green-700 border border-green-200' :
-                               batch.status === 'EXPIRED' ? 'bg-red-50 text-red-700 border border-red-200' :
-                               'bg-slate-50 text-slate-500 border border-slate-200'
-                             }`}>
-                               {batch.status}
-                             </span>
-                           </td>
-                         </tr>
-                       ))
-                     )}
-                   </tbody>
-                 </table>
-               </div>
+                     ))
+                   )}
+                 </tbody>
+               </table>
              </div>
 
              <div className="flex justify-end pt-2 border-t border-slate-100">
