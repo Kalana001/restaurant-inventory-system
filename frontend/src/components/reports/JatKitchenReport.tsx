@@ -4,6 +4,7 @@ import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
 import { XCircle, Printer } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { Pagination } from '../ui/Pagination';
 
 interface JatKitchenReportProps {
   month?: string; // YYYY-MM
@@ -36,6 +37,9 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
   const [todayJat, setTodayJat] = useState(0);
   const [unsettledBalance, setUnsettledBalance] = useState(0);
   const [reasonFilter, setReasonFilter] = useState('ALL');
+
+  const [page, setPage] = useState(1);
+  const pageSize = 25;
 
   const fetchData = async () => {
     setLoading(true);
@@ -304,6 +308,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         return tx;
       });
       setData(processedTransactions.sort((a, b) => b.date.localeCompare(a.date)));
+      setPage(1); // Reset page to 1 when new data is loaded
 
       // 4. Fetch Today's Stats
       const todayStart = new Date();
@@ -481,7 +486,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
             <h3 className="font-bold text-slate-800">Transaction Details</h3>
             <select
               value={reasonFilter}
-              onChange={e => setReasonFilter(e.target.value)}
+              onChange={e => { setReasonFilter(e.target.value); setPage(1); }}
               className="px-3 py-1.5 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm"
             >
               <option value="ALL">All Reasons</option>
@@ -494,48 +499,66 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
             </select>
           </div>
           <div className="overflow-x-auto flex-1">
-            <table className="w-full text-sm text-left">
-              <thead className="bg-slate-50 text-slate-500">
-                <tr>
-                  <th className="px-4 py-3 font-bold">Date</th>
-                  <th className="px-4 py-3 font-bold">Reason</th>
-                  <th className="px-4 py-3 font-bold text-right">Total Cost</th>
-                  <th className="px-4 py-3 font-bold text-center">Receipt</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {data.filter(row => reasonFilter === 'ALL' || row.reason === reasonFilter).length === 0 ? (
-                  <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">No data found</td></tr>
-                ) : (
-                  data
-                    .filter(row => reasonFilter === 'ALL' || row.reason === reasonFilter)
-                    .map(row => (
-                      <tr key={row.receipt} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-700">{format(parseISO(row.date), 'dd MMM')}</td>
-                      <td className="px-4 py-3">
-                        <span className={`px-2 py-1 text-xs font-bold rounded-lg ${
-                          row.reason === 'JAT' ? 'bg-orange-100 text-orange-700' : 
-                          row.reason === 'Kitchen Usage' ? 'bg-blue-100 text-blue-700' :
-                          row.reason === 'JAT / Vege' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-                          row.reason === 'Kitchen Usage / Vege' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
-                          row.reason === 'JAT / Trans' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' :
-                          'bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200'
-                        }`}>{row.reason}</span>
-                      </td>
-                      <td className="px-4 py-3 text-right font-semibold">LKR {row.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                      <td className="px-4 py-3 text-center">
-                        <button
-                          onClick={() => setSelectedReceipt(row)}
-                          className="text-primary hover:text-blue-700 font-semibold underline decoration-blue-300 underline-offset-2 transition-colors"
-                        >
-                          {row.receipt}
-                        </button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+            {(() => {
+              const filteredData = data.filter(row => reasonFilter === 'ALL' || row.reason === reasonFilter);
+              const paginatedData = filteredData.slice((page - 1) * pageSize, page * pageSize);
+
+              return (
+                <>
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3 font-bold">Date</th>
+                        <th className="px-4 py-3 font-bold">Reason</th>
+                        <th className="px-4 py-3 font-bold text-right">Total Cost</th>
+                        <th className="px-4 py-3 font-bold text-center">Receipt</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredData.length === 0 ? (
+                        <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">No data found</td></tr>
+                      ) : (
+                        paginatedData.map(row => (
+                          <tr key={row.receipt} className="hover:bg-slate-50/50">
+                            <td className="px-4 py-3 font-medium text-slate-700">{format(parseISO(row.date), 'dd MMM')}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 text-xs font-bold rounded-lg ${
+                                row.reason === 'JAT' ? 'bg-orange-100 text-orange-700' : 
+                                row.reason === 'Kitchen Usage' ? 'bg-blue-100 text-blue-700' :
+                                row.reason === 'JAT / Vege' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                row.reason === 'Kitchen Usage / Vege' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                                row.reason === 'JAT / Trans' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' :
+                                'bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200'
+                              }`}>{row.reason}</span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold">LKR {row.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => setSelectedReceipt(row)}
+                                className="text-primary hover:text-blue-700 font-semibold underline decoration-blue-300 underline-offset-2 transition-colors"
+                              >
+                                {row.receipt}
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+
+                  {filteredData.length > pageSize && (
+                    <div className="p-4 border-t border-slate-100 flex justify-center bg-slate-50/30">
+                      <Pagination
+                        currentPage={page}
+                        totalCount={filteredData.length}
+                        pageSize={pageSize}
+                        onPageChange={setPage}
+                      />
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>
