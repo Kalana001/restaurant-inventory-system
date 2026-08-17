@@ -1090,9 +1090,14 @@ export const PurchaseOrders: React.FC = () => {
                 </div>
               )}
 
-              <button type="submit" disabled={payLoading} className="w-full py-3 bg-primary text-white font-bold rounded-xl hover:opacity-90 transition-opacity flex justify-center items-center gap-2">
-                {payLoading ? 'Processing...' : <><DollarSign size={16}/> Save & Record Payment</>}
-              </button>
+              <div className="flex gap-3 pt-2">
+                <button type="button" onClick={() => setPayModalOpen(false)} className="flex-1 py-3 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" disabled={payLoading} className="flex-[2] py-3 bg-primary text-white font-bold rounded-xl hover:opacity-90 transition-opacity flex justify-center items-center gap-2">
+                  {payLoading ? 'Processing...' : <><DollarSign size={16}/> Save & Record Payment</>}
+                </button>
+              </div>
             </form>
           </div>
         </div>
