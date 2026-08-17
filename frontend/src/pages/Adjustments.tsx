@@ -196,10 +196,11 @@ export const Adjustments: React.FC = () => {
     const unit = units.find(u => u.id === item?.base_unit_id);
     const { data: itemBatches } = await supabase
       .from('batches')
-      .select('id, batch_number, available_qty, expiry_date, inventory_items ( cost_price ), stock_movements ( type, cost_price )')
+      .select('id, batch_number, available_qty, expiry_date, received_date, inventory_items ( cost_price ), stock_movements ( type, cost_price )')
       .eq('item_id', itemId)
       .gt('available_qty', 0)
-      .order('received_date', { ascending: false });
+      .order('received_date', { ascending: false })
+      .order('created_at', { ascending: false });
 
     setLines(prev => prev.map(l => l.id === lineId ? {
       ...l,
@@ -776,7 +777,7 @@ export const Adjustments: React.FC = () => {
                             const price = stockIn ? Number(stockIn.cost_price) : Number((b.inventory_items as any)?.cost_price || 0);
                             return (
                               <option key={b.id} value={b.id}>
-                                {b.batch_number} (LKR {price.toFixed(3)} | Qty: {Number(b.available_qty).toFixed(3)}){b.expiry_date ? ` [Exp: ${b.expiry_date}]` : ''}
+                                {b.batch_number} (LKR {price.toFixed(3)} | Qty: {Number(b.available_qty).toFixed(3)}){b.received_date ? ` [Rec: ${b.received_date}]` : ''}{b.expiry_date ? ` [Exp: ${b.expiry_date}]` : ''}
                               </option>
                             );
                           })}
