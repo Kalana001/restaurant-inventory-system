@@ -217,10 +217,6 @@ export const PurchaseOrders: React.FC = () => {
 
   const selectItemFromSearch = (item: any) => {
     setFormError(null);
-    if (poLines.some(l => l.itemId === item.id)) {
-      setFormError('Item already added. Adjust quantity below.');
-      return;
-    }
     setPoLines([...poLines, {
       itemId: item.id,
       sku: item.sku,
