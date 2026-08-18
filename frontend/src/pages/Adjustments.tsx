@@ -196,7 +196,7 @@ export const Adjustments: React.FC = () => {
     const unit = units.find(u => u.id === item?.base_unit_id);
     const { data: itemBatches } = await supabase
       .from('batches')
-      .select('id, batch_number, available_qty, expiry_date, received_date, inventory_items ( cost_price ), stock_movements ( type, cost_price )')
+      .select('id, batch_number, available_qty, expiry_date, received_date, inventory_items ( cost_price ), stock_movements ( type, cost_price ), grn_items ( grns ( purchase_orders ( supplier_payments ( payment_date ) ) ) )')
       .eq('item_id', itemId)
       .gt('available_qty', 0)
       .order('received_date', { ascending: false })
@@ -775,9 +775,11 @@ export const Adjustments: React.FC = () => {
                           {line.batches.map(b => {
                             const stockIn = b.stock_movements?.find((m: any) => m.type === 'STOCK_IN' && m.cost_price > 0);
                             const price = stockIn ? Number(stockIn.cost_price) : Number((b.inventory_items as any)?.cost_price || 0);
+                            const payDate = b.grn_items?.[0]?.grns?.purchase_orders?.supplier_payments?.[0]?.payment_date;
+                            const displayDate = payDate || b.received_date;
                             return (
                               <option key={b.id} value={b.id}>
-                                {b.batch_number} (LKR {price.toFixed(3)} | Qty: {Number(b.available_qty).toFixed(3)}){b.received_date ? ` [Rec: ${b.received_date}]` : ''}{b.expiry_date ? ` [Exp: ${b.expiry_date}]` : ''}
+                                {b.batch_number} (LKR {price.toFixed(3)} | Qty: {Number(b.available_qty).toFixed(3)}){displayDate ? ` [Rec: ${displayDate}]` : ''}{b.expiry_date ? ` [Exp: ${b.expiry_date}]` : ''}
                               </option>
                             );
                           })}
