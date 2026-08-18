@@ -87,7 +87,7 @@ export const Inventory: React.FC = () => {
           categories ( name ),
           subcategories ( name ),
           units:units!inventory_items_base_unit_id_fkey ( abbreviation ),
-          batches ( id, batch_number, current_qty, available_qty, received_date, expiry_date, status, stock_movements ( type, cost_price ) )
+          batches ( id, batch_number, current_qty, available_qty, received_date, expiry_date, status, stock_movements ( type, cost_price ), grn_items ( grns ( purchase_orders ( supplier_payments ( payment_date ) ) ) ) )
         `, { count: 'exact' })
         .eq('status', 'ACTIVE');
       
@@ -826,7 +826,12 @@ export const Inventory: React.FC = () => {
                      selectedBatchItem.batches.map((batch: any) => (
                        <tr key={batch.id} className="hover:bg-slate-50/50 transition-colors">
                          <td className="px-4 py-3 font-semibold text-slate-800">{batch.batch_number}</td>
-                         <td className="px-4 py-3">{batch.received_date || '-'}</td>
+                          <td className="px-4 py-3">
+                            {(() => {
+                              const payDate = batch.grn_items?.[0]?.grns?.purchase_orders?.supplier_payments?.[0]?.payment_date;
+                              return payDate || batch.received_date || '-';
+                            })()}
+                          </td>
                          <td className="px-4 py-3 text-rose-600">{batch.expiry_date || 'N/A'}</td>
                          <td className="px-4 py-3 text-right font-medium text-slate-700">
                            {(() => {
