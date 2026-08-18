@@ -30,12 +30,16 @@ const COMMON_ITEMS = [
   'Cabbage',
   'Beans',
   'Tomatoes',
-  'Big Onions',
-  'Red Onions',
-  'Potatoes',
   'Green Chilies',
-  'Garlic',
-  'Ginger'
+  'Capsicum',
+  'Pumpkin',
+  'Cucumber',
+  'Cauliflower',
+  'Radish',
+  'Gotukola / Mukunuvanna',
+  'Ladies Finger',
+  'Long Beans',
+  'Manioc'
 ];
 
 export const DailyPurchases: React.FC = () => {
