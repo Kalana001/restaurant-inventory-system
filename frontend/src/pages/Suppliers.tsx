@@ -35,6 +35,7 @@ export const Suppliers: React.FC = () => {
   const [settlementOpen, setSettlementOpen] = useState(false);
   const [targetSupplier, setTargetSupplier] = useState<any | null>(null);
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('By Restaurant');
   const [paymentNotes, setPaymentNotes] = useState('');
   const [settling, setSettling] = useState(false);
@@ -110,7 +111,7 @@ export const Suppliers: React.FC = () => {
 
   const openSettlementModal = async (sup: any) => {
     setTargetSupplier(sup);
-    setPaymentAmount(''); setPaymentMethod('By Restaurant'); setPaymentNotes('');
+    setPaymentAmount(''); setPaymentMethod('By Restaurant'); setPaymentNotes(''); setPaymentDate(new Date().toISOString().split('T')[0]);
     setFormError(null); setSettling(false); setSettlementOpen(true);
     setUnpaidPOs([]); setSelectedPOs({});
     try {
@@ -158,6 +159,7 @@ export const Suppliers: React.FC = () => {
         supplierId: targetSupplier.id,
         amount: amount,
         paymentMethod: paymentMethod,
+        paymentDate: paymentDate,
         notes: paymentNotes,
         allocations: allocations,
         userId: user?.id
@@ -497,6 +499,15 @@ export const Suppliers: React.FC = () => {
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                   <p className="text-xs text-slate-400">Allocated: LKR {Object.values(selectedPOs).reduce((a,b)=>a+b, 0).toLocaleString()}</p>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Payment Date *</label>
+                  <input
+                    type="date" required
+                    value={paymentDate} onChange={e => setPaymentDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
                 </div>
 
               <div className="space-y-1.5">
