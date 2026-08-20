@@ -1,6 +1,18 @@
 {
   "rewrites": [
     {
+      "source": "/api/stock/movements/pending",
+      "destination": "/api/stock/movements"
+    },
+    {
+      "source": "/api/stock/movements/:id/approve",
+      "destination": "/api/stock/approve"
+    },
+    {
+      "source": "/api/po/:id/deep-price-correction",
+      "destination": "/api/po/deep-price-correction"
+    },
+    {
       "source": "/api/(.*)",
       "destination": "/api/$1"
     },
