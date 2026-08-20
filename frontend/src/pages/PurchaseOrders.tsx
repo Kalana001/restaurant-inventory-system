@@ -360,16 +360,20 @@ export const PurchaseOrders: React.FC = () => {
     setGrnError(null);
     setGrnLoading(true);
     try {
+      const rawSubtotal = grnItems.reduce((acc, i) => acc + (Number(i.quantity || 0) * Number(i.costPrice || 0)), 0);
+      const discount = Number(grnPo.discount_amount || 0);
+      const totalAmount = Math.max(0, rawSubtotal - discount);
+
       const payload = {
         poId: grnPo.id,
         supplierId: grnPo.supplier_id,
         invoiceNumber: grnInvoiceNumber.trim() || null,
-        totalAmount: Number(grnPo.total_amount),
+        totalAmount: totalAmount,
         remarks: grnRemarks.trim(),
         items: grnItems.map(i => ({
           item_id: i.itemId,
-          quantity: Number(i.quantity),
-          cost_price: Number(i.costPrice),
+          quantity: Number(i.quantity || 0),
+          cost_price: Number(i.costPrice || 0),
           batch_number: `GRN-${Date.now()}-${i.itemId.slice(0, 6)}`
         }))
       };
@@ -878,16 +882,19 @@ export const PurchaseOrders: React.FC = () => {
                     <tr key={idx} className="hover:bg-slate-50/50">
                       <td className="px-4 py-3 font-medium text-slate-800">{item.name}</td>
                       <td className="px-4 py-2">
-                        <input type="number" min="0.001" step="0.001" value={item.quantity || ''}
+                        <input type="number" min="0" step="any" value={item.quantity !== undefined && item.quantity !== null ? item.quantity : ''}
                           onChange={e => setGrnItems(prev => { const c=[...prev]; c[idx]={...c[idx], quantity: e.target.value}; return c; })}
                           className="w-20 px-2 py-1.5 border-2 border-slate-300 rounded-lg text-center font-bold text-slate-800 focus:border-primary outline-none"
                         /> <span className="text-slate-500 ml-1">{item.unit}</span>
                       </td>
                       <td className="px-4 py-2">
-                        <input type="number" min="0" step="0.001" value={item.costPrice || ''}
+                        <input type="number" min="0" step="any" value={item.costPrice !== undefined && item.costPrice !== null ? item.costPrice : ''}
                           onChange={e => setGrnItems(prev => { const c=[...prev]; c[idx]={...c[idx], costPrice: e.target.value}; return c; })}
                           className="w-24 px-2 py-1.5 border-2 border-slate-300 rounded-lg font-bold text-slate-800 focus:border-primary outline-none"
                         />
+                      </td>
+                      <td className="px-4 py-2 text-right font-semibold text-slate-700">
+                        LKR {((Number(item.quantity) || 0) * (Number(item.costPrice) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))}
@@ -895,9 +902,16 @@ export const PurchaseOrders: React.FC = () => {
               </table>
             </div>
 
+            <div className="bg-slate-50 p-3 rounded-xl flex justify-between items-center text-sm">
+              <span className="font-semibold text-slate-600">Calculated GRN Total:</span>
+              <span className="font-bold text-emerald-700 text-base">
+                LKR {Math.max(0, grnItems.reduce((acc, i) => acc + ((Number(i.quantity) || 0) * (Number(i.costPrice) || 0)), 0) - Number(grnPo.discount_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </div>
+
             <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 font-medium flex items-start gap-2">
               <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              Confirming GRN will update stock levels and mark this PO as Received. Payment can be made separately.
+              Items set to Qty 0 will not increase inventory stock and will show as Qty 0 / LKR 0.00 on the PO.
             </div>
 
             <div className="flex gap-3 pt-1">

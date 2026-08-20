@@ -60,12 +60,35 @@ async function handler(req, res) {
       return res.status(400).json({ status: 'error', message: transactionError?.message || 'Failed to process GRN transaction' });
     }
 
-    // Update global item cost prices
+    // 1. If linked to a PO, synchronize the PO total and item quantities/prices
+    if (poId) {
+      await supabaseAdmin.from('purchase_orders').update({ total_amount: Number(totalAmount) }).eq('id', poId);
+
+      for (const item of items) {
+        const id = item.item_id ?? item.itemId;
+        const qty = Number(item.quantity || 0);
+        const price = Number(item.cost_price ?? item.costPrice ?? 0);
+        const total = qty * price;
+
+        await supabaseAdmin
+          .from('purchase_order_items')
+          .update({
+            quantity: qty,
+            cost_price: price,
+            total_cost: total
+          })
+          .eq('po_id', poId)
+          .eq('item_id', id);
+      }
+    }
+
+    // 2. Update global item cost prices (ONLY if quantity and price > 0 so unreceived 0 items don't overwrite catalog)
     for (const item of items) {
-      const price = item.cost_price ?? item.costPrice;
+      const price = Number(item.cost_price ?? item.costPrice);
+      const qty = Number(item.quantity ?? item.quantity);
       const id = item.item_id ?? item.itemId;
-      if (price !== undefined && price !== null && price !== '') {
-        await supabaseAdmin.from('inventory_items').update({ cost_price: Number(price) }).eq('id', id);
+      if (price > 0 && qty > 0) {
+        await supabaseAdmin.from('inventory_items').update({ cost_price: price }).eq('id', id);
       }
     }
 

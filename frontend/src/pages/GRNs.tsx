@@ -383,6 +383,7 @@ export const GRNs: React.FC = () => {
                             <input
                               type="number"
                               step="any"
+                              min="0"
                               required
                               value={item.quantity}
                               onChange={(e) => handleUpdateItemField(idx, 'quantity', e.target.value)}
@@ -394,7 +395,8 @@ export const GRNs: React.FC = () => {
                             <label className="text-[10px] font-bold text-slate-400 uppercase">Actual Cost (LKR)</label>
                             <input
                               type="number"
-                              step="0.01"
+                              step="any"
+                              min="0"
                               required
                               value={item.costPrice}
                               onChange={(e) => handleUpdateItemField(idx, 'costPrice', e.target.value)}
