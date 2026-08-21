@@ -696,8 +696,8 @@ export const Adjustments: React.FC = () => {
 
       {/* â”€â”€ Bulk Movement Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900 bg-opacity-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-5xl my-6 min-h-[85vh] card-shadow flex flex-col">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-2xl md:max-w-4xl lg:max-w-5xl max-h-[92vh] card-shadow flex flex-col my-auto animate-in fade-in zoom-in-95 duration-200">
 
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
@@ -949,10 +949,10 @@ export const Adjustments: React.FC = () => {
         </div>
       )}
 
-      {/* â”€â”€ Receipt Detail Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Receipt Detail Modal ──────────────────────────────────── */}
       {receiptModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
-          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 space-y-5 card-shadow max-h-[90vh] flex flex-col">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-2xl p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-blue-50 rounded-xl"><FileText size={18} className="text-primary" /></div>
@@ -1038,8 +1038,8 @@ export const Adjustments: React.FC = () => {
 
       {/* ── Single Movement Delete Confirmation Modal ──────────────── */}
       {deleteConfirmOpen && itemToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 card-shadow">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-4">
               <div className="p-2.5 bg-rose-50 rounded-xl">
                 <Trash2 size={22} className="text-rose-600" />
@@ -1107,8 +1107,8 @@ export const Adjustments: React.FC = () => {
 
       {/* ── Voucher (Bulk) Delete Confirmation Modal ───────────────── */}
       {deleteVoucherConfirmOpen && voucherToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 card-shadow">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-4">
               <div className="p-2.5 bg-rose-50 rounded-xl">
                 <Trash2 size={22} className="text-rose-600" />

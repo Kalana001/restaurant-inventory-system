@@ -358,9 +358,9 @@ export const Expenses: React.FC = () => {
 
       {/* CREATE EXPENSE MODAL */}
       {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">Add New Expense</h3>
               <button onClick={() => setCreateModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-full hover:bg-slate-100">
                 <Plus className="rotate-45" size={24} />
@@ -414,7 +414,7 @@ export const Expenses: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50 mt-auto">
+            <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50 mt-auto shrink-0">
               <button onClick={() => setCreateModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-bold text-sm hover:bg-slate-200 rounded-xl transition-colors">
                 Cancel
               </button>
@@ -428,16 +428,16 @@ export const Expenses: React.FC = () => {
 
       {/* RECORD PAYMENT MODAL */}
       {payModalOpen && payExpense && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">Record Payment</h3>
               <button onClick={() => setPayModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-full hover:bg-slate-100">
                 <Plus className="rotate-45" size={24} />
               </button>
             </div>
             
-            <div className="p-6 overflow-y-auto space-y-4">
+            <div className="p-6 overflow-y-auto space-y-4 flex-1">
               <div className="bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-100">
                  <p className="text-sm font-bold text-slate-700">{payExpense.expense_type} - {payExpense.category}</p>
                  <div className="flex justify-between text-xs font-bold text-slate-500">
@@ -445,8 +445,12 @@ export const Expenses: React.FC = () => {
                     <span className="text-slate-800">{Number(payExpense.total_amount).toLocaleString()}</span>
                  </div>
                  <div className="flex justify-between text-xs font-bold text-slate-500">
+                    <span>Paid So Far:</span>
+                    <span className="text-emerald-600">{Number(payExpense.paid_amount || 0).toLocaleString()}</span>
+                 </div>
+                 <div className="flex justify-between text-xs font-bold text-rose-600 border-t border-slate-200 pt-1">
                     <span>Remaining Balance:</span>
-                    <span className="text-red-600">{(Number(payExpense.total_amount) - Number(payExpense.paid_amount)).toLocaleString()}</span>
+                    <span>{(Number(payExpense.total_amount) - Number(payExpense.paid_amount || 0)).toLocaleString()}</span>
                  </div>
               </div>
 
@@ -456,41 +460,45 @@ export const Expenses: React.FC = () => {
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Payment Date</label>
-                  <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none transition-all" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Payment Method</label>
-                  <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none">
-                    <option value="CASH">Cash</option>
-                    <option value="BANK_TRANSFER">Bank Transfer</option>
-                    <option value="CHEQUE">Cheque</option>
-                  </select>
-                </div>
-              </div>
-
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-500 uppercase">Payment Amount</label>
                 <div className="relative">
                   <DollarSign size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
-                  <input type="number" min="0" max={Number(payExpense.total_amount) - Number(payExpense.paid_amount)} step="0.01" value={payAmount} onChange={e => setPayAmount(e.target.value === '' ? '' : Number(e.target.value))} className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-800" />
+                  <input 
+                    type="number" 
+                    min="0" 
+                    max={Number(payExpense.total_amount) - Number(payExpense.paid_amount || 0)} 
+                    step="0.01" 
+                    value={payAmount} 
+                    onChange={e => setPayAmount(e.target.value === '' ? '' : Number(e.target.value))} 
+                    className="w-full pl-10 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm font-bold focus:ring-2 focus:ring-primary/20 outline-none text-slate-800" 
+                  />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <label className="text-xs font-bold text-slate-500 uppercase">Notes (Optional)</label>
-                <textarea rows={2} value={payNotes} onChange={e => setPayNotes(e.target.value)} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none resize-none"></textarea>
+                <label className="text-xs font-bold text-slate-500 uppercase">Payment Method</label>
+                <select value={payMethod} onChange={e => setPayMethod(e.target.value)} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none">
+                  <option value="Cash">Cash</option>
+                  <option value="Online Transfer">Online Transfer</option>
+                  <option value="Cheque">Cheque</option>
+                  <option value="From Ovin">From Ovin</option>
+                  <option value="By Home">By Home</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-slate-500 uppercase">Payment Date</label>
+                <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all" />
               </div>
             </div>
 
-            <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50">
+            <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50 mt-auto shrink-0">
               <button onClick={() => setPayModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-bold text-sm hover:bg-slate-200 rounded-xl transition-colors">
                 Cancel
               </button>
-              <button onClick={handlePayExpense} disabled={payLoading} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50">
-                {payLoading ? 'Processing...' : 'Confirm Payment'}
+              <button onClick={handleRecordPayment} disabled={payLoading} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50">
+                {payLoading ? 'Saving...' : 'Record Payment'}
               </button>
             </div>
           </div>
@@ -498,8 +506,8 @@ export const Expenses: React.FC = () => {
       )}
       {/* EDIT EXPENSE MODAL */}
       {editModalOpen && editExpense && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden flex flex-col">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-sm shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
               <h3 className="text-lg font-bold text-slate-800">Edit Expense</h3>
               <button onClick={() => setEditModalOpen(false)} className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-full hover:bg-slate-100">

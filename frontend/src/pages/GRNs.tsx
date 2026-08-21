@@ -307,8 +307,8 @@ export const GRNs: React.FC = () => {
 
       {/* Receive Goods intake Wizard Modal */}
       {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 space-y-6 card-shadow">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-3xl lg:max-w-4xl max-h-[92vh] flex flex-col p-4 sm:p-6 space-y-5 card-shadow my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-800">Goods Receipt Voucher (GRN)</h3>
@@ -322,7 +322,7 @@ export const GRNs: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmitGRN} className="space-y-6">
+            <form onSubmit={handleSubmitGRN} className="space-y-6 overflow-y-auto flex-1 pr-1">
               
               {/* Header selection */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -468,8 +468,8 @@ export const GRNs: React.FC = () => {
 
       {/* GRN Detail Modal */}
       {detailModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl p-6 space-y-6 card-shadow">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-2xl max-h-[90vh] overflow-y-auto p-4 sm:p-6 space-y-5 card-shadow my-auto animate-in fade-in zoom-in-95 duration-200">
             
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-800">Voucher Details: {selectedGrn?.grn_number}</h3>

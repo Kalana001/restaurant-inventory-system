@@ -212,7 +212,7 @@ export const DashboardLayout: React.FC = () => {
         <div className="fixed inset-0 z-40 bg-gray-900 bg-opacity-50 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 transform lg:static lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <aside className={`fixed inset-y-0 left-0 z-30 w-64 bg-white border-r border-gray-200 flex flex-col transition-transform duration-300 transform lg:static lg:translate-x-0 ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
         <div className="h-16 flex items-center justify-between px-6 border-b border-gray-100 bg-blue-50/50 shrink-0">
           <div className="flex items-center space-x-2">
             <img src="/logo.png" alt="Sigiri Logo" className="w-8 h-8 rounded-full object-cover" />
@@ -407,7 +407,7 @@ export const DashboardLayout: React.FC = () => {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 lg:p-8 gradient-bg relative z-10">
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 gradient-bg">
           <Outlet />
         </main>
       </div>

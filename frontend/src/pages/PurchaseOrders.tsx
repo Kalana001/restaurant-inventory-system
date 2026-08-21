@@ -709,9 +709,9 @@ export const PurchaseOrders: React.FC = () => {
 
       {/* ── Create PO Modal ────────────────────────────────────── */}
       {createModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-4xl p-6 space-y-6 card-shadow my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-3xl lg:max-w-4xl p-4 sm:p-6 space-y-5 card-shadow max-h-[92vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0">
               <div>
                 <div className="flex items-center gap-3">
                   <h3 className="text-lg font-bold text-slate-800">Create Purchase Order</h3>
@@ -725,13 +725,13 @@ export const PurchaseOrders: React.FC = () => {
             </div>
 
             {formError && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl flex items-start space-x-3">
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl flex items-start space-x-3 shrink-0">
                 <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
                 <div className="text-xs font-semibold text-red-700">{formError}</div>
               </div>
             )}
 
-            <form onSubmit={handleSavePO} className="space-y-6">
+            <form onSubmit={handleSavePO} className="space-y-6 overflow-y-auto flex-1 pr-1">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Supplier Search */}
                 <div className="space-y-1.5">
@@ -895,9 +895,9 @@ export const PurchaseOrders: React.FC = () => {
 
       {/* ── GRN Modal ──────────────────────────────────────────── */}
       {grnModalOpen && grnPo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 space-y-5 card-shadow my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-2xl p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] flex flex-col my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-emerald-50 rounded-xl"><PackageCheck size={20} className="text-emerald-600" /></div>
                 <div>
@@ -909,80 +909,82 @@ export const PurchaseOrders: React.FC = () => {
             </div>
 
             {grnError && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl text-xs font-semibold text-red-700 flex items-center gap-2">
+              <div className="bg-red-50 border-l-4 border-red-500 p-3 rounded-r-xl text-xs font-semibold text-red-700 flex items-center gap-2 shrink-0">
                 <AlertCircle size={14} /> {grnError}
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Received Date <span className="text-rose-500">*</span></label>
-                <input
-                  type="date"
-                  required
-                  value={grnReceivedDate}
-                  onChange={e => setGrnReceivedDate(e.target.value)}
-                  className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm font-semibold text-slate-800 bg-white"
-                />
+            <div className="overflow-y-auto flex-1 space-y-4 pr-1">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase">Received Date <span className="text-rose-500">*</span></label>
+                  <input
+                    type="date"
+                    required
+                    value={grnReceivedDate}
+                    onChange={e => setGrnReceivedDate(e.target.value)}
+                    className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm font-semibold text-slate-800 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase">Invoice / Ref No. <span className="text-slate-300 font-normal">(Optional)</span></label>
+                  <input type="text" value={grnInvoiceNumber} onChange={e => setGrnInvoiceNumber(e.target.value)} placeholder="e.g. INV-2024-001" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 uppercase">Remarks <span className="text-slate-300 font-normal">(Optional)</span></label>
+                  <input type="text" value={grnRemarks} onChange={e => setGrnRemarks(e.target.value)} placeholder="e.g. Received in good condition" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
+                </div>
               </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Invoice / Ref No. <span className="text-slate-300 font-normal">(Optional)</span></label>
-                <input type="text" value={grnInvoiceNumber} onChange={e => setGrnInvoiceNumber(e.target.value)} placeholder="e.g. INV-2024-001" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Remarks <span className="text-slate-300 font-normal">(Optional)</span></label>
-                <input type="text" value={grnRemarks} onChange={e => setGrnRemarks(e.target.value)} placeholder="e.g. Received in good condition" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
-              </div>
-            </div>
 
-            {/* GRN Items */}
-            <div className="border border-slate-100 rounded-xl overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-100 font-bold text-slate-400 uppercase">
-                  <tr>
-                    <th className="px-4 py-2.5">Item</th>
-                    <th className="px-4 py-2.5">Qty Received</th>
-                    <th className="px-4 py-2.5">Unit Cost</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {grnItems.map((item, idx) => (
-                    <tr key={idx} className="hover:bg-slate-50/50">
-                      <td className="px-4 py-3 font-medium text-slate-800">{item.name}</td>
-                      <td className="px-4 py-2">
-                        <input type="number" min="0" step="any" value={item.quantity !== undefined && item.quantity !== null ? item.quantity : ''}
-                          onChange={e => setGrnItems(prev => { const c=[...prev]; c[idx]={...c[idx], quantity: e.target.value}; return c; })}
-                          className="w-20 px-2 py-1.5 border-2 border-slate-300 rounded-lg text-center font-bold text-slate-800 focus:border-primary outline-none"
-                        /> <span className="text-slate-500 ml-1">{item.unit}</span>
-                      </td>
-                      <td className="px-4 py-2">
-                        <input type="number" min="0" step="any" value={item.costPrice !== undefined && item.costPrice !== null ? item.costPrice : ''}
-                          onChange={e => setGrnItems(prev => { const c=[...prev]; c[idx]={...c[idx], costPrice: e.target.value}; return c; })}
-                          className="w-24 px-2 py-1.5 border-2 border-slate-300 rounded-lg font-bold text-slate-800 focus:border-primary outline-none"
-                        />
-                      </td>
-                      <td className="px-4 py-2 text-right font-semibold text-slate-700">
-                        LKR {((Number(item.quantity) || 0) * (Number(item.costPrice) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </td>
+              {/* GRN Items */}
+              <div className="border border-slate-100 rounded-xl overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-100 font-bold text-slate-400 uppercase">
+                    <tr>
+                      <th className="px-4 py-2.5">Item</th>
+                      <th className="px-4 py-2.5">Qty Received</th>
+                      <th className="px-4 py-2.5">Unit Cost</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {grnItems.map((item, idx) => (
+                      <tr key={idx} className="hover:bg-slate-50/50">
+                        <td className="px-4 py-3 font-medium text-slate-800">{item.name}</td>
+                        <td className="px-4 py-2">
+                          <input type="number" min="0" step="any" value={item.quantity !== undefined && item.quantity !== null ? item.quantity : ''}
+                            onChange={e => setGrnItems(prev => { const c=[...prev]; c[idx]={...c[idx], quantity: e.target.value}; return c; })}
+                            className="w-20 px-2 py-1.5 border-2 border-slate-300 rounded-lg text-center font-bold text-slate-800 focus:border-primary outline-none"
+                          /> <span className="text-slate-500 ml-1">{item.unit}</span>
+                        </td>
+                        <td className="px-4 py-2">
+                          <input type="number" min="0" step="any" value={item.costPrice !== undefined && item.costPrice !== null ? item.costPrice : ''}
+                            onChange={e => setGrnItems(prev => { const c=[...prev]; c[idx]={...c[idx], costPrice: e.target.value}; return c; })}
+                            className="w-24 px-2 py-1.5 border-2 border-slate-300 rounded-lg font-bold text-slate-800 focus:border-primary outline-none"
+                          />
+                        </td>
+                        <td className="px-4 py-2 text-right font-semibold text-slate-700">
+                          LKR {((Number(item.quantity) || 0) * (Number(item.costPrice) || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl flex justify-between items-center text-sm">
+                <span className="font-semibold text-slate-600">Calculated GRN Total:</span>
+                <span className="font-bold text-emerald-700 text-base">
+                  LKR {Math.max(0, grnItems.reduce((acc, i) => acc + ((Number(i.quantity) || 0) * (Number(i.costPrice) || 0)), 0) - Number(grnPo.discount_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
+
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 font-medium flex items-start gap-2">
+                <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                Items set to Qty 0 will not increase inventory stock and will show as Qty 0 / LKR 0.00 on the PO.
+              </div>
             </div>
 
-            <div className="bg-slate-50 p-3 rounded-xl flex justify-between items-center text-sm">
-              <span className="font-semibold text-slate-600">Calculated GRN Total:</span>
-              <span className="font-bold text-emerald-700 text-base">
-                LKR {Math.max(0, grnItems.reduce((acc, i) => acc + ((Number(i.quantity) || 0) * (Number(i.costPrice) || 0)), 0) - Number(grnPo.discount_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-              </span>
-            </div>
-
-            <div className="bg-amber-50 border border-amber-100 rounded-xl p-3 text-xs text-amber-700 font-medium flex items-start gap-2">
-              <AlertCircle size={14} className="shrink-0 mt-0.5" />
-              Items set to Qty 0 will not increase inventory stock and will show as Qty 0 / LKR 0.00 on the PO.
-            </div>
-
-            <div className="flex gap-3 pt-1">
+            <div className="flex gap-3 pt-2 border-t border-slate-100 shrink-0">
               <button onClick={() => setGrnModalOpen(false)} className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl text-sm hover:bg-slate-50 transition-colors">Cancel</button>
               <button onClick={handleSaveGRN} disabled={grnLoading} className="flex-1 py-2.5 bg-emerald-600 text-white font-bold rounded-xl text-sm hover:opacity-90 transition-opacity flex items-center justify-center gap-2">
                 {grnLoading ? 'Processing...' : <><PackageCheck size={16} /> Confirm GRN & Update Stock</>}
@@ -994,44 +996,47 @@ export const PurchaseOrders: React.FC = () => {
 
       {/* ── Detail Modal ───────────────────────────────────────── */}
       {detailModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-3xl p-6 space-y-6 card-shadow my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-3xl p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] flex flex-col my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">Purchase Order Details</h3>
               <button onClick={() => setDetailModalOpen(false)} className="text-slate-400 hover:text-slate-600">Close</button>
             </div>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm bg-slate-50 p-4 rounded-xl">
-              <div><p className="text-slate-400 font-semibold text-[10px] uppercase">PO Number</p><p className="font-bold">{selectedPo?.po_number}</p></div>
-              <div><p className="text-slate-400 font-semibold text-[10px] uppercase">Supplier</p><p className="font-bold">{selectedPo?.suppliers?.name}</p></div>
-              <div>
-                <p className="text-slate-400 font-semibold text-[10px] uppercase">GRN Status</p>
-                <p className={`font-bold ${selectedPo?.status === 'COMPLETED' ? 'text-green-600' : 'text-amber-600'}`}>
-                  {selectedPo?.status === 'COMPLETED' ? 'Received' : 'Pending Delivery'}
-                </p>
+
+            <div className="overflow-y-auto flex-1 space-y-5 pr-1">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm bg-slate-50 p-4 rounded-xl">
+                <div><p className="text-slate-400 font-semibold text-[10px] uppercase">PO Number</p><p className="font-bold">{selectedPo?.po_number}</p></div>
+                <div><p className="text-slate-400 font-semibold text-[10px] uppercase">Supplier</p><p className="font-bold">{selectedPo?.suppliers?.name}</p></div>
+                <div>
+                  <p className="text-slate-400 font-semibold text-[10px] uppercase">GRN Status</p>
+                  <p className={`font-bold ${selectedPo?.status === 'COMPLETED' ? 'text-green-600' : 'text-amber-600'}`}>
+                    {selectedPo?.status === 'COMPLETED' ? 'Received' : 'Pending Delivery'}
+                  </p>
+                </div>
+                <div><p className="text-slate-400 font-semibold text-[10px] uppercase">Paid Amount</p><p className="font-bold text-green-600">LKR {Number(selectedPo?.paid_amount || 0).toFixed(2)}</p></div>
               </div>
-              <div><p className="text-slate-400 font-semibold text-[10px] uppercase">Paid Amount</p><p className="font-bold text-green-600">LKR {Number(selectedPo?.paid_amount || 0).toFixed(2)}</p></div>
+
+              <div className="border border-slate-100 rounded-xl overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-100 font-bold text-slate-400 uppercase">
+                    <tr><th className="px-4 py-2">Item Name</th><th className="px-4 py-2">Qty</th><th className="px-4 py-2">Unit Cost</th><th className="px-4 py-2">Discount</th><th className="px-4 py-2 text-right">Line Total</th></tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {detailLoading ? <tr><td colSpan={5} className="text-center py-4 text-slate-400">Loading...</td></tr> : poItems.map(item => (
+                      <tr key={item.id}>
+                        <td className="px-4 py-3">{item.inventory_items?.name}</td>
+                        <td className="px-4 py-3">{item.quantity} {item.inventory_items?.units?.abbreviation}</td>
+                        <td className="px-4 py-3">LKR {Number(item.cost_price).toFixed(2)}</td>
+                        <td className="px-4 py-3 text-red-500">- LKR {Number(item.discount_amount || 0).toFixed(2)}</td>
+                        <td className="px-4 py-3 font-bold text-right">LKR {Number(item.total_cost).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
 
-            <div className="border border-slate-100 rounded-xl overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 border-b border-slate-100 font-bold text-slate-400 uppercase">
-                  <tr><th className="px-4 py-2">Item Name</th><th className="px-4 py-2">Qty</th><th className="px-4 py-2">Unit Cost</th><th className="px-4 py-2">Discount</th><th className="px-4 py-2 text-right">Line Total</th></tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {detailLoading ? <tr><td colSpan={5} className="text-center py-4 text-slate-400">Loading...</td></tr> : poItems.map(item => (
-                    <tr key={item.id}>
-                      <td className="px-4 py-3">{item.inventory_items?.name}</td>
-                      <td className="px-4 py-3">{item.quantity} {item.inventory_items?.units?.abbreviation}</td>
-                      <td className="px-4 py-3">LKR {Number(item.cost_price).toFixed(2)}</td>
-                      <td className="px-4 py-3 text-red-500">- LKR {Number(item.discount_amount || 0).toFixed(2)}</td>
-                      <td className="px-4 py-3 font-bold text-right">LKR {Number(item.total_cost).toFixed(2)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100 shrink-0">
               <button
                 onClick={() => {
                   setDetailModalOpen(false);
@@ -1053,8 +1058,8 @@ export const PurchaseOrders: React.FC = () => {
 
       {/* ── PO Delete Confirmation Modal ────────────────────────────── */}
       {deleteModalOpen && poToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 card-shadow">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-4">
               <div className="p-2.5 bg-rose-50 rounded-xl">
                 <Trash2 size={22} className="text-rose-600" />
@@ -1120,25 +1125,24 @@ export const PurchaseOrders: React.FC = () => {
         </div>
       )}
 
-      {/* ── Pay Modal ──────────────────────────────────────────── */}
-      {/* UPDATE PRICES MODAL */}
+      {/* ── UPDATE PRICES MODAL ──────────────────────────────────── */}
       {updatePricesModalOpen && updatePricesPo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-2xl p-6 space-y-6 card-shadow my-8">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-2xl p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] flex flex-col my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">Update Prices for {updatePricesPo.po_number}</h3>
               <button onClick={() => setUpdatePricesModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20}/></button>
             </div>
 
             {updatePricesError && (
-              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl flex items-start gap-3">
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-xl flex items-start gap-3 shrink-0">
                 <AlertCircle className="text-red-500 shrink-0 mt-0.5" size={18} />
                 <p className="text-sm font-medium text-red-800">{updatePricesError}</p>
               </div>
             )}
 
-            <form onSubmit={handleUpdatePrices} className="space-y-4">
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
+            <form onSubmit={handleUpdatePrices} className="space-y-4 overflow-y-auto flex-1 pr-1">
+              <div className="border border-slate-200 rounded-xl overflow-x-auto">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-slate-50 text-slate-500 border-b border-slate-200">
                     <tr>
@@ -1201,9 +1205,10 @@ export const PurchaseOrders: React.FC = () => {
         </div>
       )}
 
+      {/* ── Pay Modal ──────────────────────────────────────────── */}
       {payModalOpen && payPo && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-6 card-shadow my-8">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Banknote className="text-primary" /> Pay Supplier</h3>
               <button onClick={() => setPayModalOpen(false)} className="text-slate-400 hover:text-slate-600"><XCircle size={20} /></button>
@@ -1264,8 +1269,8 @@ export const PurchaseOrders: React.FC = () => {
 
       {/* ── Quick Create Supplier Modal ────────────────────────── */}
       {createSupplierOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900 bg-opacity-50 overflow-y-auto">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 shadow-2xl my-8">
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div className="flex items-center gap-2">
                 <div className="p-2 bg-primary/10 rounded-lg"><UserPlus size={18} className="text-primary" /></div>

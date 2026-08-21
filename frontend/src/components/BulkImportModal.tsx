@@ -202,8 +202,8 @@ export const BulkImportModal: React.FC<BulkImportModalProps> = ({ onClose, onSuc
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
-      <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-lg card-shadow flex flex-col">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+      <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md md:max-w-lg card-shadow flex flex-col max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
         <div className="flex items-center justify-between border-b border-slate-100 p-6 shrink-0">
           <h3 className="text-xl font-bold text-slate-800 flex items-center gap-2">
             <FileSpreadsheet className="text-primary" size={20} />

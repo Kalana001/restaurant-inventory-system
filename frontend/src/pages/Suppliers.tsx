@@ -367,9 +367,9 @@ export const Suppliers: React.FC = () => {
 
       {/* ── Add/Edit Supplier Modal ── */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-lg p-6 space-y-5 card-shadow">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md md:max-w-lg p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">{editingSupplier ? 'Edit Supplier' : 'Add New Supplier'}</h3>
               <button onClick={() => setModalOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
             </div>
@@ -380,7 +380,7 @@ export const Suppliers: React.FC = () => {
               </div>
             )}
             <form onSubmit={handleSave} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Supplier Name *</label>
                   <input required value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Fresh Farm Supplies" className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
@@ -390,7 +390,7 @@ export const Suppliers: React.FC = () => {
                   <input required value={code} onChange={e => setCode(e.target.value)} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary uppercase" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Phone</label>
                   <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="07X XXX XXXX" className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary" />
@@ -421,8 +421,8 @@ export const Suppliers: React.FC = () => {
 
       {/* ── Record Payment Modal ── */}
       {settlementOpen && targetSupplier && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900/40 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-md p-6 space-y-5 card-shadow my-6 shrink-0">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">Record Payment</h3>
@@ -559,8 +559,8 @@ export const Suppliers: React.FC = () => {
 
       {/* ── Supplier History Modal ── */}
       {historyOpen && historySupplier && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900/50 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl my-6 card-shadow flex flex-col">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-2xl max-h-[90vh] card-shadow flex flex-col my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">{historySupplier.name}</h3>

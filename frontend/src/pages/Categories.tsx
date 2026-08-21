@@ -366,9 +366,9 @@ export const Categories: React.FC = () => {
 
       {/* Category Modal */}
       {catModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-md p-6 space-y-5 card-shadow">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-4 shrink-0">
               <h3 className="text-lg font-bold text-slate-800">{editingCat ? 'Edit Category' : 'New Category'}</h3>
               <button onClick={() => setCatModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm">Cancel</button>
             </div>
@@ -417,8 +417,8 @@ export const Categories: React.FC = () => {
 
       {/* Subcategory Modal */}
       {subModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-40">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-md p-6 space-y-5 card-shadow">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 pb-4">
               <h3 className="text-lg font-bold text-slate-800">{editingSub ? 'Edit Subcategory' : 'New Subcategory'}</h3>
               <button onClick={() => setSubModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm">Cancel</button>

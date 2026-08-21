@@ -235,8 +235,8 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-start md:items-center justify-center p-2 md:p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl overflow-hidden flex flex-col max-h-[90vh] mt-4 md:mt-0">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-hidden animate-in fade-in duration-200">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-3xl lg:max-w-4xl overflow-hidden flex flex-col max-h-[92vh] my-auto">
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
           <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
             <DollarSign className="w-5 h-5 text-emerald-500" />

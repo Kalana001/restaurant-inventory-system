@@ -237,8 +237,8 @@ export const Roles: React.FC = () => {
 
       {/* Role Form Modal */}
       {modalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl my-8 card-shadow flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-2xl my-auto card-shadow flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-200">
             
             <div className="flex items-center justify-between border-b border-slate-100 p-6 shrink-0">
               <h3 className="text-xl font-bold text-slate-800">

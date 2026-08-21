@@ -460,8 +460,8 @@ export const Reports: React.FC = () => {
 
       {/* Supplier History Modal */}
       {historyOpen && historySupplier && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900/50 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl my-6 card-shadow flex flex-col">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-2xl max-h-[90vh] card-shadow flex flex-col my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">{historySupplier.name}</h3>
@@ -470,7 +470,7 @@ export const Reports: React.FC = () => {
               <button onClick={() => setHistoryOpen(false)} className="text-slate-400 hover:text-slate-600"><X size={20} /></button>
             </div>
 
-            <div className="p-6 overflow-y-auto max-h-[70vh]">
+            <div className="p-6 overflow-y-auto flex-1">
               {historyLoading ? (
                 <div className="flex items-center justify-center py-12 text-slate-400">
                   <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
@@ -545,8 +545,8 @@ export const Reports: React.FC = () => {
 
       {/* Item History Modal */}
       {itemHistoryOpen && itemHistoryItem && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center p-4 bg-slate-900/50 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl my-6 card-shadow flex flex-col">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-xl md:max-w-2xl max-h-[90vh] card-shadow flex flex-col my-auto overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0">
               <div>
                 <h3 className="text-lg font-bold text-slate-800">{itemHistoryItem.name} - Stock Ledger</h3>
