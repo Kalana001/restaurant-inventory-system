@@ -875,11 +875,13 @@ export const Adjustments: React.FC = () => {
                           {line.batches.map(b => {
                             const stockIn = b.stock_movements?.find((m: any) => m.type === 'STOCK_IN' && m.cost_price > 0);
                             const price = stockIn ? Number(stockIn.cost_price) : Number((b.inventory_items as any)?.cost_price || 0);
-                            const payDate = b.grn_items?.[0]?.grns?.purchase_orders?.supplier_payments?.[0]?.payment_date;
-                            const displayDate = payDate || b.received_date;
+                            const recDate = b.received_date ? (() => {
+                              const [y, m, d] = b.received_date.split('T')[0].split('-');
+                              return `${d}/${m}/${y}`;
+                            })() : '';
                             return (
                               <option key={b.id} value={b.id}>
-                                {b.batch_number} (LKR {price.toFixed(3)} | Qty: {Number(b.available_qty).toFixed(3)}){displayDate ? ` [Rec: ${displayDate}]` : ''}{b.expiry_date ? ` [Exp: ${b.expiry_date}]` : ''}
+                                {b.batch_number} (LKR {price.toFixed(3)} | Qty: {Number(b.available_qty).toFixed(3)}){recDate ? ` [Rec: ${recDate}]` : ''}{b.expiry_date ? ` [Exp: ${b.expiry_date}]` : ''}
                               </option>
                             );
                           })}

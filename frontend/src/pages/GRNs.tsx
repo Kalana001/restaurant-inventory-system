@@ -17,6 +17,7 @@ export const GRNs: React.FC = () => {
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [approvedPOs, setApprovedPOs] = useState<any[]>([]);
   const [selectedPoId, setSelectedPoId] = useState('');
+  const [receivedDate, setReceivedDate] = useState(format(new Date(), 'yyyy-MM-dd'));
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [remarks, setRemarks] = useState('');
   const [grnItems, setGrnItems] = useState<any[]>([]);
@@ -159,6 +160,7 @@ export const GRNs: React.FC = () => {
       const payload = {
         poId: selectedPoId,
         supplierId: po.supplier_id,
+        receivedDate: receivedDate || format(new Date(), 'yyyy-MM-dd'),
         invoiceNumber: invoiceNumber.trim() || null,
         totalAmount,
         remarks: remarks.trim(),
@@ -323,7 +325,7 @@ export const GRNs: React.FC = () => {
             <form onSubmit={handleSubmitGRN} className="space-y-6">
               
               {/* Header selection */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Select Approved PO</label>
                   <select
@@ -336,6 +338,16 @@ export const GRNs: React.FC = () => {
                       <option key={po.id} value={po.id}>{po.po_number} ({po.suppliers?.name})</option>
                     ))}
                   </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Received Date <span className="text-rose-500">*</span></label>
+                  <input
+                    type="date"
+                    required
+                    value={receivedDate}
+                    onChange={(e) => setReceivedDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm font-semibold text-slate-800 bg-white"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-slate-500 uppercase">Invoice / Reference #</label>

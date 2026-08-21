@@ -5,7 +5,7 @@ async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   try {
-    const { poId, supplierId, invoiceNumber, totalAmount, remarks, items } = req.body;
+    const { poId, supplierId, invoiceNumber, totalAmount, remarks, items, receivedDate } = req.body;
 
     if (!supplierId || !totalAmount || !items || !Array.isArray(items) || items.length === 0) {
       return res.status(400).json({ status: 'error', message: 'Invalid GRN details. Supplier, total amount, and items are required.' });
@@ -58,6 +58,42 @@ async function handler(req, res) {
     if (transactionError || !grnId) {
       console.error('[GRN TRANSACTION ERROR]:', transactionError);
       return res.status(400).json({ status: 'error', message: transactionError?.message || 'Failed to process GRN transaction' });
+    }
+
+    // 0. Update received_date and timestamps on GRN, batches, and stock movements if receivedDate provided
+    if (receivedDate) {
+      const formattedTimestamp = `${receivedDate}T12:00:00.000Z`;
+      await supabaseAdmin
+        .from('grns')
+        .update({
+          received_date: receivedDate,
+          created_at: formattedTimestamp
+        })
+        .eq('id', grnId);
+
+      const { data: grnItemsData } = await supabaseAdmin
+        .from('grn_items')
+        .select('batch_id')
+        .eq('grn_id', grnId);
+
+      const batchIds = (grnItemsData || []).map(g => g.batch_id).filter(Boolean);
+      if (batchIds.length > 0) {
+        await supabaseAdmin
+          .from('batches')
+          .update({
+            received_date: receivedDate,
+            created_at: formattedTimestamp
+          })
+          .in('id', batchIds);
+      }
+
+      await supabaseAdmin
+        .from('stock_movements')
+        .update({
+          created_at: formattedTimestamp
+        })
+        .eq('reference_id', grnId)
+        .eq('reference_type', 'GRN');
     }
 
     // 1. If linked to a PO, synchronize the PO total and item quantities/prices

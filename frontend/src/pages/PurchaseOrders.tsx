@@ -74,6 +74,7 @@ export const PurchaseOrders: React.FC = () => {
   // ── GRN States ────────────────────────────────────────────────
   const [grnModalOpen, setGrnModalOpen] = useState(false);
   const [grnPo, setGrnPo] = useState<any | null>(null);
+  const [grnReceivedDate, setGrnReceivedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
   const [grnInvoiceNumber, setGrnInvoiceNumber] = useState('');
   const [grnRemarks, setGrnRemarks] = useState('');
   const [grnLoading, setGrnLoading] = useState(false);
@@ -118,7 +119,7 @@ export const PurchaseOrders: React.FC = () => {
 
       let query = supabase
         .from('purchase_orders')
-        .select(`*, suppliers ( name, code ), profiles:created_by ( username ), supplier_payments ( payment_date )`, { count: 'exact' });
+        .select(`*, suppliers ( name, code ), profiles:created_by ( username ), supplier_payments ( payment_date ), grns ( id, grn_number, received_date, created_at )`, { count: 'exact' });
 
       if (trimmedSearch) {
         if (supplierIds.length > 0) {
@@ -335,6 +336,7 @@ export const PurchaseOrders: React.FC = () => {
   // ── Open GRN Modal ────────────────────────────────────────────
   const openGrnModal = async (po: any) => {
     setGrnPo(po);
+    setGrnReceivedDate(format(new Date(), 'yyyy-MM-dd'));
     setGrnInvoiceNumber('');
     setGrnRemarks('');
     setGrnError(null);
@@ -357,6 +359,10 @@ export const PurchaseOrders: React.FC = () => {
 
   // ── Save GRN ──────────────────────────────────────────────────
   const handleSaveGRN = async () => {
+    if (!grnReceivedDate) {
+      setGrnError('Received Date is required.');
+      return;
+    }
     setGrnError(null);
     setGrnLoading(true);
     try {
@@ -367,6 +373,7 @@ export const PurchaseOrders: React.FC = () => {
       const payload = {
         poId: grnPo.id,
         supplierId: grnPo.supplier_id,
+        receivedDate: grnReceivedDate,
         invoiceNumber: grnInvoiceNumber.trim() || null,
         totalAmount: totalAmount,
         remarks: grnRemarks.trim(),
@@ -511,16 +518,13 @@ export const PurchaseOrders: React.FC = () => {
     return 'UNPAID';
   };
 
-  const getPaymentDateDisplay = (po: any) => {
-    if (!po.supplier_payments || po.supplier_payments.length === 0) return '—';
-    const dates = Array.from(new Set(
-      po.supplier_payments
-        .map((p: any) => p.payment_date)
-        .filter(Boolean)
-    )).sort((a: any, b: any) => b.localeCompare(a));
-    
-    if (dates.length === 0) return '—';
-    return dates[0];
+  const getGrnDateDisplay = (po: any) => {
+    if (!po.grns || po.grns.length === 0) return '—';
+    const grn = po.grns[0];
+    const rawDate = grn.received_date || grn.created_at;
+    if (!rawDate) return '—';
+    const [y, m, d] = rawDate.split('T')[0].split('-');
+    return `${d}/${m}/${y}`;
   };
 
   const filteredPos = pos;
@@ -560,7 +564,7 @@ export const PurchaseOrders: React.FC = () => {
                 <th className="px-6 py-4 text-right">Grand Total (LKR)</th>
                 <th className="px-6 py-4 text-center">GRN Status</th>
                 <th className="px-6 py-4 text-center">Payment</th>
-                <th className="px-6 py-4 text-center">Payment Date</th>
+                <th className="px-6 py-4 text-center">GRN Date</th>
                 <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -597,7 +601,7 @@ export const PurchaseOrders: React.FC = () => {
                         `}>{paymentStatus}</span>
                       </td>
                       <td className="px-6 py-4 text-center text-slate-500 font-medium">
-                        {getPaymentDateDisplay(po)}
+                        {getGrnDateDisplay(po)}
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2 items-center">
@@ -856,14 +860,24 @@ export const PurchaseOrders: React.FC = () => {
               </div>
             )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Invoice / Reference No. <span className="text-slate-300 font-normal">(Optional)</span></label>
+                <label className="text-xs font-bold text-slate-500 uppercase">Received Date <span className="text-rose-500">*</span></label>
+                <input
+                  type="date"
+                  required
+                  value={grnReceivedDate}
+                  onChange={e => setGrnReceivedDate(e.target.value)}
+                  className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm font-semibold text-slate-800 bg-white"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 uppercase">Invoice / Ref No. <span className="text-slate-300 font-normal">(Optional)</span></label>
                 <input type="text" value={grnInvoiceNumber} onChange={e => setGrnInvoiceNumber(e.target.value)} placeholder="e.g. INV-2024-001" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
               </div>
               <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Remarks <span className="text-slate-300 font-normal">(Optional)</span></label>
-                <input type="text" value={grnRemarks} onChange={e => setGrnRemarks(e.target.value)} placeholder="e.g. All items received in good condition" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
+                <input type="text" value={grnRemarks} onChange={e => setGrnRemarks(e.target.value)} placeholder="e.g. Received in good condition" className="mt-1 w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm" />
               </div>
             </div>
 
