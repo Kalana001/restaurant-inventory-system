@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import type { User } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 
@@ -40,6 +40,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [permissions, setPermissions] = useState<string[]>([]);
+
+  const userRef = useRef<UserProfile | null>(user);
+  userRef.current = user;
 
   const fetchProfile = async (uid: string) => {
     try {
@@ -97,11 +100,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    // 1. Check active session
+    let isMounted = true;
+
+    // 1. Check active session on initial mount
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isMounted) return;
       if (session?.user) {
         setRawUser(session.user);
-        fetchProfile(session.user.id).finally(() => setLoading(false));
+        fetchProfile(session.user.id).finally(() => {
+          if (isMounted) setLoading(false);
+        });
       } else {
         setLoading(false);
       }
@@ -109,19 +117,36 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     // 2. Listen to state changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      setLoading(true);
-      if (session?.user) {
-        setRawUser(session.user);
-        await fetchProfile(session.user.id);
-      } else {
+      if (!isMounted) return;
+
+      if (event === 'TOKEN_REFRESHED') {
+        // Silently update user reference without resetting loading state or remounting components
+        if (session?.user) {
+          setRawUser(session.user);
+        }
+        return;
+      }
+
+      if (event === 'SIGNED_OUT' || !session?.user) {
         setRawUser(null);
         setUser(null);
         setPermissions([]);
+        setLoading(false);
+        return;
       }
-      setLoading(false);
+
+      if (event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        setRawUser(session.user);
+        // Only fetch profile if not already loaded for this user
+        if (!userRef.current || userRef.current.id !== session.user.id) {
+          await fetchProfile(session.user.id);
+        }
+        setLoading(false);
+      }
     });
 
     return () => {
+      isMounted = false;
       subscription.unsubscribe();
     };
   }, []);
