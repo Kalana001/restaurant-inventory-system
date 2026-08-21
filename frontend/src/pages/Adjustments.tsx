@@ -89,6 +89,15 @@ export const Adjustments: React.FC = () => {
   const [pageSize, setPageSize] = useState(25);
   const [totalCount, setTotalCount] = useState(0);
 
+  // Deletion States
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
+  const [deleteVoucherConfirmOpen, setDeleteVoucherConfirmOpen] = useState(false);
+  const [voucherToDelete, setVoucherToDelete] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -301,6 +310,63 @@ export const Adjustments: React.FC = () => {
     }
   };
 
+  const openDeleteSingleModal = (movement: any) => {
+    setItemToDelete(movement);
+    setDeleteError(null);
+    setDeleteConfirmOpen(true);
+  };
+
+  const openDeleteVoucherModal = (receiptNum: string) => {
+    setVoucherToDelete(receiptNum);
+    setDeleteError(null);
+    setDeleteVoucherConfirmOpen(true);
+  };
+
+  const handleDeleteSingle = async () => {
+    if (!itemToDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const response = await api.post('/stock/delete', { movementId: itemToDelete.id });
+      if (response.data.status === 'success') {
+        setDeleteConfirmOpen(false);
+        const deletedName = itemToDelete.inventory_items?.name || 'Stock movement';
+        setItemToDelete(null);
+        setDeleteSuccess(response.data.message || `${deletedName} deleted and stock restored.`);
+        setTimeout(() => setDeleteSuccess(null), 4000);
+        fetchData();
+        if (receiptModalOpen && selectedReceiptNum) {
+          openReceiptModal(selectedReceiptNum);
+        }
+      }
+    } catch (err: any) {
+      setDeleteError(err.response?.data?.message || err.message || 'Failed to delete stock movement.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteVoucher = async () => {
+    if (!voucherToDelete) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const response = await api.post('/stock/delete', { receiptNumber: voucherToDelete });
+      if (response.data.status === 'success') {
+        setDeleteVoucherConfirmOpen(false);
+        setVoucherToDelete(null);
+        setReceiptModalOpen(false);
+        setDeleteSuccess(response.data.message || 'Voucher deleted and all items restored to stock.');
+        setTimeout(() => setDeleteSuccess(null), 4000);
+        fetchData();
+      }
+    } catch (err: any) {
+      setDeleteError(err.response?.data?.message || err.message || 'Failed to delete voucher.');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   // Open receipt detail popup
   const openReceiptModal = async (receiptNum: string) => {
     setSelectedReceiptNum(receiptNum);
@@ -478,6 +544,17 @@ export const Adjustments: React.FC = () => {
         </div>
       )}
 
+      {/* Success Notification */}
+      {deleteSuccess && (
+        <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-xl flex items-center justify-between shadow-sm animate-fade-in">
+          <div className="flex items-center space-x-2 text-emerald-800 font-semibold text-sm">
+            <Check size={18} className="text-emerald-600 shrink-0" />
+            <span>{deleteSuccess}</span>
+          </div>
+          <button onClick={() => setDeleteSuccess(null)} className="text-emerald-500 hover:text-emerald-700"><X size={16} /></button>
+        </div>
+      )}
+
       {/* History Table */}
       <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm card-shadow">
         <div className="overflow-x-auto">
@@ -492,13 +569,14 @@ export const Adjustments: React.FC = () => {
                 <th className="px-6 py-4">By</th>
                 <th className="px-6 py-4">Date</th>
                 <th className="px-6 py-4">Status</th>
+                <th className="px-6 py-4 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700 text-sm">
               {loading ? (
-                <tr><td colSpan={8} className="text-center py-8 text-slate-400">Loading stock logs...</td></tr>
+                <tr><td colSpan={9} className="text-center py-8 text-slate-400">Loading stock logs...</td></tr>
               ) : groupedView.length === 0 ? (
-                <tr><td colSpan={8} className="text-center py-8 text-slate-400">No stock movements found.</td></tr>
+                <tr><td colSpan={9} className="text-center py-8 text-slate-400">No stock movements found.</td></tr>
               ) : (
                 groupedView.slice((page - 1) * pageSize, page * pageSize).map((row, idx) => {
                   if (row.isReceipt) {
@@ -541,6 +619,15 @@ export const Adjustments: React.FC = () => {
                             {allApproved ? 'APPROVED' : 'PARTIAL'}
                           </span>
                         </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            onClick={() => openDeleteVoucherModal(row.receiptNum)}
+                            title="Delete entire voucher and restore stock"
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </td>
                       </tr>
                     );
                   } else {
@@ -574,6 +661,19 @@ export const Adjustments: React.FC = () => {
                             ${move.status === 'PENDING' ? 'bg-amber-50 text-amber-600 animate-pulse' : ''}
                             ${move.status === 'REJECTED' ? 'bg-red-50 text-red-600' : ''}
                           `}>{move.status}</span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          {move.reference_type !== 'GRN' ? (
+                            <button
+                              onClick={() => openDeleteSingleModal(move)}
+                              title="Delete movement and restore stock"
+                              className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center gap-1 text-xs font-semibold"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          ) : (
+                            <span className="text-xs text-slate-300 italic">PO / GRN</span>
+                          )}
                         </td>
                       </tr>
                     );
@@ -875,6 +975,7 @@ export const Adjustments: React.FC = () => {
                       <th className="px-4 py-3 text-right">Qty</th>
                       <th className="px-4 py-3">Reason</th>
                       <th className="px-4 py-3">Status</th>
+                      <th className="px-4 py-3 text-right">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -898,6 +999,15 @@ export const Adjustments: React.FC = () => {
                             {m.status}
                           </span>
                         </td>
+                        <td className="px-4 py-3 text-right">
+                          <button
+                            onClick={() => openDeleteSingleModal(m)}
+                            title="Delete this item and restore stock"
+                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors inline-flex items-center"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -906,11 +1016,137 @@ export const Adjustments: React.FC = () => {
             </div>
 
             {receiptMovements.length > 0 && (
-              <div className="pt-3 border-t border-slate-100 shrink-0 flex justify-between text-xs text-slate-400">
-                <span>{receiptMovements[0]?.profiles?.username || 'System'} Â· {new Date(receiptMovements[0]?.created_at).toLocaleString()}</span>
-                <span>{receiptMovements.length} line{receiptMovements.length !== 1 ? 's' : ''}</span>
+              <div className="pt-4 border-t border-slate-100 shrink-0 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                <div className="text-slate-400">
+                  <span>{receiptMovements[0]?.profiles?.username || 'System'} · {new Date(receiptMovements[0]?.created_at).toLocaleString()}</span>
+                  <span className="ml-2 font-medium">({receiptMovements.length} line{receiptMovements.length !== 1 ? 's' : ''})</span>
+                </div>
+                <button
+                  onClick={() => openDeleteVoucherModal(selectedReceiptNum)}
+                  className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors"
+                >
+                  <Trash2 size={14} />
+                  Delete Entire Voucher
+                </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Single Movement Delete Confirmation Modal ──────────────── */}
+      {deleteConfirmOpen && itemToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 card-shadow">
+            <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-4">
+              <div className="p-2.5 bg-rose-50 rounded-xl">
+                <Trash2 size={22} className="text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">Delete Stock Movement?</h3>
+                <p className="text-xs text-slate-400">{itemToDelete.movement_number}</p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="bg-rose-50 border-l-4 border-rose-500 p-3 rounded-r-xl text-xs font-semibold text-rose-700 flex items-start gap-2">
+                <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="bg-slate-50 p-4 rounded-xl space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Item:</span>
+                <span className="font-bold text-slate-800">{itemToDelete.inventory_items?.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Movement Type:</span>
+                <span className={`font-bold ${itemToDelete.type === 'STOCK_IN' ? 'text-green-600' : 'text-rose-600'}`}>
+                  {itemToDelete.type}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Quantity:</span>
+                <span className="font-bold text-slate-800">{itemToDelete.quantity} {itemToDelete.inventory_items?.base_unit?.abbreviation}</span>
+              </div>
+              <div className="pt-2 border-t border-slate-200 text-slate-600">
+                {itemToDelete.type === 'STOCK_OUT' ? (
+                  <p className="text-emerald-700 font-semibold">
+                    ✓ Deleting this will <strong>restore +{itemToDelete.quantity} {itemToDelete.inventory_items?.base_unit?.abbreviation}</strong> back to batch available stock.
+                  </p>
+                ) : (
+                  <p className="text-amber-700 font-semibold">
+                    ⚠ Deleting this will <strong>deduct -{itemToDelete.quantity} {itemToDelete.inventory_items?.base_unit?.abbreviation}</strong> from batch available stock.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setDeleteConfirmOpen(false)}
+                disabled={deleting}
+                className="px-4 py-2 border border-slate-200 text-slate-600 font-semibold rounded-xl text-xs hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteSingle}
+                disabled={deleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Confirm & Restore Stock'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Voucher (Bulk) Delete Confirmation Modal ───────────────── */}
+      {deleteVoucherConfirmOpen && voucherToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 card-shadow">
+            <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-4">
+              <div className="p-2.5 bg-rose-50 rounded-xl">
+                <Trash2 size={22} className="text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">Delete Entire Voucher?</h3>
+                <p className="text-xs text-slate-400">{voucherToDelete}</p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="bg-rose-50 border-l-4 border-rose-500 p-3 rounded-r-xl text-xs font-semibold text-rose-700 flex items-start gap-2">
+                <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="bg-rose-50 border border-rose-100 p-4 rounded-xl text-xs text-rose-800 space-y-2">
+              <p className="font-bold">Are you sure you want to delete this entire receipt voucher?</p>
+              <p>
+                All item movements grouped under <strong>{voucherToDelete}</strong> will be permanently deleted and their quantities will be restored back to inventory batches.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setDeleteVoucherConfirmOpen(false)}
+                disabled={deleting}
+                className="px-4 py-2 border border-slate-200 text-slate-600 font-semibold rounded-xl text-xs hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteVoucher}
+                disabled={deleting}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              >
+                {deleting ? 'Deleting...' : 'Delete Entire Voucher'}
+              </button>
+            </div>
           </div>
         </div>
       )}
