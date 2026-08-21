@@ -8,7 +8,7 @@ import { Pagination } from '../components/ui/Pagination';
 import {
   Plus, Search, Eye, AlertCircle, ShoppingCart, Trash2,
   PackageSearch, Banknote, UserPlus, ChevronDown, XCircle,
-  PackageCheck, Clock, CheckCircle2, DollarSign
+  PackageCheck, Clock, CheckCircle2, DollarSign, Check, X
 } from 'lucide-react';
 
 export const PurchaseOrders: React.FC = () => {
@@ -97,6 +97,13 @@ export const PurchaseOrders: React.FC = () => {
   const [updatePricesLines, setUpdatePricesLines] = useState<any[]>([]);
   const [updatePricesLoading, setUpdatePricesLoading] = useState(false);
   const [updatePricesError, setUpdatePricesError] = useState<string | null>(null);
+
+  // ── PO Deletion States ──────────────────────────────────────────────
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [poToDelete, setPoToDelete] = useState<any | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
 
   // ─────────────────────────────────────────────────────────────
   const fetchPOs = async () => {
@@ -509,6 +516,34 @@ export const PurchaseOrders: React.FC = () => {
     }
   };
 
+  const openDeleteModal = (po: any) => {
+    setPoToDelete(po);
+    setDeleteError(null);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeletePO = async () => {
+    if (!poToDelete) return;
+    setDeleteLoading(true);
+    setDeleteError(null);
+    try {
+      const response = await api.post('/po/delete', { poId: poToDelete.id });
+      if (response.data.status === 'success') {
+        setDeleteModalOpen(false);
+        const poNum = poToDelete.po_number;
+        setPoToDelete(null);
+        setDetailModalOpen(false);
+        setDeleteSuccess(response.data.message || `Purchase order ${poNum} deleted successfully.`);
+        setTimeout(() => setDeleteSuccess(null), 5000);
+        fetchPOs();
+      }
+    } catch (err: any) {
+      setDeleteError(err.response?.data?.message || err.message || 'Failed to delete purchase order.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   const getPaymentStatus = (po: any) => {
     const paid = Number(po.paid_amount || 0);
     const total = Number(po.total_amount);
@@ -551,6 +586,17 @@ export const PurchaseOrders: React.FC = () => {
         <Search size={16} className="text-slate-400" />
         <input type="text" value={search} onChange={e => { setSearch(e.target.value); setPage(1); }} placeholder="Search PO number or supplier name..." className="flex-1 text-sm outline-none bg-transparent" />
       </div>
+
+      {/* Success Notification */}
+      {deleteSuccess && (
+        <div className="bg-emerald-50 border-l-4 border-emerald-500 p-4 rounded-r-xl flex items-center justify-between shadow-sm animate-fade-in">
+          <div className="flex items-center space-x-2 text-emerald-800 font-semibold text-sm">
+            <Check size={18} className="text-emerald-600 shrink-0" />
+            <span>{deleteSuccess}</span>
+          </div>
+          <button onClick={() => setDeleteSuccess(null)} className="text-emerald-500 hover:text-emerald-700"><X size={16} /></button>
+        </div>
+      )}
 
       {/* PO Table */}
       <div className="bg-white border border-slate-100 rounded-2xl overflow-hidden shadow-sm card-shadow">
@@ -604,11 +650,11 @@ export const PurchaseOrders: React.FC = () => {
                         {getGrnDateDisplay(po)}
                       </td>
                       <td className="px-6 py-4 text-right">
-                        <div className="flex justify-end gap-2 items-center">
+                        <div className="flex justify-end gap-1.5 items-center">
                           {canGRN && (
                             <button
                               onClick={() => openGrnModal(po)}
-                              className="px-3 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded text-xs font-bold transition-colors flex items-center gap-1"
+                              className="px-2.5 py-1 bg-emerald-50 text-emerald-700 hover:bg-emerald-600 hover:text-white rounded text-xs font-bold transition-colors flex items-center gap-1"
                             >
                               <PackageCheck size={12} /> GRN
                             </button>
@@ -619,19 +665,27 @@ export const PurchaseOrders: React.FC = () => {
                               className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                               title="Update Prices"
                             >
-                              <DollarSign size={16} />
+                              <DollarSign size={15} />
                             </button>
                           )}
                           {canPay && (
                             <button
                               onClick={() => openPayModal(po)}
-                              className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
+                              className="px-2 py-1 bg-green-50 text-green-700 hover:bg-green-600 hover:text-white rounded text-xs font-bold transition-colors flex items-center gap-1"
                               title="Pay"
-                            >  <DollarSign size={12} /> Pay
+                            >
+                              <DollarSign size={12} /> Pay
                             </button>
                           )}
-                          <button onClick={() => openDetailModal(po)} className="p-1.5 text-slate-400 hover:text-primary hover:bg-blue-50 rounded-lg transition-all">
-                            <Eye size={16} />
+                          <button onClick={() => openDetailModal(po)} className="p-1.5 text-slate-400 hover:text-primary hover:bg-blue-50 rounded-lg transition-all" title="View Details">
+                            <Eye size={15} />
+                          </button>
+                          <button
+                            onClick={() => openDeleteModal(po)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Delete Purchase Order"
+                          >
+                            <Trash2 size={15} />
                           </button>
                         </div>
                       </td>
@@ -977,9 +1031,90 @@ export const PurchaseOrders: React.FC = () => {
               </table>
             </div>
 
-            <div className="flex flex-col items-end text-sm space-y-1">
-              <p className="text-slate-500">Overall PO Discount: <span className="text-red-500 font-semibold">- LKR {Number(selectedPo?.discount_amount || 0).toFixed(2)}</span></p>
-              <p className="text-lg font-bold">Grand Total: LKR {Number(selectedPo?.total_amount).toFixed(2)}</p>
+            <div className="flex items-center justify-between pt-2 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  setDetailModalOpen(false);
+                  openDeleteModal(selectedPo);
+                }}
+                className="px-3.5 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold rounded-xl text-xs flex items-center gap-1.5 transition-colors"
+              >
+                <Trash2 size={14} />
+                Delete PO
+              </button>
+              <div className="flex flex-col items-end text-sm space-y-1">
+                <p className="text-slate-500 text-xs">Overall PO Discount: <span className="text-red-500 font-semibold">- LKR {Number(selectedPo?.discount_amount || 0).toFixed(2)}</span></p>
+                <p className="text-base font-bold">Grand Total: LKR {Number(selectedPo?.total_amount).toFixed(2)}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PO Delete Confirmation Modal ────────────────────────────── */}
+      {deleteModalOpen && poToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900 bg-opacity-50">
+          <div className="bg-white rounded-2xl w-full max-w-md p-6 space-y-5 card-shadow">
+            <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-4">
+              <div className="p-2.5 bg-rose-50 rounded-xl">
+                <Trash2 size={22} className="text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">Delete Purchase Order?</h3>
+                <p className="text-xs text-slate-400 font-mono">{poToDelete.po_number}</p>
+              </div>
+            </div>
+
+            {deleteError && (
+              <div className="bg-rose-50 border-l-4 border-rose-500 p-3 rounded-r-xl text-xs font-semibold text-rose-700 flex items-start gap-2">
+                <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="bg-slate-50 p-4 rounded-xl space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Supplier:</span>
+                <span className="font-bold text-slate-800">{poToDelete.suppliers?.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Total Amount:</span>
+                <span className="font-bold text-slate-800">LKR {Number(poToDelete.total_amount).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">GRN Status:</span>
+                <span className={`font-bold ${poToDelete.status === 'COMPLETED' ? 'text-green-600' : 'text-amber-600'}`}>
+                  {poToDelete.status === 'COMPLETED' ? 'Received' : 'Pending Delivery'}
+                </span>
+              </div>
+              <div className="pt-2 border-t border-slate-200 text-slate-600">
+                {poToDelete.status === 'COMPLETED' ? (
+                  <p className="text-amber-700 font-semibold">
+                    ⚠ This PO was marked as <strong>Received</strong>. Deleting it will automatically reverse the GRN, remove received stock from inventory batches, and adjust the supplier ledger.
+                  </p>
+                ) : (
+                  <p className="text-slate-600">
+                    This PO has not been received yet. Deleting it will safely remove the order.
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              <button
+                onClick={() => setDeleteModalOpen(false)}
+                disabled={deleteLoading}
+                className="px-4 py-2 border border-slate-200 text-slate-600 font-semibold rounded-xl text-xs hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeletePO}
+                disabled={deleteLoading}
+                className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+              >
+                {deleteLoading ? 'Deleting...' : 'Delete Purchase Order'}
+              </button>
             </div>
           </div>
         </div>
