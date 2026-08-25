@@ -70,13 +70,25 @@ export const Reports: React.FC = () => {
       if (reportType === 'valuation') {
         query = supabase
           .from('inventory_items')
-          .select(`*, categories(name), units:units!inventory_items_base_unit_id_fkey(abbreviation)`)
-          .eq('status', 'ACTIVE');
+          .select(`
+            *,
+            categories ( name ),
+            units:units!inventory_items_base_unit_id_fkey ( abbreviation ),
+            batches (
+              id,
+              batch_number,
+              available_qty,
+              received_date,
+              expiry_date,
+              status,
+              created_at,
+              stock_movements ( type, cost_price )
+            )
+          `)
+          .eq('status', 'ACTIVE')
+          .order('name');
           
         if (filters.categoryId) query = query.eq('category_id', filters.categoryId);
-        if (filters.stockStatus === 'in_stock') query = query.gt('current_stock', 0);
-        if (filters.stockStatus === 'out_of_stock') query = query.lte('current_stock', 0);
-        if (filters.stockStatus === 'low_stock') query = query.lte('current_stock', 10);
         if (filters.search) query = query.ilike('name', `%${filters.search}%`);
 
       } else if (reportType === 'expiry') {
@@ -134,6 +146,91 @@ export const Reports: React.FC = () => {
           finalData = [...finalData, ...chunk];
           from += step;
           if (chunk.length < step) fetchMore = false;
+        }
+      }
+
+      if (reportType === 'valuation') {
+        const transformedValuation: any[] = [];
+        finalData.forEach((item: any) => {
+          const activeBatches = (item.batches || [])
+            .filter((b: any) => Number(b.available_qty || 0) > 0)
+            .sort((a: any, b: any) => new Date(a.received_date || a.created_at).getTime() - new Date(b.received_date || b.created_at).getTime());
+
+          if (activeBatches.length > 1) {
+            activeBatches.forEach((batch: any, index: number) => {
+              const stockIn = batch.stock_movements?.find((m: any) => m.type === 'STOCK_IN' && Number(m.cost_price) > 0);
+              const unitPrice = stockIn ? Number(stockIn.cost_price) : Number(item.cost_price || 0);
+              const qty = Number(batch.available_qty || 0);
+              const totalVal = qty * unitPrice;
+
+              transformedValuation.push({
+                id: `${item.id}-${batch.id}`,
+                itemId: item.id,
+                itemRaw: item,
+                name: item.name,
+                batchLabel: `Batch ${index + 1}`,
+                hasMultipleBatches: true,
+                category: item.categories?.name || '-',
+                categories: item.categories,
+                units: item.units,
+                unitAbbr: item.units?.abbreviation || '',
+                current_stock: qty,
+                cost_price: unitPrice,
+                total_value: totalVal
+              });
+            });
+          } else if (activeBatches.length === 1) {
+            const batch = activeBatches[0];
+            const stockIn = batch.stock_movements?.find((m: any) => m.type === 'STOCK_IN' && Number(m.cost_price) > 0);
+            const unitPrice = stockIn ? Number(stockIn.cost_price) : Number(item.cost_price || 0);
+            const qty = Number(batch.available_qty || 0);
+            const totalVal = qty * unitPrice;
+
+            transformedValuation.push({
+              id: item.id,
+              itemId: item.id,
+              itemRaw: item,
+              name: item.name,
+              batchLabel: null,
+              hasMultipleBatches: false,
+              category: item.categories?.name || '-',
+              categories: item.categories,
+              units: item.units,
+              unitAbbr: item.units?.abbreviation || '',
+              current_stock: qty,
+              cost_price: unitPrice,
+              total_value: totalVal
+            });
+          } else {
+            const unitPrice = Number(item.cost_price || 0);
+            transformedValuation.push({
+              id: item.id,
+              itemId: item.id,
+              itemRaw: item,
+              name: item.name,
+              batchLabel: null,
+              hasMultipleBatches: false,
+              category: item.categories?.name || '-',
+              categories: item.categories,
+              units: item.units,
+              unitAbbr: item.units?.abbreviation || '',
+              current_stock: 0,
+              cost_price: unitPrice,
+              total_value: 0
+            });
+          }
+        });
+
+        finalData = transformedValuation;
+
+        if (filters.stockStatus && filters.stockStatus !== 'all') {
+          if (filters.stockStatus === 'in_stock') {
+            finalData = finalData.filter((r: any) => Number(r.current_stock) > 0);
+          } else if (filters.stockStatus === 'out_of_stock') {
+            finalData = finalData.filter((r: any) => Number(r.current_stock) <= 0);
+          } else if (filters.stockStatus === 'low_stock') {
+            finalData = finalData.filter((r: any) => Number(r.current_stock) > 0 && Number(r.current_stock) <= (Number(r.itemRaw?.reorder_level) || 10));
+          }
         }
       }
 
@@ -228,12 +325,29 @@ export const Reports: React.FC = () => {
       case 'valuation':
         return [
           { key: 'name', header: 'Item Name', sortable: true, render: (r) => (
-            <button onClick={() => openItemHistoryModal(r)} className="font-bold text-primary hover:underline text-left">{r.name}</button>
+            <div className="flex items-center gap-2">
+              <button onClick={() => openItemHistoryModal(r.itemRaw || r)} className="font-bold text-primary hover:underline text-left">{r.name}</button>
+              {r.batchLabel && (
+                <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-blue-50 text-blue-700 border border-blue-200 shrink-0">
+                  {r.batchLabel}
+                </span>
+              )}
+            </div>
           )},
-          { key: 'category', header: 'Category', render: (r) => r.categories?.name },
-          { key: 'current_stock', header: 'Quantity', sortable: true, render: (r) => <span className="font-bold text-slate-800">{Number(r.current_stock)} <span className="text-slate-500 font-medium">{r.units?.abbreviation}</span></span> },
-          { key: 'cost_price', header: 'Unit Cost (LKR)', render: (r) => Number(r.cost_price).toLocaleString(undefined, { minimumFractionDigits: 2 }) },
-          { key: 'total_value', header: 'Total Value (LKR)', render: (r) => (Number(r.current_stock) * Number(r.cost_price)).toLocaleString(undefined, { minimumFractionDigits: 2 }) }
+          { key: 'category', header: 'Category', render: (r) => r.categories?.name || r.category || '-' },
+          { key: 'current_stock', header: 'Quantity', sortable: true, render: (r) => (
+            <span className="font-bold text-slate-800">
+              {Number(r.current_stock || 0).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 3 })}
+              {' '}
+              <span className="text-slate-500 font-medium">{r.units?.abbreviation || r.unitAbbr || ''}</span>
+            </span>
+          )},
+          { key: 'cost_price', header: 'Unit Cost (LKR)', render: (r) => Number(r.cost_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }) },
+          { key: 'total_value', header: 'Total Value (LKR)', render: (r) => (
+            <span className="font-bold text-slate-800">
+              {Number(r.total_value || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          )}
         ];
       case 'expiry':
         return [
@@ -339,9 +453,11 @@ export const Reports: React.FC = () => {
               ? row[c.key] 
               : row[c.key];
               
-          if (reportType === 'valuation' && c.key === 'category') newRow[c.key] = row.categories?.name;
-          if (reportType === 'valuation' && c.key === 'unit') newRow[c.key] = row.units?.abbreviation;
-          if (reportType === 'valuation' && c.key === 'total_value') newRow[c.key] = (Number(row.current_stock) * Number(row.cost_price)).toFixed(2);
+          if (reportType === 'valuation' && c.key === 'name') newRow[c.key] = row.batchLabel ? `${row.name} (${row.batchLabel})` : row.name;
+          if (reportType === 'valuation' && c.key === 'category') newRow[c.key] = row.categories?.name || row.category || '-';
+          if (reportType === 'valuation' && c.key === 'current_stock') newRow[c.key] = `${Number(row.current_stock || 0).toFixed(3)} ${row.units?.abbreviation || row.unitAbbr || ''}`.trim();
+          if (reportType === 'valuation' && c.key === 'cost_price') newRow[c.key] = Number(row.cost_price || 0).toFixed(2);
+          if (reportType === 'valuation' && c.key === 'total_value') newRow[c.key] = Number(row.total_value || 0).toFixed(2);
           if (reportType === 'expiry' && c.key === 'item') newRow[c.key] = row.inventory_items?.name;
           if (reportType === 'expiry' && c.key === 'category') newRow[c.key] = row.inventory_items?.categories?.name;
           if (reportType === 'expiry' && c.key === 'expiry_date') newRow[c.key] = row.expiry_date ? format(new Date(row.expiry_date), 'dd/MM/yyyy') : '-';
@@ -444,6 +560,19 @@ export const Reports: React.FC = () => {
               <span className="text-2xl font-bold text-slate-800">
                 LKR {data.reduce((acc, po) => acc + Number(po.total_amount || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </span>
+            </div>
+          )}
+          {reportType === 'valuation' && data.length > 0 && (
+            <div className="bg-white p-6 rounded-2xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border border-slate-200 shadow-sm">
+              <div>
+                <span className="font-semibold text-slate-500 uppercase text-xs tracking-wider">Total Inventory Valuation</span>
+                <p className="text-xs text-slate-400 mt-0.5">{data.length} item {data.length === 1 ? 'record' : 'records'} listed</p>
+              </div>
+              <div className="text-right">
+                <span className="text-2xl sm:text-3xl font-extrabold text-primary">
+                  LKR {data.reduce((acc, row) => acc + Number(row.total_value || 0), 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </span>
+              </div>
             </div>
           )}
         </div>
