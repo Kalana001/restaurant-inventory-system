@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../lib/supabase';
 import { format, startOfMonth, endOfMonth, parseISO } from 'date-fns';
-import { XCircle, Printer, Calendar, ListFilter } from 'lucide-react';
+import { XCircle, Printer } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Pagination } from '../ui/Pagination';
@@ -37,7 +37,6 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
   const [todayJat, setTodayJat] = useState(0);
   const [unsettledBalance, setUnsettledBalance] = useState(0);
   const [reasonFilter, setReasonFilter] = useState('ALL');
-  const [viewMode, setViewMode] = useState<'calendar' | 'table'>('calendar');
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -480,246 +479,90 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         </div>
       </div>
 
-      {/* View Switcher & Legend */}
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
-        <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl border border-slate-200">
-          <button
-            type="button"
-            onClick={() => setViewMode('calendar')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              viewMode === 'calendar'
-                ? 'bg-white text-primary shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <Calendar size={15} />
-            Stock-Out Calendar
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('table')}
-            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-              viewMode === 'table'
-                ? 'bg-white text-primary shadow-sm'
-                : 'text-slate-600 hover:text-slate-900'
-            }`}
-          >
-            <ListFilter size={15} />
-            Transaction Details
-          </button>
-        </div>
-
-        {/* Legend */}
-        <div className="flex items-center gap-4 text-xs bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
-            <span className="font-semibold text-slate-700">Stock Out Done</span>
+      <div className="grid grid-cols-1 gap-6">
+        {/* Transaction Details Table */}
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+          <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
+            <h3 className="font-bold text-slate-800">Transaction Details</h3>
+            <select
+              value={reasonFilter}
+              onChange={e => { setReasonFilter(e.target.value); setPage(1); }}
+              className="px-3 py-1.5 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm"
+            >
+              <option value="ALL">All Reasons</option>
+              <option value="JAT">JAT</option>
+              <option value="Kitchen Usage">Kitchen Usage</option>
+              <option value="JAT / Vege">JAT / Vege</option>
+              <option value="Kitchen Usage / Vege">Kitchen Usage / Vege</option>
+              <option value="JAT / Trans">JAT / Trans</option>
+              <option value="Kitchen Usage / Trans">Kitchen Usage / Trans</option>
+            </select>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
-            <span className="font-semibold text-slate-700">Stock Out Not Done</span>
+          <div className="overflow-x-auto flex-1">
+            {(() => {
+              const filteredData = data.filter(row => reasonFilter === 'ALL' || row.reason === reasonFilter);
+              const paginatedData = filteredData.slice((page - 1) * pageSize, page * pageSize);
+
+              return (
+                <>
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 text-slate-500">
+                      <tr>
+                        <th className="px-4 py-3 font-bold">Date</th>
+                        <th className="px-4 py-3 font-bold">Reason</th>
+                        <th className="px-4 py-3 font-bold text-right">Total Cost</th>
+                        <th className="px-4 py-3 font-bold text-center">Receipt</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {filteredData.length === 0 ? (
+                        <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">No data found</td></tr>
+                      ) : (
+                        paginatedData.map(row => (
+                          <tr key={row.receipt} className="hover:bg-slate-50/50">
+                            <td className="px-4 py-3 font-medium text-slate-700">{format(parseISO(row.date), 'dd MMM')}</td>
+                            <td className="px-4 py-3">
+                              <span className={`px-2 py-1 text-xs font-bold rounded-lg ${
+                                row.reason === 'JAT' ? 'bg-orange-100 text-orange-700' : 
+                                row.reason === 'Kitchen Usage' ? 'bg-blue-100 text-blue-700' :
+                                row.reason === 'JAT / Vege' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
+                                row.reason === 'Kitchen Usage / Vege' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
+                                row.reason === 'JAT / Trans' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' :
+                                'bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200'
+                              }`}>{row.reason}</span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-semibold">LKR {row.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                            <td className="px-4 py-3 text-center">
+                              <button
+                                onClick={() => setSelectedReceipt(row)}
+                                className="text-primary hover:text-blue-700 font-semibold underline decoration-blue-300 underline-offset-2 transition-colors"
+                              >
+                                {row.receipt}
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+
+                  {filteredData.length > pageSize && (
+                    <div className="p-4 border-t border-slate-100 flex justify-center bg-slate-50/30">
+                      <Pagination
+                        currentPage={page}
+                        totalCount={filteredData.length}
+                        pageSize={pageSize}
+                        onPageChange={setPage}
+                        onPageSizeChange={setPageSize}
+                      />
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
       </div>
-
-      {viewMode === 'calendar' && (
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 space-y-4">
-          <div className="flex justify-between items-center pb-3 border-b border-slate-100">
-            <h3 className="font-bold text-slate-800 flex items-center gap-2">
-              <Calendar className="text-primary" size={18} />
-              <span>
-                {format(month ? new Date(month + '-01') : new Date(), 'MMMM yyyy')} — Daily Stock-Out Tracker
-              </span>
-            </h3>
-          </div>
-
-          {/* Weekday headers */}
-          <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center">
-            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(dayName => (
-              <div key={dayName} className="text-xs font-extrabold text-slate-400 uppercase tracking-wider py-1">
-                {dayName}
-              </div>
-            ))}
-          </div>
-
-          {/* Calendar Day Cells */}
-          {(() => {
-            const currentMonthDate = month ? new Date(month + '-01') : new Date();
-            const start = startOfMonth(currentMonthDate);
-            const end = endOfMonth(currentMonthDate);
-            const startDayOfWeek = start.getDay();
-            const totalDays = end.getDate();
-
-            return (
-              <div className="grid grid-cols-7 gap-1 sm:gap-2.5">
-                {/* Blank offset days */}
-                {Array.from({ length: startDayOfWeek }).map((_, idx) => (
-                  <div key={`blank-${idx}`} className="p-2 rounded-xl bg-slate-50/40 border border-transparent min-h-[85px] hidden sm:block" />
-                ))}
-
-                {/* Days in Month */}
-                {Array.from({ length: totalDays }).map((_, idx) => {
-                  const dayNum = idx + 1;
-                  const dateObj = new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth(), dayNum);
-                  const dateStr = format(dateObj, 'yyyy-MM-dd');
-                  const todayStr = format(new Date(), 'yyyy-MM-dd');
-                  const isFuture = dateStr > todayStr;
-                  const isCurrentDay = dateStr === todayStr;
-
-                  const hasKitchen = data.some(t => t.date === dateStr && t.reason.includes('Kitchen'));
-                  const hasJat = data.some(t => t.date === dateStr && t.reason.includes('JAT'));
-
-                  return (
-                    <div
-                      key={dateStr}
-                      className={`p-2 rounded-xl border flex flex-col justify-between min-h-[85px] sm:min-h-[90px] transition-all ${
-                        isCurrentDay
-                          ? 'border-primary ring-2 ring-primary/20 bg-blue-50/20'
-                          : isFuture
-                            ? 'border-slate-100 bg-slate-50/30'
-                            : 'border-slate-200 bg-white hover:shadow-sm'
-                      }`}
-                    >
-                      <div className="flex justify-between items-center mb-1.5">
-                        <span className={`text-xs font-bold ${isCurrentDay ? 'text-primary font-black' : isFuture ? 'text-slate-300' : 'text-slate-700'}`}>
-                          {dayNum}
-                        </span>
-                        {isCurrentDay && (
-                          <span className="text-[9px] font-extrabold uppercase px-1 py-0.2 bg-primary text-white rounded">
-                            Today
-                          </span>
-                        )}
-                      </div>
-
-                      {!isFuture ? (
-                        <div className="flex flex-col gap-1">
-                          {/* Kitchen Badge */}
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[11px] font-bold text-center transition-colors ${
-                              hasKitchen
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                : 'bg-rose-100 text-rose-800 border border-rose-300'
-                            }`}
-                          >
-                            Kitchen
-                          </span>
-
-                          {/* JAT Badge */}
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[11px] font-bold text-center transition-colors ${
-                              hasJat
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                : 'bg-rose-100 text-rose-800 border border-rose-300'
-                            }`}
-                          >
-                            JAT
-                          </span>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col gap-1 opacity-25">
-                          <span className="px-1.5 py-0.5 rounded text-[10px] text-center text-slate-400 border border-slate-100 bg-slate-50">
-                            Kitchen
-                          </span>
-                          <span className="px-1.5 py-0.5 rounded text-[10px] text-center text-slate-400 border border-slate-100 bg-slate-50">
-                            JAT
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })()}
-        </div>
-      )}
-
-      {viewMode === 'table' && (
-        <div className="grid grid-cols-1 gap-6">
-          {/* Transaction Details Table */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-              <h3 className="font-bold text-slate-800">Transaction Details</h3>
-              <select
-                value={reasonFilter}
-                onChange={e => { setReasonFilter(e.target.value); setPage(1); }}
-                className="px-3 py-1.5 text-sm font-semibold text-slate-600 bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary shadow-sm"
-              >
-                <option value="ALL">All Reasons</option>
-                <option value="JAT">JAT</option>
-                <option value="Kitchen Usage">Kitchen Usage</option>
-                <option value="JAT / Vege">JAT / Vege</option>
-                <option value="Kitchen Usage / Vege">Kitchen Usage / Vege</option>
-                <option value="JAT / Trans">JAT / Trans</option>
-                <option value="Kitchen Usage / Trans">Kitchen Usage / Trans</option>
-              </select>
-            </div>
-            <div className="overflow-x-auto flex-1">
-              {(() => {
-                const filteredData = data.filter(row => reasonFilter === 'ALL' || row.reason === reasonFilter);
-                const paginatedData = filteredData.slice((page - 1) * pageSize, page * pageSize);
-
-                return (
-                  <>
-                    <table className="w-full text-sm text-left">
-                      <thead className="bg-slate-50 text-slate-500">
-                        <tr>
-                          <th className="px-4 py-3 font-bold">Date</th>
-                          <th className="px-4 py-3 font-bold">Reason</th>
-                          <th className="px-4 py-3 font-bold text-right">Total Cost</th>
-                          <th className="px-4 py-3 font-bold text-center">Receipt</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {filteredData.length === 0 ? (
-                          <tr><td colSpan={4} className="px-4 py-6 text-center text-slate-400">No data found</td></tr>
-                        ) : (
-                          paginatedData.map(row => (
-                            <tr key={row.receipt} className="hover:bg-slate-50/50">
-                              <td className="px-4 py-3 font-medium text-slate-700">{format(parseISO(row.date), 'dd MMM')}</td>
-                              <td className="px-4 py-3">
-                                <span className={`px-2 py-1 text-xs font-bold rounded-lg ${
-                                  row.reason === 'JAT' ? 'bg-orange-100 text-orange-700' : 
-                                  row.reason === 'Kitchen Usage' ? 'bg-blue-100 text-blue-700' :
-                                  row.reason === 'JAT / Vege' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
-                                  row.reason === 'Kitchen Usage / Vege' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
-                                  row.reason === 'JAT / Trans' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' :
-                                  'bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200'
-                                }}`}>{row.reason}</span>
-                              </td>
-                              <td className="px-4 py-3 text-right font-semibold">LKR {row.totalCost.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-                              <td className="px-4 py-3 text-center">
-                                <button
-                                  onClick={() => setSelectedReceipt(row)}
-                                  className="text-primary hover:text-blue-700 font-semibold underline decoration-blue-300 underline-offset-2 transition-colors"
-                                >
-                                  {row.receipt}
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-
-                    {filteredData.length > pageSize && (
-                      <div className="p-4 border-t border-slate-100 flex justify-center bg-slate-50/30">
-                        <Pagination
-                          currentPage={page}
-                          totalCount={filteredData.length}
-                          pageSize={pageSize}
-                          onPageChange={setPage}
-                          onPageSizeChange={setPageSize}
-                        />
-                      </div>
-                    )}
-                  </>
-                );
-              })()}
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Receipt Details Modal */}
       {selectedReceipt && (

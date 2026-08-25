@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { format } from 'date-fns';
+import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { supabase } from '../lib/supabase';
 import { 
   TrendingUp,
@@ -9,7 +9,9 @@ import {
   CalendarDays, 
   Wallet, 
   Boxes,
-  RefreshCw
+  RefreshCw,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 
 interface Metrics {
@@ -30,6 +32,93 @@ export const Dashboard: React.FC = () => {
   const [kitchenDailyTotal, setKitchenDailyTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [realTimeInventoryValue, setRealTimeInventoryValue] = useState(0);
+
+  // Calendar Tracker State
+  const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
+  const [calendarData, setCalendarData] = useState<Record<string, { hasKitchen: boolean; hasJat: boolean }>>({});
+  const [calendarLoading, setCalendarLoading] = useState(false);
+
+  const fetchCalendarData = async (targetMonth: Date) => {
+    setCalendarLoading(true);
+    try {
+      const monthStart = startOfMonth(targetMonth).toISOString();
+      const monthEnd = endOfMonth(targetMonth).toISOString();
+      const dpStartStr = format(startOfMonth(targetMonth), 'yyyy-MM-dd');
+      const dpEndStr = format(endOfMonth(targetMonth), 'yyyy-MM-dd');
+
+      const { data: reasonsData } = await supabase
+        .from('movement_reasons')
+        .select('id, name')
+        .in('name', ['JAT', 'Kitchen Usage']);
+
+      const jatReason = reasonsData?.find(r => r.name === 'JAT');
+      const kitchenReason = reasonsData?.find(r => r.name === 'Kitchen Usage');
+
+      // Fetch Stock Movements for the target month
+      let movements: any[] = [];
+      let fetchMore = true;
+      let from = 0;
+      const step = 1000;
+
+      while (fetchMore) {
+        let query = supabase
+          .from('stock_movements')
+          .select('created_at, reason_id')
+          .eq('type', 'STOCK_OUT')
+          .gte('created_at', monthStart)
+          .lte('created_at', monthEnd);
+
+        const { data: chunk, error } = await query
+          .order('created_at', { ascending: false })
+          .range(from, from + step - 1);
+
+        if (error || !chunk || chunk.length === 0) {
+          fetchMore = false;
+        } else {
+          movements = [...movements, ...chunk];
+          from += step;
+          if (chunk.length < step) fetchMore = false;
+        }
+      }
+
+      // Fetch daily purchases for the target month
+      const { data: dailyPurchases } = await supabase
+        .from('daily_purchases')
+        .select('date, department')
+        .gte('date', dpStartStr)
+        .lte('date', dpEndStr);
+
+      const dayMap: Record<string, { hasKitchen: boolean; hasJat: boolean }> = {};
+
+      if (movements) {
+        movements.forEach(m => {
+          const dateStr = format(new Date(m.created_at), 'yyyy-MM-dd');
+          if (!dayMap[dateStr]) dayMap[dateStr] = { hasKitchen: false, hasJat: false };
+          if (jatReason && m.reason_id === jatReason.id) dayMap[dateStr].hasJat = true;
+          if (kitchenReason && m.reason_id === kitchenReason.id) dayMap[dateStr].hasKitchen = true;
+        });
+      }
+
+      if (dailyPurchases) {
+        dailyPurchases.forEach(dp => {
+          const dateStr = dp.date;
+          if (!dayMap[dateStr]) dayMap[dateStr] = { hasKitchen: false, hasJat: false };
+          if (dp.department === 'JAT') dayMap[dateStr].hasJat = true;
+          if (dp.department === 'KITCHEN') dayMap[dateStr].hasKitchen = true;
+        });
+      }
+
+      setCalendarData(dayMap);
+    } catch (err) {
+      console.error('Error fetching calendar data in dashboard:', err);
+    } finally {
+      setCalendarLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCalendarData(calendarMonth);
+  }, [calendarMonth]);
 
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -261,6 +350,175 @@ export const Dashboard: React.FC = () => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* Daily Stock-Out Tracker Calendar (Kitchen & JAT) */}
+      <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm card-shadow space-y-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+          <div>
+            <h3 className="font-bold text-slate-800 flex items-center gap-2 text-base">
+              <CalendarDays className="text-primary" size={20} />
+              <span>Daily Stock-Out Tracker (Kitchen & JAT)</span>
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">Track daily completed or missed stock-out entries</p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Legend */}
+            <div className="flex items-center gap-3 text-xs bg-slate-50 px-3 py-1.5 rounded-xl border border-slate-200/60">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 inline-block"></span>
+                <span className="font-semibold text-slate-600">Done</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-500 inline-block"></span>
+                <span className="font-semibold text-slate-600">Not Done</span>
+              </div>
+            </div>
+
+            {/* Month Navigation */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+              <button
+                type="button"
+                onClick={() => setCalendarMonth(prev => subMonths(prev, 1))}
+                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                title="Previous Month"
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <span className="px-2.5 text-xs font-bold text-slate-800 min-w-[110px] text-center">
+                {format(calendarMonth, 'MMMM yyyy')}
+              </span>
+
+              <button
+                type="button"
+                onClick={() => setCalendarMonth(prev => addMonths(prev, 1))}
+                className="p-1.5 text-slate-600 hover:text-slate-900 hover:bg-white rounded-lg transition-all"
+                title="Next Month"
+              >
+                <ChevronRight size={16} />
+              </button>
+
+              {format(calendarMonth, 'yyyy-MM') !== format(new Date(), 'yyyy-MM') && (
+                <button
+                  type="button"
+                  onClick={() => setCalendarMonth(new Date())}
+                  className="px-2 py-1 text-[11px] font-bold text-primary hover:bg-white rounded-lg transition-all border-l border-slate-200 ml-1"
+                >
+                  This Month
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {calendarLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin"></div>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {/* Weekday headers */}
+            <div className="grid grid-cols-7 gap-1 sm:gap-2 text-center">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(dayName => (
+                <div key={dayName} className="text-xs font-extrabold text-slate-400 uppercase tracking-wider py-1">
+                  {dayName}
+                </div>
+              ))}
+            </div>
+
+            {/* Calendar Day Cells */}
+            {(() => {
+              const start = startOfMonth(calendarMonth);
+              const end = endOfMonth(calendarMonth);
+              const startDayOfWeek = start.getDay();
+              const totalDays = end.getDate();
+
+              return (
+                <div className="grid grid-cols-7 gap-1 sm:gap-2.5">
+                  {/* Blank offset days */}
+                  {Array.from({ length: startDayOfWeek }).map((_, idx) => (
+                    <div key={`blank-${idx}`} className="p-2 rounded-xl bg-slate-50/40 border border-transparent min-h-[80px] hidden sm:block" />
+                  ))}
+
+                  {/* Days in Month */}
+                  {Array.from({ length: totalDays }).map((_, idx) => {
+                    const dayNum = idx + 1;
+                    const dateObj = new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), dayNum);
+                    const dateStr = format(dateObj, 'yyyy-MM-dd');
+                    const todayStr = format(new Date(), 'yyyy-MM-dd');
+                    const isFuture = dateStr > todayStr;
+                    const isCurrentDay = dateStr === todayStr;
+
+                    const dayStatus = calendarData[dateStr] || { hasKitchen: false, hasJat: false };
+                    const hasKitchen = dayStatus.hasKitchen;
+                    const hasJat = dayStatus.hasJat;
+
+                    return (
+                      <div
+                        key={dateStr}
+                        className={`p-2 rounded-xl border flex flex-col justify-between min-h-[80px] sm:min-h-[85px] transition-all ${
+                          isCurrentDay
+                            ? 'border-primary ring-2 ring-primary/20 bg-blue-50/20 shadow-sm'
+                            : isFuture
+                              ? 'border-slate-100 bg-slate-50/30'
+                              : 'border-slate-200 bg-white hover:shadow-sm'
+                        }`}
+                      >
+                        <div className="flex justify-between items-center mb-1.5">
+                          <span className={`text-xs font-bold ${isCurrentDay ? 'text-primary font-black' : isFuture ? 'text-slate-300' : 'text-slate-700'}`}>
+                            {dayNum}
+                          </span>
+                          {isCurrentDay && (
+                            <span className="text-[9px] font-extrabold uppercase px-1 py-0.2 bg-primary text-white rounded">
+                              Today
+                            </span>
+                          )}
+                        </div>
+
+                        {!isFuture ? (
+                          <div className="flex flex-col gap-1">
+                            {/* Kitchen Badge */}
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[11px] font-bold text-center transition-colors ${
+                                hasKitchen
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : 'bg-rose-100 text-rose-800 border border-rose-300'
+                              }`}
+                            >
+                              Kitchen
+                            </span>
+
+                            {/* JAT Badge */}
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[11px] font-bold text-center transition-colors ${
+                                hasJat
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : 'bg-rose-100 text-rose-800 border border-rose-300'
+                              }`}
+                            >
+                              JAT
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col gap-1 opacity-25">
+                            <span className="px-1.5 py-0.5 rounded text-[10px] text-center text-slate-400 border border-slate-100 bg-slate-50">
+                              Kitchen
+                            </span>
+                            <span className="px-1.5 py-0.5 rounded text-[10px] text-center text-slate-400 border border-slate-100 bg-slate-50">
+                              JAT
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl border border-slate-100 p-6 shadow-sm card-shadow space-y-4">
