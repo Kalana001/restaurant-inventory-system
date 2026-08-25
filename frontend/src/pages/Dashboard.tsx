@@ -41,10 +41,10 @@ export const Dashboard: React.FC = () => {
   const fetchCalendarData = async (targetMonth: Date) => {
     setCalendarLoading(true);
     try {
-      const monthStart = startOfMonth(targetMonth).toISOString();
-      const monthEnd = endOfMonth(targetMonth).toISOString();
-      const dpStartStr = format(startOfMonth(targetMonth), 'yyyy-MM-dd');
-      const dpEndStr = format(endOfMonth(targetMonth), 'yyyy-MM-dd');
+      const year = targetMonth.getFullYear();
+      const month = targetMonth.getMonth();
+      const monthStart = new Date(year, month, 1, 0, 0, 0).toISOString();
+      const monthEnd = new Date(year, month + 1, 0, 23, 59, 59, 999).toISOString();
 
       const { data: reasonsData } = await supabase
         .from('movement_reasons')
@@ -54,7 +54,7 @@ export const Dashboard: React.FC = () => {
       const jatReason = reasonsData?.find(r => r.name === 'JAT');
       const kitchenReason = reasonsData?.find(r => r.name === 'Kitchen Usage');
 
-      // Fetch Stock Movements for the target month
+      // Fetch ONLY item Stock Movements for the target month
       let movements: any[] = [];
       let fetchMore = true;
       let from = 0;
@@ -81,13 +81,6 @@ export const Dashboard: React.FC = () => {
         }
       }
 
-      // Fetch daily purchases for the target month
-      const { data: dailyPurchases } = await supabase
-        .from('daily_purchases')
-        .select('date, department')
-        .gte('date', dpStartStr)
-        .lte('date', dpEndStr);
-
       const dayMap: Record<string, { hasKitchen: boolean; hasJat: boolean }> = {};
 
       if (movements) {
@@ -96,15 +89,6 @@ export const Dashboard: React.FC = () => {
           if (!dayMap[dateStr]) dayMap[dateStr] = { hasKitchen: false, hasJat: false };
           if (jatReason && m.reason_id === jatReason.id) dayMap[dateStr].hasJat = true;
           if (kitchenReason && m.reason_id === kitchenReason.id) dayMap[dateStr].hasKitchen = true;
-        });
-      }
-
-      if (dailyPurchases) {
-        dailyPurchases.forEach(dp => {
-          const dateStr = dp.date;
-          if (!dayMap[dateStr]) dayMap[dateStr] = { hasKitchen: false, hasJat: false };
-          if (dp.department === 'JAT') dayMap[dateStr].hasJat = true;
-          if (dp.department === 'KITCHEN') dayMap[dateStr].hasKitchen = true;
         });
       }
 
