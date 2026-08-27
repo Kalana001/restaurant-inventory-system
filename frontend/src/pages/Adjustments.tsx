@@ -421,18 +421,27 @@ export const Adjustments: React.FC = () => {
     return rows;
   })();
 
+  const STOCK_OUT_ORDER = [
+    'kitchen usage',
+    'jat',
+    'wastage',
+    'damaged',
+    'expired',
+    'returned to supplier',
+    'personal use',
+    'promotion',
+    'correction out'
+  ];
+
   const filteredReasons = reasons.filter(r => r.type === movementType).sort((a, b) => {
     if (movementType === 'STOCK_OUT') {
       const aName = (a.name || '').toLowerCase();
       const bName = (b.name || '').toLowerCase();
-      const aIsTop = aName === 'jat' || aName === 'kitchen usage';
-      const bIsTop = bName === 'jat' || bName === 'kitchen usage';
-      if (aIsTop && !bIsTop) return -1;
-      if (!aIsTop && bIsTop) return 1;
-      if (aIsTop && bIsTop) {
-        if (aName === 'kitchen usage') return -1;
-        if (bName === 'kitchen usage') return 1;
-      }
+      const aIdx = STOCK_OUT_ORDER.indexOf(aName);
+      const bIdx = STOCK_OUT_ORDER.indexOf(bName);
+      if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+      if (aIdx !== -1) return -1;
+      if (bIdx !== -1) return 1;
     }
     return (a.name || '').localeCompare(b.name || '');
   });
@@ -477,9 +486,22 @@ export const Adjustments: React.FC = () => {
             className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
           >
             <option value="ALL">All Reasons</option>
-            {reasons.map(r => (
-              <option key={r.id} value={r.name}>{r.name}</option>
-            ))}
+            {reasons
+              .slice()
+              .sort((a, b) => {
+                const aName = (a.name || '').toLowerCase();
+                const bName = (b.name || '').toLowerCase();
+                const aIdx = STOCK_OUT_ORDER.indexOf(aName);
+                const bIdx = STOCK_OUT_ORDER.indexOf(bName);
+                if (aIdx !== -1 && bIdx !== -1) return aIdx - bIdx;
+                if (aIdx !== -1) return -1;
+                if (bIdx !== -1) return 1;
+                return (a.name || '').localeCompare(b.name || '');
+              })
+              .map(r => (
+                <option key={r.id} value={r.name}>{r.name}</option>
+              ))
+            }
           </select>
         </div>
         
