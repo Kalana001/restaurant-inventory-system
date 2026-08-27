@@ -140,16 +140,53 @@ export const Dashboard: React.FC = () => {
         const jatReason = reasonsData.find(r => r.name === 'JAT');
         const kitchenReason = reasonsData.find(r => r.name === 'Kitchen Usage');
 
-        const [ { data: jatMoves }, { data: settledJatData }, { data: kitchenMoves }, { data: dailyPurchases }, { data: transCosts }, { data: jatExpenses } ] = await Promise.all([
-          jatReason ? supabase.from('stock_movements').select('quantity, cost_price').eq('type', 'STOCK_OUT').eq('reason_id', jatReason.id) : Promise.resolve({ data: [] }),
+        const now = new Date();
+        const todayStr = format(now, 'yyyy-MM-dd');
+        const monthStartStr = format(startOfMonth(now), 'yyyy-MM-dd');
+        const monthStartIso = startOfMonth(now).toISOString();
+
+        // 1. Fetch JAT movements (auto-paginate so all rows are fetched without 1,000 limit cutoff)
+        let totalJat = 0;
+        if (jatReason) {
+          let fetchMoreJat = true;
+          let fromJat = 0;
+          const stepJat = 1000;
+          while (fetchMoreJat) {
+            const { data: chunk, error: jatErr } = await supabase
+              .from('stock_movements')
+              .select('quantity, cost_price')
+              .eq('type', 'STOCK_OUT')
+              .eq('reason_id', jatReason.id)
+              .range(fromJat, fromJat + stepJat - 1);
+
+            if (jatErr || !chunk || chunk.length === 0) {
+              fetchMoreJat = false;
+            } else {
+              chunk.forEach(row => {
+                totalJat += (Number(row.quantity) || 0) * (Number(row.cost_price) || 0);
+              });
+              fromJat += stepJat;
+              if (chunk.length < stepJat) fetchMoreJat = false;
+            }
+          }
+        }
+
+        // 2. Fetch Kitchen movements for current month (avoids 1,000 row cutoff completely)
+        const [ { data: settledJatData }, { data: kitchenMoves }, { data: dailyPurchases }, { data: transCosts }, { data: jatExpenses } ] = await Promise.all([
           supabase.from('jat_settlements').select('amount').neq('status', 'BOUNCED'),
-          kitchenReason ? supabase.from('stock_movements').select('quantity, cost_price, created_at').eq('type', 'STOCK_OUT').eq('reason_id', kitchenReason.id) : Promise.resolve({ data: [] }),
-          supabase.from('daily_purchases').select('total_cost, department, date'),
-          supabase.from('transportation_costs').select('cost, department, date'),
+          kitchenReason 
+            ? supabase
+                .from('stock_movements')
+                .select('quantity, cost_price, created_at')
+                .eq('type', 'STOCK_OUT')
+                .eq('reason_id', kitchenReason.id)
+                .gte('created_at', monthStartIso)
+            : Promise.resolve({ data: [] }),
+          supabase.from('daily_purchases').select('total_cost, department, date').gte('date', monthStartStr),
+          supabase.from('transportation_costs').select('cost, department, date').gte('date', monthStartStr),
           supabase.from('expenses').select('total_amount').eq('category', 'JAT')
         ]);
         
-        let totalJat = jatMoves?.reduce((sum, row) => sum + (Number(row.quantity) * Number(row.cost_price)), 0) || 0;
         const settled = settledJatData?.reduce((sum, row) => sum + (Number(row.amount) || 0), 0) || 0;
         
         // Add JAT purchases, trans costs, and expenses to totalJat
@@ -171,22 +208,15 @@ export const Dashboard: React.FC = () => {
         setJatTotal(totalJat);
         setJatUnsettled(Math.max(0, Math.round((totalJat - settled) * 100) / 100));
 
-        const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-        const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
-        
-        // For DP and TC, dates are stored as YYYY-MM-DD
-        const todayStr = format(now, 'yyyy-MM-dd');
-        const monthStartStr = todayStr.substring(0, 8) + '01'; // YYYY-MM-01
-
         let mTotalKitchen = 0;
         let dTotalKitchen = 0;
 
         if (kitchenMoves) {
           kitchenMoves.forEach(m => {
             const cost = Number(m.quantity) * Number(m.cost_price);
-            if (m.created_at >= monthStart) mTotalKitchen += cost;
-            if (m.created_at >= todayStart) dTotalKitchen += cost;
+            const moveDateStr = format(new Date(m.created_at), 'yyyy-MM-dd');
+            if (moveDateStr >= monthStartStr) mTotalKitchen += cost;
+            if (moveDateStr === todayStr) dTotalKitchen += cost;
           });
         }
         
