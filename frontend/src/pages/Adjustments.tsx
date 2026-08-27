@@ -205,7 +205,7 @@ export const Adjustments: React.FC = () => {
     const unit = units.find(u => u.id === item?.base_unit_id);
     const { data: itemBatches } = await supabase
       .from('batches')
-      .select('id, batch_number, available_qty, expiry_date, received_date, inventory_items ( cost_price ), stock_movements ( type, cost_price ), grn_items ( grns ( purchase_orders ( supplier_payments ( payment_date ) ) ) )')
+      .select('id, batch_number, available_qty, expiry_date, received_date, supplier_id, inventory_items ( cost_price ), stock_movements ( type, cost_price ), grn_items ( cost_price, grns ( id, po_id, supplier_id, purchase_orders ( supplier_payments ( payment_date ) ) ) )')
       .eq('item_id', itemId)
       .gt('available_qty', 0)
       .order('received_date', { ascending: false })
@@ -268,6 +268,12 @@ export const Adjustments: React.FC = () => {
           errors.push(`${item.name}: batch-tracked item requires a batch selection.`);
           continue;
         }
+        const batch = line.batches.find(b => b.id === line.batchId);
+        const grnCost = Number(batch?.grn_items?.[0]?.cost_price);
+        const stockInCost = Number(batch?.stock_movements?.find((m: any) => m.type === 'STOCK_IN' && Number(m.cost_price) > 0)?.cost_price);
+        const fallbackCost = Number((batch?.inventory_items as any)?.cost_price || item?.cost_price || 0);
+        const batchPrice = grnCost > 0 ? grnCost : (stockInCost > 0 ? stockInCost : fallbackCost);
+
         try {
           const payload = {
             itemId: line.itemId,
@@ -276,7 +282,7 @@ export const Adjustments: React.FC = () => {
             quantity: Number(line.quantity),
             unitId: item?.base_unit_id,
             reasonId: selectedReasonId,
-            price: movementType === 'STOCK_IN' && line.price ? Number(line.price) : undefined,
+            price: movementType === 'STOCK_IN' ? (line.price ? Number(line.price) : undefined) : (batchPrice || undefined),
             receiptNumber,
             date: movementDate
           };

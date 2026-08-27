@@ -153,6 +153,85 @@ export const createStockMovement = async (req: Request, res: Response, next: Nex
         .eq('id', itemId);
     }
 
+    // If reason is "Returned to Supplier", reverse supplier outstanding balance and record Return Credit
+    const { data: reasonData } = await supabase
+      .from('movement_reasons')
+      .select('name')
+      .eq('id', reasonId)
+      .single();
+
+    if (type === 'STOCK_OUT' && reasonData?.name === 'Returned to Supplier') {
+      let supId: string | null = null;
+      let poId: string | null = null;
+      let unitPrice = costPriceBase;
+
+      if (finalBatchId) {
+        const { data: bData } = await supabase
+          .from('batches')
+          .select(`
+            batch_number,
+            supplier_id,
+            stock_movements ( type, cost_price ),
+            grn_items (
+              cost_price,
+              grns (
+                id,
+                po_id,
+                supplier_id
+              )
+            )
+          `)
+          .eq('id', finalBatchId)
+          .single();
+
+        if (bData) {
+          supId = bData.supplier_id || (bData.grn_items as any)?.[0]?.grns?.supplier_id || null;
+          poId = (bData.grn_items as any)?.[0]?.grns?.po_id || null;
+          const gCost = Number((bData.grn_items as any)?.[0]?.cost_price);
+          const sCost = Number((bData.stock_movements as any)?.find((m: any) => m.type === 'STOCK_IN' && Number(m.cost_price) > 0)?.cost_price);
+          if (gCost > 0) unitPrice = gCost;
+          else if (sCost > 0) unitPrice = sCost;
+        }
+      }
+
+      if (!supId) {
+        supId = item.supplier_id || null;
+      }
+
+      const returnAmount = Math.round((Number(qtyBase) * Number(unitPrice)) * 100) / 100;
+
+      if (supId && returnAmount > 0) {
+        // 1. Fetch current supplier outstanding balance
+        const { data: supRow } = await supabase
+          .from('suppliers')
+          .select('outstanding_balance, name')
+          .eq('id', supId)
+          .single();
+
+        if (supRow) {
+          const newBal = Math.round(((Number(supRow.outstanding_balance) || 0) - returnAmount) * 100) / 100;
+          await supabase
+            .from('suppliers')
+            .update({ outstanding_balance: newBal })
+            .eq('id', supId);
+        }
+
+        // 2. Insert record into supplier_payments so it appears in Supplier History
+        const returnDateStr = date ? new Date(date).toISOString().split('T')[0] : new Date().toISOString().split('T')[0];
+        await supabase
+          .from('supplier_payments')
+          .insert({
+            supplier_id: supId,
+            po_id: poId,
+            amount: returnAmount,
+            payment_method: 'Return Credit',
+            payment_date: returnDateStr,
+            notes: `Stock Return: ${item.name} (${quantity} returned to supplier)`,
+            paid_by: userId || null
+          });
+      }
+    }
+
     // 6. Log Audit Trail
     await logAudit(
       userId,

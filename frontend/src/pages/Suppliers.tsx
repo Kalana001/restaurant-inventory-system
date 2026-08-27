@@ -616,7 +616,9 @@ export const Suppliers: React.FC = () => {
                               )}
                               {item.type === 'PAYMENT' && (
                                 <>
-                                  <p className="font-bold text-amber-700">Payment Recorded</p>
+                                  <p className={`font-bold ${item.data.payment_method === 'Return Credit' ? 'text-rose-700' : 'text-amber-700'}`}>
+                                    {item.data.payment_method === 'Return Credit' ? 'Stock Return / Credit Note' : 'Payment Recorded'}
+                                  </p>
                                   <p className="text-xs text-slate-600 mt-1">
                                     Method: <span className="font-semibold">{item.data.payment_method}</span>
                                     {item.data.payment_method === 'Cheque' && item.data.cheque_realize_date && (
