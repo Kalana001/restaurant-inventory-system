@@ -28,7 +28,7 @@ export const PurchaseOrders: React.FC = () => {
 
   // ── Create PO States ──────────────────────────────────────────
   const [createModalOpen, setCreateModalOpen] = useState(false);
-  const [poDate, setPoDate] = useState<string>(() => loadDraft<string>('po_draft_date') || format(new Date(), 'yyyy-MM-dd'));
+  const [poDate, setPoDate] = useState<string>(() => loadDraft<string>('po_draft_date') || '');
   const [selectedSupplier, setSelectedSupplier] = useState(() => loadDraft<string>('po_draft_supplier') || '');
   const [remarks, setRemarks] = useState(() => loadDraft<string>('po_draft_remarks') || '');
   const [poLines, setPoLines] = useState<any[]>(() => loadDraft<any[]>('po_draft_lines') || []);
@@ -176,7 +176,7 @@ export const PurchaseOrders: React.FC = () => {
   // ── Open Create PO Modal ──────────────────────────────────────
   const openCreateModal = () => {
     if (!loadDraft<string>('po_draft_date')) {
-      setPoDate(format(new Date(), 'yyyy-MM-dd'));
+      setPoDate('');
     }
     setSelectedSupplier('');
     setSupplierSearch('');
@@ -309,7 +309,7 @@ export const PurchaseOrders: React.FC = () => {
   const handleCancelPO = () => {
     clearPoDrafts();
     setCreateModalOpen(false);
-    setPoDate(format(new Date(), 'yyyy-MM-dd'));
+    setPoDate('');
     setSelectedSupplier(''); setRemarks(''); setPoLines([]); setPoDiscount(0); setPoDiscountType('fixed');
   };
 
