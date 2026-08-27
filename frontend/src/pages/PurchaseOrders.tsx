@@ -28,12 +28,14 @@ export const PurchaseOrders: React.FC = () => {
 
   // ── Create PO States ──────────────────────────────────────────
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [poDate, setPoDate] = useState<string>(() => loadDraft<string>('po_draft_date') || format(new Date(), 'yyyy-MM-dd'));
   const [selectedSupplier, setSelectedSupplier] = useState(() => loadDraft<string>('po_draft_supplier') || '');
   const [remarks, setRemarks] = useState(() => loadDraft<string>('po_draft_remarks') || '');
   const [poLines, setPoLines] = useState<any[]>(() => loadDraft<any[]>('po_draft_lines') || []);
   const [poDiscount, setPoDiscount] = useState<number>(() => loadDraft<number>('po_draft_discount') || 0);
   const [poDiscountType, setPoDiscountType] = useState<'fixed' | 'percentage'>(() => loadDraft<'fixed' | 'percentage'>('po_draft_discount_type') || 'fixed');
 
+  const { clearDraft: clearPoDate } = useAutoSave('po_draft_date', poDate);
   const { clearDraft: clearSupplier } = useAutoSave('po_draft_supplier', selectedSupplier);
   const { clearDraft: clearRemarks } = useAutoSave('po_draft_remarks', remarks);
   const { clearDraft: clearLines, saveStatus } = useAutoSave('po_draft_lines', poLines);
@@ -41,7 +43,7 @@ export const PurchaseOrders: React.FC = () => {
   const { clearDraft: clearDiscountType } = useAutoSave('po_draft_discount_type', poDiscountType);
 
   const clearPoDrafts = () => {
-    clearSupplier(); clearRemarks(); clearLines(); clearDiscount(); clearDiscountType();
+    clearPoDate(); clearSupplier(); clearRemarks(); clearLines(); clearDiscount(); clearDiscountType();
   };
   const [formError, setFormError] = useState<string | null>(null);
 
@@ -173,6 +175,9 @@ export const PurchaseOrders: React.FC = () => {
 
   // ── Open Create PO Modal ──────────────────────────────────────
   const openCreateModal = () => {
+    if (!loadDraft<string>('po_draft_date')) {
+      setPoDate(format(new Date(), 'yyyy-MM-dd'));
+    }
     setSelectedSupplier('');
     setSupplierSearch('');
     setRemarks('');
@@ -202,9 +207,9 @@ export const PurchaseOrders: React.FC = () => {
         email: newSupplierEmail.trim() || null,
         address: newSupplierAddress.trim() || null,
         status: 'ACTIVE'
-      }).select('*').single();
+      }).select().single();
       if (error) throw error;
-      setSuppliers(prev => [...prev, data]);
+      setSuppliers(prev => [data, ...prev]);
       setSelectedSupplier(data.id);
       setSupplierSearch(`${data.name} (${data.code})`);
       setCreateSupplierOpen(false);
@@ -223,45 +228,76 @@ export const PurchaseOrders: React.FC = () => {
     item.sku.toLowerCase().includes(itemSearch.toLowerCase())
   );
 
-  const selectItemFromSearch = (item: any) => {
-    setFormError(null);
-    setPoLines([...poLines, {
-      itemId: item.id,
-      sku: item.sku,
-      name: item.name,
-      unit: item.units?.abbreviation || 'pcs',
-      quantity: 1,
-      costPrice: Number(item.cost_price),
-      discount: 0,
-      discountType: 'fixed',
-      totalCost: Number(item.cost_price)
-    }]);
+  const addPoLine = (item: any) => {
+    const defaultCost = Number(item.cost_price) || 0;
+    const existingIndex = poLines.findIndex(l => l.itemId === item.id);
+    if (existingIndex > -1) {
+      setPoLines(prev => {
+        const copy = [...prev];
+        const line = copy[existingIndex];
+        const newQty = line.quantity + 1;
+        line.quantity = newQty;
+        line.totalCost = calculateLineTotal(newQty, line.costPrice, line.discount, line.discountType);
+        copy[existingIndex] = line;
+        return copy;
+      });
+    } else {
+      setPoLines(prev => [
+        ...prev,
+        {
+          itemId: item.id,
+          itemName: item.name,
+          unit: item.units?.abbreviation || 'unit',
+          quantity: 1,
+          costPrice: defaultCost,
+          discount: 0,
+          discountType: 'fixed',
+          totalCost: defaultCost
+        }
+      ]);
+    }
     setItemSearch('');
     setShowSuggestions(false);
   };
 
-  const calculateLineTotal = (qty: number, price: number, disc: number, type: 'fixed' | 'percentage') => {
-    const baseCost = qty * price;
-    if (type === 'percentage') return Math.max(0, baseCost - baseCost * (disc / 100));
-    return Math.max(0, baseCost - disc);
+  const selectItemFromSearch = (item: any) => {
+    addPoLine(item);
   };
 
-  const updatePoLine = (idx: number, field: 'quantity' | 'costPrice' | 'discount', value: string) => {
-    const num = Number(value) || 0;
+  const calculateLineTotal = (qty: number, cost: number, disc: number, type: 'fixed' | 'percentage') => {
+    const raw = qty * cost;
+    const discAmount = type === 'percentage' ? raw * (disc / 100) : disc;
+    return Math.max(0, raw - discAmount);
+  };
+
+  const updatePoLineQty = (idx: number, qty: number) => {
+    const validQty = isNaN(qty) || qty < 0 ? 0 : qty;
     setPoLines(prev => {
       const copy = [...prev];
-      const line = { ...copy[idx], [field]: num };
-      line.totalCost = calculateLineTotal(line.quantity, line.costPrice, line.discount, line.discountType || 'fixed');
+      const line = { ...copy[idx], quantity: validQty };
+      line.totalCost = calculateLineTotal(validQty, line.costPrice, line.discount, line.discountType);
       copy[idx] = line;
       return copy;
     });
   };
 
-  const updatePoLineType = (idx: number, type: 'fixed' | 'percentage') => {
+  const updatePoLineCost = (idx: number, cost: number) => {
+    const validCost = isNaN(cost) || cost < 0 ? 0 : cost;
     setPoLines(prev => {
       const copy = [...prev];
-      const line = { ...copy[idx], discountType: type };
-      line.totalCost = calculateLineTotal(line.quantity, line.costPrice, line.discount, type);
+      const line = { ...copy[idx], costPrice: validCost };
+      line.totalCost = calculateLineTotal(line.quantity, validCost, line.discount, line.discountType);
+      copy[idx] = line;
+      return copy;
+    });
+  };
+
+  const updatePoLineDiscount = (idx: number, disc: number) => {
+    const validDisc = isNaN(disc) || disc < 0 ? 0 : disc;
+    setPoLines(prev => {
+      const copy = [...prev];
+      const line = { ...copy[idx], discount: validDisc };
+      line.totalCost = calculateLineTotal(line.quantity, line.costPrice, validDisc, line.discountType);
       copy[idx] = line;
       return copy;
     });
@@ -273,18 +309,23 @@ export const PurchaseOrders: React.FC = () => {
   const handleCancelPO = () => {
     clearPoDrafts();
     setCreateModalOpen(false);
+    setPoDate(format(new Date(), 'yyyy-MM-dd'));
     setSelectedSupplier(''); setRemarks(''); setPoLines([]); setPoDiscount(0); setPoDiscountType('fixed');
   };
 
   const handleSavePO = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+    if (!poDate) { setFormError('Please select a valid Order Date.'); return; }
+    if (!selectedSupplier) { setFormError('Please select a vendor supplier.'); return; }
     if (poLines.length === 0) { setFormError('Please add at least one line item to the PO.'); return; }
     try {
       const subTotal = poLines.reduce((acc, curr) => acc + curr.totalCost, 0);
       const discountAmount = poDiscountType === 'percentage' ? subTotal * (poDiscount / 100) : poDiscount;
       const grandTotal = Math.max(0, subTotal - discountAmount);
-      const generatedPoNumber = `PO-${format(new Date(), 'yyyyMMdd')}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const dateClean = poDate.replace(/-/g, '');
+      const generatedPoNumber = `PO-${dateClean}-${Math.floor(1000 + Math.random() * 9000)}`;
+      const isoDate = `${poDate}T12:00:00.000Z`;
 
       const { data: poHeader, error: poErr } = await supabase.from('purchase_orders').insert({
         po_number: generatedPoNumber,
@@ -294,7 +335,8 @@ export const PurchaseOrders: React.FC = () => {
         discount_amount: discountAmount,
         paid_amount: 0,
         remarks: remarks.trim(),
-        created_by: user?.id
+        created_by: user?.id,
+        created_at: isoDate
       }).select('*').single();
 
       if (poErr || !poHeader) throw poErr;
@@ -732,10 +774,26 @@ export const PurchaseOrders: React.FC = () => {
             )}
 
             <form onSubmit={handleSavePO} className="space-y-6 overflow-y-auto flex-1 pr-1">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Order Date */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                    Order Date <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={poDate}
+                    onChange={e => setPoDate(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary text-sm font-semibold text-slate-700"
+                  />
+                </div>
+
                 {/* Supplier Search */}
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Vendor Supplier</label>
+                  <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1">
+                    Vendor Supplier <span className="text-rose-500">*</span>
+                  </label>
                   <div ref={supplierRef} className="relative">
                     <div
                       className="flex items-center gap-2 bg-white border border-slate-200 rounded-xl px-3 py-2.5 focus-within:ring-2 focus-within:ring-primary cursor-text"
@@ -1004,8 +1062,9 @@ export const PurchaseOrders: React.FC = () => {
             </div>
 
             <div className="overflow-y-auto flex-1 space-y-5 pr-1">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm bg-slate-50 p-4 rounded-xl">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 text-sm bg-slate-50 p-4 rounded-xl">
                 <div><p className="text-slate-400 font-semibold text-[10px] uppercase">PO Number</p><p className="font-bold">{selectedPo?.po_number}</p></div>
+                <div><p className="text-slate-400 font-semibold text-[10px] uppercase">PO Date</p><p className="font-bold text-slate-800">{selectedPo?.created_at ? format(new Date(selectedPo.created_at), 'dd/MM/yyyy') : '—'}</p></div>
                 <div><p className="text-slate-400 font-semibold text-[10px] uppercase">Supplier</p><p className="font-bold">{selectedPo?.suppliers?.name}</p></div>
                 <div>
                   <p className="text-slate-400 font-semibold text-[10px] uppercase">GRN Status</p>
