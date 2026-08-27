@@ -29,7 +29,11 @@ export const Dashboard: React.FC = () => {
   const [jatTotal, setJatTotal] = useState(0);
   const [jatUnsettled, setJatUnsettled] = useState(0);
   const [kitchenMonthTotal, setKitchenMonthTotal] = useState(0);
+  const [kitchenMonthUsage, setKitchenMonthUsage] = useState(0);
+  const [kitchenMonthWaste, setKitchenMonthWaste] = useState(0);
   const [kitchenDailyTotal, setKitchenDailyTotal] = useState(0);
+  const [kitchenDailyUsage, setKitchenDailyUsage] = useState(0);
+  const [kitchenDailyWaste, setKitchenDailyWaste] = useState(0);
   const [loading, setLoading] = useState(true);
   const [realTimeInventoryValue, setRealTimeInventoryValue] = useState(0);
 
@@ -135,10 +139,12 @@ export const Dashboard: React.FC = () => {
       }
 
       // Fetch JAT & Kitchen Stats
-      const { data: reasonsData } = await supabase.from('movement_reasons').select('id, name').in('name', ['JAT', 'Kitchen Usage']);
+      const { data: reasonsData } = await supabase.from('movement_reasons').select('id, name').in('name', ['JAT', 'Kitchen Usage', 'Wastage', 'Damaged', 'Expired']);
       if (reasonsData) {
         const jatReason = reasonsData.find(r => r.name === 'JAT');
-        const kitchenReason = reasonsData.find(r => r.name === 'Kitchen Usage');
+        const kitchenUsageReason = reasonsData.find(r => r.name === 'Kitchen Usage');
+        const wasteReasonIds = reasonsData.filter(r => ['Wastage', 'Damaged', 'Expired'].includes(r.name)).map(r => r.id);
+        const allKitchenReasonIds = [kitchenUsageReason?.id, ...wasteReasonIds].filter(Boolean) as string[];
 
         const now = new Date();
         const todayStr = format(now, 'yyyy-MM-dd');
@@ -171,15 +177,15 @@ export const Dashboard: React.FC = () => {
           }
         }
 
-        // 2. Fetch Kitchen movements for current month (avoids 1,000 row cutoff completely)
+        // 2. Fetch Kitchen movements for current month (includes Usage + Wastage, Damaged, Expired)
         const [ { data: settledJatData }, { data: kitchenMoves }, { data: dailyPurchases }, { data: transCosts }, { data: jatExpenses } ] = await Promise.all([
           supabase.from('jat_settlements').select('amount').neq('status', 'BOUNCED'),
-          kitchenReason 
+          allKitchenReasonIds.length > 0
             ? supabase
                 .from('stock_movements')
-                .select('quantity, cost_price, created_at')
+                .select('quantity, cost_price, created_at, reason_id')
                 .eq('type', 'STOCK_OUT')
-                .eq('reason_id', kitchenReason.id)
+                .in('reason_id', allKitchenReasonIds)
                 .gte('created_at', monthStartIso)
             : Promise.resolve({ data: [] }),
           supabase.from('daily_purchases').select('total_cost, department, date').gte('date', monthStartStr),
@@ -208,15 +214,25 @@ export const Dashboard: React.FC = () => {
         setJatTotal(totalJat);
         setJatUnsettled(Math.max(0, Math.round((totalJat - settled) * 100) / 100));
 
-        let mTotalKitchen = 0;
-        let dTotalKitchen = 0;
+        let mUsageKitchen = 0;
+        let mWasteKitchen = 0;
+        let dUsageKitchen = 0;
+        let dWasteKitchen = 0;
 
         if (kitchenMoves) {
           kitchenMoves.forEach(m => {
             const cost = Number(m.quantity) * Number(m.cost_price);
             const moveDateStr = format(new Date(m.created_at), 'yyyy-MM-dd');
-            if (moveDateStr >= monthStartStr) mTotalKitchen += cost;
-            if (moveDateStr === todayStr) dTotalKitchen += cost;
+            const isWaste = wasteReasonIds.includes(m.reason_id);
+
+            if (moveDateStr >= monthStartStr) {
+              if (isWaste) mWasteKitchen += cost;
+              else mUsageKitchen += cost;
+            }
+            if (moveDateStr === todayStr) {
+              if (isWaste) dWasteKitchen += cost;
+              else dUsageKitchen += cost;
+            }
           });
         }
         
@@ -224,8 +240,8 @@ export const Dashboard: React.FC = () => {
           dailyPurchases.forEach(dp => {
             if (dp.department === 'KITCHEN') {
               const cost = Number(dp.total_cost) || 0;
-              if (dp.date >= monthStartStr) mTotalKitchen += cost;
-              if (dp.date === todayStr) dTotalKitchen += cost;
+              if (dp.date >= monthStartStr) mUsageKitchen += cost;
+              if (dp.date === todayStr) dUsageKitchen += cost;
             }
           });
         }
@@ -234,14 +250,19 @@ export const Dashboard: React.FC = () => {
           transCosts.forEach(tc => {
             if (tc.department === 'KITCHEN') {
               const cost = Number(tc.cost) || 0;
-              if (tc.date >= monthStartStr) mTotalKitchen += cost;
-              if (tc.date === todayStr) dTotalKitchen += cost;
+              if (tc.date >= monthStartStr) mUsageKitchen += cost;
+              if (tc.date === todayStr) dUsageKitchen += cost;
             }
           });
         }
 
-        setKitchenMonthTotal(mTotalKitchen);
-        setKitchenDailyTotal(dTotalKitchen);
+        setKitchenMonthUsage(mUsageKitchen);
+        setKitchenMonthWaste(mWasteKitchen);
+        setKitchenMonthTotal(mUsageKitchen + mWasteKitchen);
+
+        setKitchenDailyUsage(dUsageKitchen);
+        setKitchenDailyWaste(dWasteKitchen);
+        setKitchenDailyTotal(dUsageKitchen + dWasteKitchen);
       }
 
       const { data: moves, error: moveErr } = await supabase
@@ -325,12 +346,30 @@ export const Dashboard: React.FC = () => {
     {
       title: 'Kitchen Cost (Month)',
       value: `LKR ${kitchenMonthTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      subtitle: (
+        <div className="text-[11px] text-slate-500 font-medium flex flex-wrap items-center gap-1.5 pt-0.5">
+          <span>Usage: LKR {kitchenMonthUsage.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span>•</span>
+          <span className={kitchenMonthWaste > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}>
+            Waste: LKR {kitchenMonthWaste.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+      ),
       icon: <TrendingDown size={24} className="text-sky-500" />,
       bg: 'bg-sky-50 border-sky-100',
     },
     {
       title: 'Kitchen Cost (Today)',
       value: `LKR ${kitchenDailyTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      subtitle: (
+        <div className="text-[11px] text-slate-500 font-medium flex flex-wrap items-center gap-1.5 pt-0.5">
+          <span>Usage: LKR {kitchenDailyUsage.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span>•</span>
+          <span className={kitchenDailyWaste > 0 ? 'text-rose-600 font-bold' : 'text-slate-400'}>
+            Waste: LKR {kitchenDailyWaste.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </span>
+        </div>
+      ),
       icon: <TrendingDown size={24} className="text-cyan-500" />,
       bg: 'bg-cyan-50 border-cyan-100',
     }
@@ -355,11 +394,12 @@ export const Dashboard: React.FC = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {statCards.map((card, idx) => (
           <div key={idx} className={`p-6 rounded-2xl border flex items-center justify-between shadow-sm card-shadow bg-white ${card.bg}`}>
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{card.title}</p>
               <h3 className="text-xl font-extrabold text-slate-800">{card.value}</h3>
+              {(card as any).subtitle}
             </div>
-            <div className="p-3 bg-white rounded-xl shadow-sm border border-slate-50">
+            <div className="p-3 bg-white rounded-xl shadow-sm border border-slate-50 shrink-0 self-start mt-1">
               {card.icon}
             </div>
           </div>

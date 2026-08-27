@@ -45,9 +45,10 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
     setLoading(true);
     try {
       // 1. Fetch Reasons
-      const { data: reasons } = await supabase.from('movement_reasons').select('id, name').in('name', ['JAT', 'Kitchen Usage']);
+      const { data: reasons } = await supabase.from('movement_reasons').select('id, name').in('name', ['JAT', 'Kitchen Usage', 'Wastage', 'Damaged', 'Expired']);
       const jatReason = reasons?.find(r => r.name === 'JAT')?.id;
       const kitchenReason = reasons?.find(r => r.name === 'Kitchen Usage')?.id;
+      const wasteReasonIds = (reasons?.filter(r => ['Wastage', 'Damaged', 'Expired'].includes(r.name)) || []).map(r => r.id);
 
       // 2. Determine date range
       let start: string | undefined, end: string | undefined;
@@ -116,6 +117,10 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
             let reasonName = 'Other';
             if (m.reason_id === jatReason) reasonName = 'JAT';
             else if (m.reason_id === kitchenReason) reasonName = 'Kitchen Usage';
+            else if (wasteReasonIds.includes(m.reason_id)) {
+              const rName = reasons?.find(r => r.id === m.reason_id)?.name || 'Waste';
+              reasonName = `Kitchen / ${rName}`;
+            }
 
             transactions[receipt] = {
               receipt,
@@ -136,7 +141,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
 
           if (m.reason_id === jatReason) {
             mJat += cost;
-          } else if (m.reason_id === kitchenReason) {
+          } else if (m.reason_id === kitchenReason || wasteReasonIds.includes(m.reason_id)) {
             mKitchen += cost;
           }
         });
@@ -269,7 +274,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         mMovements.data.forEach(m => {
           const cost = (Number(m.quantity) || 0) * (Number(m.cost_price) || 0);
           if (m.reason_id === jatReason) trueMonthJat += cost;
-          else if (m.reason_id === kitchenReason) trueMonthKitchen += cost;
+          else if (m.reason_id === kitchenReason || wasteReasonIds.includes(m.reason_id)) trueMonthKitchen += cost;
         });
       }
       if (mDp.data) {
@@ -341,7 +346,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         todayMovements.forEach(m => {
           const cost = (Number(m.quantity) || 0) * (Number(m.cost_price) || 0);
           if (m.reason_id === jatReason) tJat += cost;
-          else if (m.reason_id === kitchenReason) tKitchen += cost;
+          else if (m.reason_id === kitchenReason || wasteReasonIds.includes(m.reason_id)) tKitchen += cost;
         });
       }
 
