@@ -226,7 +226,7 @@ async function main() {
     { name: 'Damaged', type: MovementType.STOCK_OUT, isSystem: true },
     { name: 'Expired', type: MovementType.STOCK_OUT, isSystem: true },
     { name: 'Returned to Supplier', type: MovementType.STOCK_OUT, isSystem: true },
-    { name: 'Internal Use', type: MovementType.STOCK_OUT, isSystem: true },
+    { name: 'Wastage', type: MovementType.STOCK_OUT, isSystem: true },
     { name: 'Promotion', type: MovementType.STOCK_OUT, isSystem: true },
     { name: 'Correction Out', type: MovementType.STOCK_OUT, isSystem: true },
   ];

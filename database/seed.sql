@@ -114,7 +114,7 @@ INSERT INTO movement_reasons (name, type, is_system) VALUES
 ('Damaged', 'STOCK_OUT', true),
 ('Expired', 'STOCK_OUT', true),
 ('Returned to Supplier', 'STOCK_OUT', true),
-('Internal Use', 'STOCK_OUT', true),
+('Wastage', 'STOCK_OUT', true),
 ('Promotion', 'STOCK_OUT', true),
 ('Correction Out', 'STOCK_OUT', true)
 ON CONFLICT (name) DO NOTHING;
