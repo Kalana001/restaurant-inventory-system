@@ -246,6 +246,7 @@ export const PurchaseOrders: React.FC = () => {
         ...prev,
         {
           itemId: item.id,
+          name: item.name,
           itemName: item.name,
           unit: item.units?.abbreviation || 'unit',
           quantity: 1,
@@ -270,38 +271,51 @@ export const PurchaseOrders: React.FC = () => {
     return Math.max(0, raw - discAmount);
   };
 
-  const updatePoLineQty = (idx: number, qty: number) => {
-    const validQty = isNaN(qty) || qty < 0 ? 0 : qty;
+  const updatePoLine = (idx: number, field: 'quantity' | 'costPrice' | 'discount', value: any) => {
     setPoLines(prev => {
       const copy = [...prev];
-      const line = { ...copy[idx], quantity: validQty };
-      line.totalCost = calculateLineTotal(validQty, line.costPrice, line.discount, line.discountType);
-      copy[idx] = line;
+      const current = copy[idx];
+      if (!current) return prev;
+
+      const numVal = parseFloat(value);
+      const safeNum = isNaN(numVal) || numVal < 0 ? 0 : numVal;
+
+      const qty = field === 'quantity' ? safeNum : (parseFloat(current.quantity) || 0);
+      const cost = field === 'costPrice' ? safeNum : (parseFloat(current.costPrice) || 0);
+      const disc = field === 'discount' ? safeNum : (parseFloat(current.discount) || 0);
+      const discType = current.discountType || 'fixed';
+
+      copy[idx] = {
+        ...current,
+        [field]: value,
+        totalCost: calculateLineTotal(qty, cost, disc, discType)
+      };
       return copy;
     });
   };
 
-  const updatePoLineCost = (idx: number, cost: number) => {
-    const validCost = isNaN(cost) || cost < 0 ? 0 : cost;
+  const updatePoLineType = (idx: number, type: 'fixed' | 'percentage') => {
     setPoLines(prev => {
       const copy = [...prev];
-      const line = { ...copy[idx], costPrice: validCost };
-      line.totalCost = calculateLineTotal(line.quantity, validCost, line.discount, line.discountType);
-      copy[idx] = line;
+      const current = copy[idx];
+      if (!current) return prev;
+
+      const qty = parseFloat(current.quantity) || 0;
+      const cost = parseFloat(current.costPrice) || 0;
+      const disc = parseFloat(current.discount) || 0;
+
+      copy[idx] = {
+        ...current,
+        discountType: type,
+        totalCost: calculateLineTotal(qty, cost, disc, type)
+      };
       return copy;
     });
   };
 
-  const updatePoLineDiscount = (idx: number, disc: number) => {
-    const validDisc = isNaN(disc) || disc < 0 ? 0 : disc;
-    setPoLines(prev => {
-      const copy = [...prev];
-      const line = { ...copy[idx], discount: validDisc };
-      line.totalCost = calculateLineTotal(line.quantity, line.costPrice, validDisc, line.discountType);
-      copy[idx] = line;
-      return copy;
-    });
-  };
+  const updatePoLineQty = (idx: number, qty: number) => updatePoLine(idx, 'quantity', qty);
+  const updatePoLineCost = (idx: number, cost: number) => updatePoLine(idx, 'costPrice', cost);
+  const updatePoLineDiscount = (idx: number, disc: number) => updatePoLine(idx, 'discount', disc);
 
   const removePoLine = (idx: number) => setPoLines(poLines.filter((_, i) => i !== idx));
 
@@ -319,9 +333,13 @@ export const PurchaseOrders: React.FC = () => {
     if (!poDate) { setFormError('Please select a valid Order Date.'); return; }
     if (!selectedSupplier) { setFormError('Please select a vendor supplier.'); return; }
     if (poLines.length === 0) { setFormError('Please add at least one line item to the PO.'); return; }
+    if (poLines.some(l => (Number(l.quantity) || 0) <= 0)) {
+      setFormError('All items must have a quantity greater than zero.');
+      return;
+    }
     try {
-      const subTotal = poLines.reduce((acc, curr) => acc + curr.totalCost, 0);
-      const discountAmount = poDiscountType === 'percentage' ? subTotal * (poDiscount / 100) : poDiscount;
+      const subTotal = poLines.reduce((acc, curr) => acc + (Number(curr.totalCost) || 0), 0);
+      const discountAmount = poDiscountType === 'percentage' ? subTotal * ((Number(poDiscount) || 0) / 100) : (Number(poDiscount) || 0);
       const grandTotal = Math.max(0, subTotal - discountAmount);
       const dateClean = poDate.replace(/-/g, '');
       const generatedPoNumber = `PO-${dateClean}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -342,16 +360,19 @@ export const PurchaseOrders: React.FC = () => {
       if (poErr || !poHeader) throw poErr;
 
       const poItemsPayload = poLines.map(line => {
+        const qty = Number(line.quantity) || 0;
+        const cost = Number(line.costPrice) || 0;
+        const disc = Number(line.discount) || 0;
         const lineDiscountAmount = line.discountType === 'percentage'
-          ? (line.quantity * line.costPrice) * (line.discount / 100)
-          : line.discount;
+          ? (qty * cost) * (disc / 100)
+          : disc;
         return {
           po_id: poHeader.id,
           item_id: line.itemId,
-          quantity: line.quantity,
-          cost_price: line.costPrice,
+          quantity: qty,
+          cost_price: cost,
           discount_amount: lineDiscountAmount,
-          total_cost: line.totalCost
+          total_cost: Number(line.totalCost) || 0
         };
       });
 
@@ -891,23 +912,23 @@ export const PurchaseOrders: React.FC = () => {
                     ) : (
                       poLines.map((line, idx) => (
                         <tr key={idx} className="hover:bg-slate-50/50">
-                          <td className="px-4 py-3 font-medium text-slate-800">{line.name}</td>
+                          <td className="px-4 py-3 font-medium text-slate-800">{line.name || line.itemName}</td>
                           <td className="px-4 py-2">
-                            <input type="number" min="0.001" step="0.001" value={line.quantity || ''} onChange={e => updatePoLine(idx, 'quantity', e.target.value)} className="w-20 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg text-center font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" /> <span className="text-slate-500 font-medium ml-1">{line.unit}</span>
+                            <input type="number" min="0.001" step="any" value={line.quantity ?? ''} onChange={e => updatePoLine(idx, 'quantity', e.target.value)} className="w-20 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg text-center font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" /> <span className="text-slate-500 font-medium ml-1">{line.unit}</span>
                           </td>
                           <td className="px-4 py-2">
-                            <input type="number" min="0" step="0.001" value={line.costPrice || ''} onChange={e => updatePoLine(idx, 'costPrice', e.target.value)} className="w-24 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" />
+                            <input type="number" min="0" step="any" value={line.costPrice ?? ''} onChange={e => updatePoLine(idx, 'costPrice', e.target.value)} className="w-24 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" />
                           </td>
                           <td className="px-4 py-2">
                             <div className="flex items-center space-x-2">
-                              <input type="number" min="0" step="0.01" value={line.discount || ''} onChange={e => updatePoLine(idx, 'discount', e.target.value)} className="w-20 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg text-right font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" />
+                              <input type="number" min="0" step="any" value={line.discount ?? ''} onChange={e => updatePoLine(idx, 'discount', e.target.value)} className="w-20 px-2.5 py-1.5 border-2 border-slate-300 rounded-lg text-right font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm" />
                               <select value={line.discountType || 'fixed'} onChange={e => updatePoLineType(idx, e.target.value as 'fixed' | 'percentage')} className="px-2 py-1.5 border-2 border-slate-300 rounded-lg bg-white font-bold text-slate-800 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all shadow-sm cursor-pointer">
                                 <option value="fixed">LKR</option>
                                 <option value="percentage">%</option>
                               </select>
                             </div>
                           </td>
-                          <td className="px-4 py-3 font-bold text-slate-800 text-right">LKR {line.totalCost.toFixed(2)}</td>
+                          <td className="px-4 py-3 font-bold text-slate-800 text-right">LKR {(Number(line.totalCost) || 0).toFixed(2)}</td>
                           <td className="px-4 py-3 text-center">
                             <button type="button" onClick={() => removePoLine(idx)} className="text-slate-400 hover:text-red-500"><Trash2 size={14} /></button>
                           </td>
