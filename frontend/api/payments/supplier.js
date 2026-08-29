@@ -5,7 +5,7 @@ async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   try {
-    const { supplierId, amount, paymentMethod, paymentDate, referenceNumber, remarks, notes, allocations } = req.body;
+    const { supplierId, amount, paymentMethod, paymentDate, chequeRealizeDate, referenceNumber, remarks, notes, allocations } = req.body;
 
     if (!supplierId || !amount || !paymentMethod || !allocations || !Array.isArray(allocations) || allocations.length === 0) {
       return res.status(400).json({ status: 'error', message: 'Invalid payment details. Supplier, amount, method, and allocations are required.' });
@@ -36,7 +36,14 @@ async function handler(req, res) {
       return res.status(400).json({ status: 'error', message: transactionError?.message || 'Failed to process payment transaction' });
     }
 
-    await logAudit(userId, 'CREATE_PAYMENT', 'supplier_payments', paymentId, null, { supplierId, amount, paymentMethod, allocations: cleanAllocations });
+    if (paymentMethod === 'Cheque' && chequeRealizeDate) {
+      await supabaseAdmin
+        .from('supplier_payments')
+        .update({ cheque_realize_date: chequeRealizeDate })
+        .eq('id', paymentId);
+    }
+
+    await logAudit(userId, 'CREATE_PAYMENT', 'supplier_payments', paymentId, null, { supplierId, amount, paymentMethod, chequeRealizeDate, allocations: cleanAllocations });
 
     return res.status(201).json({ status: 'success', data: { paymentId, message: 'Supplier payment processed successfully' } });
 

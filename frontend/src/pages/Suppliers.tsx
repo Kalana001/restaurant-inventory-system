@@ -37,6 +37,7 @@ export const Suppliers: React.FC = () => {
   const [paymentAmount, setPaymentAmount] = useState('');
   const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMethod, setPaymentMethod] = useState('By Restaurant');
+  const [chequeRealizeDate, setChequeRealizeDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentNotes, setPaymentNotes] = useState('');
   const [settling, setSettling] = useState(false);
   const [unpaidPOs, setUnpaidPOs] = useState<any[]>([]);
@@ -112,6 +113,7 @@ export const Suppliers: React.FC = () => {
   const openSettlementModal = async (sup: any) => {
     setTargetSupplier(sup);
     setPaymentAmount(''); setPaymentMethod('By Restaurant'); setPaymentNotes(''); setPaymentDate(new Date().toISOString().split('T')[0]);
+    setChequeRealizeDate(new Date().toISOString().split('T')[0]);
     setFormError(null); setSettling(false); setSettlementOpen(true);
     setUnpaidPOs([]); setSelectedPOs({});
     try {
@@ -136,11 +138,39 @@ export const Suppliers: React.FC = () => {
     }
   };
 
+  const handleTogglePO = (poId: string, balance: number, checked: boolean) => {
+    setSelectedPOs(prev => {
+      const next = { ...prev };
+      if (checked) {
+        next[poId] = balance;
+      } else {
+        delete next[poId];
+      }
+      const sum = Object.values(next).reduce((acc, val) => acc + (Number(val) || 0), 0);
+      setPaymentAmount(sum > 0 ? sum.toFixed(2) : '');
+      return next;
+    });
+  };
+
+  const handleUpdateAllocation = (poId: string, val: string) => {
+    const num = Number(val);
+    setSelectedPOs(prev => {
+      const next = { ...prev, [poId]: isNaN(num) ? 0 : num };
+      const sum = Object.values(next).reduce((acc, v) => acc + (Number(v) || 0), 0);
+      setPaymentAmount(sum > 0 ? sum.toFixed(2) : '');
+      return next;
+    });
+  };
+
   const handleSettle = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
     const amount = Number(paymentAmount);
     if (amount <= 0) { setFormError('Payment amount must be greater than zero.'); return; }
+    if (paymentMethod === 'Cheque' && !chequeRealizeDate) {
+      setFormError('Please select a Cheque Realization Date.');
+      return;
+    }
     
     const allocations = Object.keys(selectedPOs).map(poId => ({
       po_id: poId,
@@ -160,6 +190,7 @@ export const Suppliers: React.FC = () => {
         amount: amount,
         paymentMethod: paymentMethod,
         paymentDate: paymentDate,
+        chequeRealizeDate: paymentMethod === 'Cheque' ? chequeRealizeDate : null,
         notes: paymentNotes,
         allocations: allocations,
         userId: user?.id
@@ -459,16 +490,8 @@ export const Suppliers: React.FC = () => {
                               <input 
                                 type="checkbox" 
                                 checked={isSelected}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setSelectedPOs(prev => ({ ...prev, [po.id]: balance }));
-                                  } else {
-                                    const next = { ...prev };
-                                    delete next[po.id];
-                                    setSelectedPOs(next);
-                                  }
-                                }}
-                                className="w-4 h-4 text-primary rounded border-slate-300 focus:ring-primary" 
+                                onChange={(e) => handleTogglePO(po.id, balance, e.target.checked)}
+                                className="w-4 h-4 text-primary rounded border-slate-300 focus:ring-primary cursor-pointer" 
                               />
                               <div>
                                 <p className="text-sm font-semibold text-slate-700">{po.po_number}</p>
@@ -478,9 +501,9 @@ export const Suppliers: React.FC = () => {
                             {isSelected && (
                               <input 
                                 type="number" min="0.01" max={balance} step="0.01" required
-                                value={selectedPOs[po.id] || ''}
-                                onChange={e => setSelectedPOs(prev => ({ ...prev, [po.id]: Number(e.target.value) }))}
-                                className="w-24 px-2 py-1 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary"
+                                value={selectedPOs[po.id] !== undefined ? selectedPOs[po.id] : ''}
+                                onChange={e => handleUpdateAllocation(po.id, e.target.value)}
+                                className="w-24 px-2 py-1 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-primary font-semibold text-slate-800 text-right"
                               />
                             )}
                           </div>
@@ -496,9 +519,9 @@ export const Suppliers: React.FC = () => {
                     type="number" min="0.01" step="0.01" required
                     value={paymentAmount} onChange={e => setPaymentAmount(e.target.value)}
                     placeholder="0.00"
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-primary"
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
                   />
-                  <p className="text-xs text-slate-400">Allocated: LKR {Object.values(selectedPOs).reduce((a,b)=>a+b, 0).toLocaleString()}</p>
+                  <p className="text-xs text-slate-400">Allocated: LKR {Object.values(selectedPOs).reduce((a,b)=>a+b, 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -528,6 +551,21 @@ export const Suppliers: React.FC = () => {
                   ))}
                 </div>
               </div>
+
+              {paymentMethod === 'Cheque' && (
+                <div className="space-y-1.5 animate-in fade-in slide-in-from-top-1 duration-200 bg-amber-50/70 border border-amber-200 p-3 rounded-xl">
+                  <label className="text-xs font-bold text-amber-900 uppercase flex items-center justify-between">
+                    <span>Cheque Realization Date <span className="text-rose-500">*</span></span>
+                    <span className="text-[10px] text-amber-700 font-normal">Future Clear Date</span>
+                  </label>
+                  <input
+                    type="date" required
+                    value={chequeRealizeDate} onChange={e => setChequeRealizeDate(e.target.value)}
+                    className="w-full px-3.5 py-2 border border-amber-300 rounded-lg text-sm font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-primary bg-white shadow-sm"
+                  />
+                  <p className="text-[11px] text-amber-700/80">The date on which this cheque will clear or realize in the bank account.</p>
+                </div>
+              )}
 
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-500 uppercase">Notes (Optional)</label>

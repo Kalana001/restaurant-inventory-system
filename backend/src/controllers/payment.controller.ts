@@ -5,7 +5,7 @@ import { logAudit } from '../services/audit.service';
 
 export const processSupplierPayment = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { supplierId, amount, paymentMethod, paymentDate, referenceNumber, remarks, allocations } = req.body;
+    const { supplierId, amount, paymentMethod, paymentDate, chequeRealizeDate, referenceNumber, remarks, allocations } = req.body;
 
     if (!supplierId || !amount || !paymentMethod || !allocations || !Array.isArray(allocations) || allocations.length === 0) {
       throw new BadRequestError('Invalid payment details. Supplier, amount, method, and allocations are required.');
@@ -33,6 +33,13 @@ export const processSupplierPayment = async (req: Request, res: Response, next: 
       throw new BadRequestError(transactionError?.message || 'Failed to process payment transaction');
     }
 
+    if (paymentMethod === 'Cheque' && chequeRealizeDate) {
+      await supabase
+        .from('supplier_payments')
+        .update({ cheque_realize_date: chequeRealizeDate })
+        .eq('id', paymentId);
+    }
+
     // Log Audit Action
     await logAudit(
       userId,
@@ -40,7 +47,7 @@ export const processSupplierPayment = async (req: Request, res: Response, next: 
       'supplier_payments',
       paymentId,
       null,
-      { supplierId, amount, paymentMethod, allocations },
+      { supplierId, amount, paymentMethod, chequeRealizeDate, allocations },
       req.ip
     );
 
