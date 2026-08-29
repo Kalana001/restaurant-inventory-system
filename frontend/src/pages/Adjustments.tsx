@@ -6,9 +6,55 @@ import { useAutoSave, loadDraft } from '../hooks/useAutoSave';
 import { format } from 'date-fns';
 import {
   Plus, Check, X, AlertCircle, Layers, Trash2,
-  PackageOpen, PackagePlus, FileText, Calendar, XCircle, TrendingUp, TrendingDown, Settings
+  PackageOpen, PackagePlus, FileText, Calendar, XCircle, TrendingUp, TrendingDown, Settings,
+  Sparkles
 } from 'lucide-react';
 import { Pagination } from '../components/ui/Pagination';
+
+const KITCHEN_TEMPLATE_SKUS = [
+  'IMP-62', // RICE - BASMATHI
+  'IMP-63', // RICE - KEERI SAMBA
+  'IMP-24', // SAMBA RICE
+  'IMP-23', // PONNI SAMBA RICE
+  'IMP-19', // RED KEKULU RICE
+  'IMP-35', // WHITE KEKULU - RICE
+  'IMP-45', // NOODLES
+  'IMP-64', // UNDU
+  'IMP-17', // DHAL
+  'IMP-54', // WATANA
+  'IMP-6',  // POTATO
+  'IMP-5',  // ONION
+  'IMP-44', // FLOUR
+  'IMP-58', // ST HOPPER FLOUR
+  'IMP-65', // BREAD CRUMS
+  'IMP-33', // COCONUT
+  'IMP-39', // EGGS - S
+  'IMP-26', // EGGS-L
+  'IMP-61', // SAUSAGES - CHICKEN
+  'IMP-49', // SALMON
+  'IMP-3',  // CHICKEN - DRUMSTICK
+  'IMP-2',  // CHICKEN - BREAST
+  'IMP-4',  // CHICKEN - THIGH
+  'IMP-25', // CHILLIE PIECES
+  'IMP-9',  // CHILLIE POWDER
+  'IMP-34', // CURRY POWDER
+  'IMP-10', // ROASTED CURRY POWDER
+  'IMP-8',  // MEAT CURRY POWDER
+  'IMP-13', // PEPPER POWDER
+  'IMP-14', // TURMERIC POWDER
+  'IMP-7',  // SALT
+  'IMP-21', // PAPADAM
+  'IMP-15', // GINGER
+  'IMP-18', // GARLIC
+  'IMP-22', // MORU CHILLIE
+  'IMP-38', // MSG
+  'IMP-40', // VEGETABLE OIL
+  'IMP-16', // COCONUT OIL
+  'IMP-32', // GAS
+  'IMP-41', // SUGAR
+  'IMP-76', // CHEESE
+  'IMP-77', // HIGHLAND MILK PACKET - 900ML
+];
 
 interface BulkLine {
   id: string;
@@ -77,6 +123,7 @@ export const Adjustments: React.FC = () => {
   };
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [templateLoading, setTemplateLoading] = useState(false);
 
   // Receipt Detail Modal
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
@@ -227,6 +274,69 @@ export const Adjustments: React.FC = () => {
   const addLine = () => setLines(prev => [newLine(), ...prev]);
   const removeLine = (lineId: string) => setLines(prev => prev.filter(l => l.id !== lineId));
 
+  const handleLoadKitchenTemplate = async () => {
+    setTemplateLoading(true);
+    setFormError(null);
+    try {
+      const templateItems = KITCHEN_TEMPLATE_SKUS
+        .map(sku => catalogItems.find(i => i.sku === sku))
+        .filter(Boolean);
+
+      if (templateItems.length === 0) {
+        setFormError('No matching catalog items found for kitchen template.');
+        return;
+      }
+
+      const itemIds = templateItems.map(i => i.id);
+
+      const { data: allBatches, error } = await supabase
+        .from('batches')
+        .select('id, item_id, batch_number, available_qty, expiry_date, received_date, supplier_id, inventory_items ( cost_price ), stock_movements ( type, cost_price ), grn_items ( cost_price, grns ( id, po_id, supplier_id, purchase_orders ( supplier_payments ( payment_date ) ) ) )')
+        .in('item_id', itemIds)
+        .gt('available_qty', 0)
+        .order('received_date', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const batchesByItem: Record<string, any[]> = {};
+      (allBatches || []).forEach(b => {
+        if (!batchesByItem[b.item_id]) batchesByItem[b.item_id] = [];
+        batchesByItem[b.item_id].push(b);
+      });
+
+      const templateLines: BulkLine[] = templateItems.map(item => {
+        const itemBatches = batchesByItem[item.id] || [];
+        const unit = units.find(u => u.id === item.base_unit_id);
+        return {
+          id: Math.random().toString(36).slice(2),
+          itemId: item.id,
+          batchId: itemBatches[0]?.id || '',
+          quantity: '',
+          price: '',
+          batches: itemBatches,
+          unitLabel: unit?.abbreviation || '',
+          searchQuery: item.name,
+          showDropdown: false
+        };
+      });
+
+      setLines(templateLines);
+    } catch (err: any) {
+      console.error('Failed to load kitchen template:', err);
+      setFormError(err.message || 'Failed to load kitchen template.');
+    } finally {
+      setTemplateLoading(false);
+    }
+  };
+
+  const clearUnusedLines = () => {
+    setLines(prev => {
+      const remaining = prev.filter(l => l.itemId && Number(l.quantity) > 0);
+      return remaining.length > 0 ? remaining : [newLine()];
+    });
+  };
+
   const handleCancelAdj = () => {
     clearAdjDrafts();
     setModalOpen(false);
@@ -234,17 +344,26 @@ export const Adjustments: React.FC = () => {
     setSelectedReasonId('');
   };
 
-    const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
 
     const validLines = lines.filter(l => l.itemId && Number(l.quantity) > 0);
-    if (validLines.length === 0) { setFormError('Please add at least one item with a valid quantity.'); return; }
-    if (validLines.length !== lines.length) { setFormError('Please fill or remove empty item slots before submitting.'); return; }
+    if (validLines.length === 0) {
+      setFormError('Please enter a valid quantity (> 0) for at least one item.');
+      return;
+    }
+
+    const negativeLines = lines.filter(l => l.itemId && l.quantity !== '' && Number(l.quantity) < 0);
+    if (negativeLines.length > 0) {
+      setFormError('Item quantities cannot be negative.');
+      return;
+    }
+
     if (!selectedReasonId) { setFormError('Please select a reason.'); return; }
 
     if (movementType === 'STOCK_OUT') {
-      for (const line of lines) {
+      for (const line of validLines) {
         if (line.batchId) {
           const batch = line.batches.find(b => b.id === line.batchId);
           if (batch && Number(line.quantity) > batch.available_qty) {
@@ -811,13 +930,39 @@ export const Adjustments: React.FC = () => {
                   <span className="text-xs text-slate-400">{lines.length} line{lines.length !== 1 ? 's' : ''}</span>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={addLine}
-                  className="w-full py-2.5 border-2 border-dashed border-slate-200 text-slate-400 hover:border-primary hover:text-primary rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 mb-2"
-                >
-                  <Plus size={16} /> Add Another Item
-                </button>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 mb-2">
+                  <button
+                    type="button"
+                    onClick={addLine}
+                    className="flex-1 py-2.5 border-2 border-dashed border-slate-200 text-slate-500 hover:border-primary hover:text-primary rounded-xl text-sm font-semibold transition-all flex items-center justify-center gap-2 bg-white"
+                  >
+                    <Plus size={16} /> Add Another Item
+                  </button>
+
+                  {movementType === 'STOCK_OUT' && (
+                    <button
+                      type="button"
+                      onClick={handleLoadKitchenTemplate}
+                      disabled={templateLoading}
+                      className="py-2.5 px-4 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white rounded-xl text-sm font-bold shadow-sm flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                      title="Load all 42 standard kitchen items with their batches"
+                    >
+                      <Sparkles size={16} className={templateLoading ? 'animate-spin' : ''} />
+                      {templateLoading ? 'Loading Template...' : '⚡ Load Kitchen Template (42 Items)'}
+                    </button>
+                  )}
+
+                  {lines.some(l => l.itemId && (!l.quantity || Number(l.quantity) === 0)) && (
+                    <button
+                      type="button"
+                      onClick={clearUnusedLines}
+                      className="py-2.5 px-3 border border-slate-200 hover:bg-slate-100 text-slate-600 rounded-xl text-xs font-semibold transition-all flex items-center justify-center gap-1.5 bg-white"
+                      title="Remove lines with empty or 0 quantity"
+                    >
+                      <Trash2 size={14} className="text-slate-400" /> Clear Unused
+                    </button>
+                  )}
+                </div>
 
                 <div className="hidden md:grid grid-cols-12 gap-2 px-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
                   <div className="col-span-4">Item</div>
@@ -954,7 +1099,7 @@ export const Adjustments: React.FC = () => {
                   {movementType === 'STOCK_OUT' ? <PackageOpen size={18} /> : <PackagePlus size={18} />}
                   <span>
                     {movementType === 'STOCK_OUT' ? 'Removing' : 'Adding'}{' '}
-                    {lines.filter(l => l.itemId).length} item line{lines.filter(l => l.itemId).length !== 1 ? 's' : ''} from stock
+                    {lines.filter(l => l.itemId && Number(l.quantity) > 0).length} item line{lines.filter(l => l.itemId && Number(l.quantity) > 0).length !== 1 ? 's' : ''} from stock
                     {selectedReasonId ? ` | Reason: ${reasons.find(r => r.id === selectedReasonId)?.name}` : ''}
                     {' | Date: '}{movementDate}
                   </span>
@@ -970,7 +1115,7 @@ export const Adjustments: React.FC = () => {
                 disabled={submitting}
                 className={`px-6 py-2.5 text-white font-bold rounded-xl text-sm transition-all shadow-sm active:scale-95 disabled:opacity-50 ${movementType === 'STOCK_OUT' ? 'bg-rose-600 hover:bg-rose-700' : 'bg-green-600 hover:bg-green-700'}`}
               >
-                {submitting ? 'Processing...' : `Post ${movementType === 'STOCK_OUT' ? 'Stock Out' : 'Stock In'}`}
+                {submitting ? 'Processing...' : `Post ${movementType === 'STOCK_OUT' ? 'Stock Out' : 'Stock In'} (${lines.filter(l => l.itemId && Number(l.quantity) > 0).length} items)`}
               </button>
             </div>
           </div>
