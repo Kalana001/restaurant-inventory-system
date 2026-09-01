@@ -6,7 +6,7 @@ import { Pagination } from '../components/ui/Pagination';
 import { Plus, Search, DollarSign, Wallet, Building2, User, ChevronDown, CheckCircle2, Clock, AlertCircle, Pencil } from 'lucide-react';
 
 export const Expenses: React.FC = () => {
-  const { hasPermission } = useAuth();
+  const { user, hasPermission } = useAuth();
   
   const [expenses, setExpenses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -142,7 +142,8 @@ export const Expenses: React.FC = () => {
          amount: parsedPayAmount,
          payment_date: payDate,
          payment_method: payMethod,
-         notes: payNotes
+         notes: payNotes,
+         created_by: user?.id || null
       });
       if (error) throw error;
 
@@ -497,7 +498,7 @@ export const Expenses: React.FC = () => {
               <button onClick={() => setPayModalOpen(false)} className="px-5 py-2.5 text-slate-600 font-bold text-sm hover:bg-slate-200 rounded-xl transition-colors">
                 Cancel
               </button>
-              <button onClick={handleRecordPayment} disabled={payLoading} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50">
+              <button onClick={handlePayExpense} disabled={payLoading} className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50">
                 {payLoading ? 'Saving...' : 'Record Payment'}
               </button>
             </div>
