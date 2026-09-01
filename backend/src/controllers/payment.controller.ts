@@ -5,49 +5,120 @@ import { logAudit } from '../services/audit.service';
 
 export const processSupplierPayment = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { supplierId, amount, paymentMethod, paymentDate, chequeRealizeDate, referenceNumber, remarks, allocations } = req.body;
+    const { supplierId, amount, paymentMethod, paymentDate, chequeRealizeDate, referenceNumber, remarks, notes, allocations, userId: bodyUserId } = req.body;
 
-    if (!supplierId || !amount || !paymentMethod || !allocations || !Array.isArray(allocations) || allocations.length === 0) {
-      throw new BadRequestError('Invalid payment details. Supplier, amount, method, and allocations are required.');
+    const parsedAmount = Number(amount);
+    if (!supplierId || !parsedAmount || parsedAmount <= 0 || !paymentMethod) {
+      throw new BadRequestError('Invalid payment details. Supplier, valid amount, and payment method are required.');
     }
 
-    const userId = req.user?.id || '';
+    const userId = req.user?.id || bodyUserId || null;
+    const cleanAllocations = Array.isArray(allocations)
+      ? allocations
+          .map((a: any) => ({
+            po_id: a.po_id || a.poId,
+            amount: Number(a.amount_allocated || a.amount || 0)
+          }))
+          .filter((a: any) => a.po_id && a.amount > 0)
+      : [];
 
-    // Execute database transaction RPC
-    const { data: paymentId, error: transactionError } = await supabase.rpc(
-      'process_supplier_payment_transaction',
-      {
-        p_supplier_id: supplierId,
-        p_amount: Number(amount),
-        p_payment_method: paymentMethod,
-        p_payment_date: paymentDate || new Date().toISOString().split('T')[0],
-        p_reference_number: referenceNumber || null,
-        p_remarks: remarks || '',
-        p_created_by: userId,
-        p_allocations: allocations
+    // 1. Fetch supplier
+    const { data: supplier, error: supplierErr } = await supabase
+      .from('suppliers')
+      .select('id, name, outstanding_balance')
+      .eq('id', supplierId)
+      .single();
+
+    if (supplierErr || !supplier) {
+      throw new BadRequestError('Supplier not found');
+    }
+
+    // 2. Generate unique payment number
+    const dateStr = (paymentDate || new Date().toISOString().split('T')[0]).replace(/-/g, '');
+    const { count } = await supabase
+      .from('supplier_payments')
+      .select('*', { count: 'exact', head: true });
+    
+    const paymentNumber = `PAY-${dateStr}-${String((count || 0) + 1).padStart(4, '0')}`;
+
+    // 3. Insert into supplier_payments
+    const { data: payment, error: paymentErr } = await supabase
+      .from('supplier_payments')
+      .insert({
+        payment_number: paymentNumber,
+        supplier_id: supplierId,
+        amount: parsedAmount,
+        payment_method: paymentMethod,
+        payment_date: paymentDate || new Date().toISOString().split('T')[0],
+        cheque_realize_date: paymentMethod === 'Cheque' ? (chequeRealizeDate || null) : null,
+        reference_number: referenceNumber || null,
+        notes: remarks || notes || '',
+        paid_by: userId
+      })
+      .select('id')
+      .single();
+
+    if (paymentErr || !payment) {
+      console.error('[SUPPLIER PAYMENT INSERT ERROR]:', paymentErr);
+      throw new BadRequestError(paymentErr?.message || 'Failed to create payment record');
+    }
+
+    const paymentId = payment.id;
+
+    // 4. Update supplier outstanding balance
+    const updatedBalance = Number(supplier.outstanding_balance || 0) - parsedAmount;
+    const { error: balanceErr } = await supabase
+      .from('suppliers')
+      .update({ outstanding_balance: updatedBalance })
+      .eq('id', supplierId);
+
+    if (balanceErr) {
+      console.error('[SUPPLIER BALANCE UPDATE ERROR]:', balanceErr);
+    }
+
+    // 5. Process allocations if any
+    if (cleanAllocations.length > 0) {
+      for (const alloc of cleanAllocations) {
+        await supabase
+          .from('payment_allocations')
+          .insert({
+            payment_id: paymentId,
+            po_id: alloc.po_id,
+            amount: alloc.amount
+          });
+
+        const { data: po } = await supabase
+          .from('purchase_orders')
+          .select('id, total_amount, paid_amount, amount_paid')
+          .eq('id', alloc.po_id)
+          .single();
+
+        if (po) {
+          const currentPaid = Number(po.paid_amount || po.amount_paid || 0);
+          const newPaid = currentPaid + alloc.amount;
+          const poTotal = Number(po.total_amount || 0);
+          const newStatus = newPaid >= poTotal ? 'PAID' : (newPaid > 0 ? 'PARTIAL' : 'UNPAID');
+
+          await supabase
+            .from('purchase_orders')
+            .update({
+              paid_amount: newPaid,
+              amount_paid: newPaid,
+              payment_status: newStatus
+            })
+            .eq('id', alloc.po_id);
+        }
       }
-    );
-
-    if (transactionError || !paymentId) {
-      console.error('[PAYMENT TRANSACTION ERROR]:', transactionError);
-      throw new BadRequestError(transactionError?.message || 'Failed to process payment transaction');
     }
 
-    if (paymentMethod === 'Cheque' && chequeRealizeDate) {
-      await supabase
-        .from('supplier_payments')
-        .update({ cheque_realize_date: chequeRealizeDate })
-        .eq('id', paymentId);
-    }
-
-    // Log Audit Action
+    // 6. Log Audit Action
     await logAudit(
-      userId,
+      userId || '',
       'CREATE_PAYMENT',
       'supplier_payments',
       paymentId,
       null,
-      { supplierId, amount, paymentMethod, chequeRealizeDate, allocations },
+      { supplierId, amount: parsedAmount, paymentMethod, chequeRealizeDate, allocations: cleanAllocations },
       req.ip
     );
 
@@ -55,6 +126,7 @@ export const processSupplierPayment = async (req: Request, res: Response, next: 
       status: 'success',
       data: {
         paymentId,
+        paymentNumber,
         message: 'Supplier payment processed successfully'
       }
     });

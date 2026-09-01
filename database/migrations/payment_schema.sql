@@ -71,7 +71,7 @@ BEGIN
 
     -- 2. Insert Payment Record
     INSERT INTO supplier_payments (
-        payment_number, supplier_id, amount, payment_method, payment_date, reference_number, remarks, created_by
+        payment_number, supplier_id, amount, payment_method, payment_date, reference_number, notes, paid_by
     ) VALUES (
         v_payment_number, p_supplier_id, p_amount, p_payment_date, p_reference_number, p_remarks, p_created_by
     ) RETURNING id INTO v_payment_id;
