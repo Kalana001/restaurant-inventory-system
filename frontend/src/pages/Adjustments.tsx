@@ -920,6 +920,11 @@ export const Adjustments: React.FC = () => {
                       <option key={r.id} value={r.id}>{r.name}</option>
                     ))}
                   </select>
+                  {reasons.find(r => r.id === selectedReasonId)?.name === 'Missed Kitchen Usage' && (
+                    <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-2 font-medium">
+                      💡 <strong>Missed Kitchen Usage:</strong> Deducts stock from physical inventory and accounts the cost directly into the Kitchen Balance on the selected date.
+                    </p>
+                  )}
                 </div>
               </div>
 

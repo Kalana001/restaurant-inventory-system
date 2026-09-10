@@ -45,9 +45,10 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
     setLoading(true);
     try {
       // 1. Fetch Reasons
-      const { data: reasons } = await supabase.from('movement_reasons').select('id, name').in('name', ['JAT', 'Kitchen Usage', 'Wastage', 'Damaged', 'Expired']);
+      const { data: reasons } = await supabase.from('movement_reasons').select('id, name').in('name', ['JAT', 'Kitchen Usage', 'Missed Kitchen Usage', 'Wastage', 'Damaged', 'Expired']);
       const jatReason = reasons?.find(r => r.name === 'JAT')?.id;
       const kitchenReason = reasons?.find(r => r.name === 'Kitchen Usage')?.id;
+      const missedKitchenReason = reasons?.find(r => r.name === 'Missed Kitchen Usage')?.id;
       const wasteReasonIds = (reasons?.filter(r => ['Wastage', 'Damaged', 'Expired'].includes(r.name)) || []).map(r => r.id);
 
       // 2. Determine date range
@@ -117,6 +118,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
             let reasonName = 'Other';
             if (m.reason_id === jatReason) reasonName = 'JAT';
             else if (m.reason_id === kitchenReason) reasonName = 'Kitchen Usage';
+            else if (m.reason_id === missedKitchenReason) reasonName = 'Missed Kitchen Usage';
             else if (wasteReasonIds.includes(m.reason_id)) {
               const rName = reasons?.find(r => r.id === m.reason_id)?.name || 'Waste';
               reasonName = `Kitchen / ${rName}`;
@@ -141,7 +143,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
 
           if (m.reason_id === jatReason) {
             mJat += cost;
-          } else if (m.reason_id === kitchenReason || wasteReasonIds.includes(m.reason_id)) {
+          } else if (m.reason_id === kitchenReason || m.reason_id === missedKitchenReason || wasteReasonIds.includes(m.reason_id)) {
             mKitchen += cost;
           }
         });
@@ -274,7 +276,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         mMovements.data.forEach(m => {
           const cost = (Number(m.quantity) || 0) * (Number(m.cost_price) || 0);
           if (m.reason_id === jatReason) trueMonthJat += cost;
-          else if (m.reason_id === kitchenReason || wasteReasonIds.includes(m.reason_id)) trueMonthKitchen += cost;
+          else if (m.reason_id === kitchenReason || m.reason_id === missedKitchenReason || wasteReasonIds.includes(m.reason_id)) trueMonthKitchen += cost;
         });
       }
       if (mDp.data) {
@@ -346,7 +348,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
         todayMovements.forEach(m => {
           const cost = (Number(m.quantity) || 0) * (Number(m.cost_price) || 0);
           if (m.reason_id === jatReason) tJat += cost;
-          else if (m.reason_id === kitchenReason || wasteReasonIds.includes(m.reason_id)) tKitchen += cost;
+          else if (m.reason_id === kitchenReason || m.reason_id === missedKitchenReason || wasteReasonIds.includes(m.reason_id)) tKitchen += cost;
         });
       }
 
@@ -497,6 +499,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
               <option value="ALL">All Reasons</option>
               <option value="JAT">JAT</option>
               <option value="Kitchen Usage">Kitchen Usage</option>
+              <option value="Missed Kitchen Usage">Missed Kitchen Usage</option>
               <option value="JAT / Vege">JAT / Vege</option>
               <option value="Kitchen Usage / Vege">Kitchen Usage / Vege</option>
               <option value="JAT / Trans">JAT / Trans</option>
@@ -530,6 +533,7 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
                               <span className={`px-2 py-1 text-xs font-bold rounded-lg ${
                                 row.reason === 'JAT' ? 'bg-orange-100 text-orange-700' : 
                                 row.reason === 'Kitchen Usage' ? 'bg-blue-100 text-blue-700' :
+                                row.reason === 'Missed Kitchen Usage' ? 'bg-amber-100 text-amber-800 border border-amber-300' :
                                 row.reason === 'JAT / Vege' ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' :
                                 row.reason === 'Kitchen Usage / Vege' ? 'bg-purple-100 text-purple-700 border border-purple-200' :
                                 row.reason === 'JAT / Trans' ? 'bg-cyan-100 text-cyan-700 border border-cyan-200' :

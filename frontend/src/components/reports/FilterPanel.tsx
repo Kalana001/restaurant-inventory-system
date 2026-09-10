@@ -29,8 +29,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
   const handleChange = (key: string, value: any) => {
     const updated = { ...filters, [key]: value };
     setFilters(updated);
-    // JAT reports auto-apply on filter change (no button click needed)
-    if (reportType === 'jat_kitchen' || reportType === 'jat_transactions') {
+    // JAT and Missed Kitchen reports auto-apply on filter change (no button click needed)
+    if (reportType === 'jat_kitchen' || reportType === 'jat_transactions' || reportType === 'missed_kitchen') {
       setTimeout(() => onApply(), 0);
     }
   };
@@ -335,7 +335,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         {reportType === 'outstanding' && renderOutstandingFilters()}
         {reportType === 'movements' && renderMovementsFilters()}
         {reportType === 'purchase_orders' && renderPurchaseOrderFilters()}
-        {(reportType === 'jat_kitchen' || reportType === 'jat_transactions') && renderJatKitchenFilters()}
+        {(reportType === 'jat_kitchen' || reportType === 'jat_transactions' || reportType === 'missed_kitchen') && renderJatKitchenFilters()}
       </div>
 
       <div className="flex items-center justify-end gap-3 pt-2">

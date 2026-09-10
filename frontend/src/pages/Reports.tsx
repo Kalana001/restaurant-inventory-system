@@ -7,6 +7,7 @@ import type { ColumnDef } from '../components/reports/ReportTable';
 import { ExportPanel } from '../components/reports/ExportPanel';
 import { JatKitchenReport } from '../components/reports/JatKitchenReport';
 import { JatTransactionsReport } from '../components/reports/JatTransactionsReport';
+import { MissedKitchenReport } from '../components/reports/MissedKitchenReport';
 import { generateCSV, generateExcel, generatePDF } from '../lib/exportUtils';
 import type { ExportColumn } from '../lib/exportUtils';
 import { format } from 'date-fns';
@@ -547,6 +548,11 @@ export const Reports: React.FC = () => {
           month={filters.month} 
           day={filters.day} 
         />
+      ) : reportType === 'missed_kitchen' ? (
+        <MissedKitchenReport 
+          month={filters.month} 
+          day={filters.day} 
+        />
       ) : (
         <div className="space-y-4">
           <ReportTable 
@@ -578,7 +584,7 @@ export const Reports: React.FC = () => {
         </div>
       )}
 
-      {reportType !== 'jat_kitchen' && reportType !== 'jat_transactions' && (
+      {reportType !== 'jat_kitchen' && reportType !== 'jat_transactions' && reportType !== 'missed_kitchen' && (
         <ExportPanel 
           totalCount={data.length}
           columns={columns}

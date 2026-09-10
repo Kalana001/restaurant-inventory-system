@@ -181,6 +181,7 @@ export const DashboardLayout: React.FC = () => {
         { label: 'Stock Movements', path: '/reports/movements', permission: 'reports:read' },
         { label: 'JAT & Kitchen', path: '/reports/jat_kitchen', permission: 'reports:read' },
         { label: 'JAT Transactions', path: '/reports/jat_transactions', permission: 'reports:read' },
+        { label: 'Missed Stock-Outs', path: '/reports/missed_kitchen', permission: 'reports:read' },
         { label: 'Purchase Orders', path: '/reports/purchase_orders', permission: 'reports:read' }
       ]
     },
