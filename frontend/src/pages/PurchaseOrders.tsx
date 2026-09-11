@@ -107,6 +107,12 @@ export const PurchaseOrders: React.FC = () => {
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
 
+  // ── PO Item Deletion States ──────────────────────────────────────────
+  const [deleteItemModalOpen, setDeleteItemModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<any | null>(null);
+  const [deleteItemLoading, setDeleteItemLoading] = useState(false);
+  const [deleteItemError, setDeleteItemError] = useState<string | null>(null);
+
   // ─────────────────────────────────────────────────────────────
   const fetchPOs = async () => {
     setLoading(true);
@@ -607,6 +613,53 @@ export const PurchaseOrders: React.FC = () => {
     }
   };
 
+  const openDeleteItemModal = (item: any) => {
+    setItemToDelete(item);
+    setDeleteItemError(null);
+    setDeleteItemModalOpen(true);
+  };
+
+  const handleDeletePoItem = async () => {
+    if (!itemToDelete || !selectedPo) return;
+    setDeleteItemLoading(true);
+    setDeleteItemError(null);
+    try {
+      const response = await api.post('/po/delete-item', {
+        poId: selectedPo.id,
+        poItemId: itemToDelete.id
+      });
+
+      if (response.data.status === 'success') {
+        setDeleteItemModalOpen(false);
+        const removedName = itemToDelete.inventory_items?.name || 'Item';
+        setItemToDelete(null);
+        setDeleteSuccess(response.data.message || `Item "${removedName}" removed successfully.`);
+        setTimeout(() => setDeleteSuccess(null), 5000);
+
+        // Fetch refreshed PO and its items for the modal
+        const { data: updatedPo } = await supabase
+          .from('purchase_orders')
+          .select(`*, suppliers ( name, code ), profiles:created_by ( username ), supplier_payments ( payment_date ), grns ( id, grn_number, received_date, created_at )`)
+          .eq('id', selectedPo.id)
+          .single();
+
+        if (updatedPo) setSelectedPo(updatedPo);
+
+        const { data: items } = await supabase
+          .from('purchase_order_items')
+          .select(`id, quantity, cost_price, discount_amount, total_cost, inventory_items ( name, sku, units:units!inventory_items_purchase_unit_id_fkey ( abbreviation ) )`)
+          .eq('po_id', selectedPo.id);
+
+        setPoItems(items || []);
+        fetchPOs();
+      }
+    } catch (err: any) {
+      setDeleteItemError(err.response?.data?.message || err.message || 'Failed to remove item.');
+    } finally {
+      setDeleteItemLoading(false);
+    }
+  };
+
   const getPaymentStatus = (po: any) => {
     const paid = Number(po.paid_amount || 0);
     const total = Number(po.total_amount);
@@ -1099,18 +1152,41 @@ export const PurchaseOrders: React.FC = () => {
               <div className="border border-slate-100 rounded-xl overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-100 font-bold text-slate-400 uppercase">
-                    <tr><th className="px-4 py-2">Item Name</th><th className="px-4 py-2">Qty</th><th className="px-4 py-2">Unit Cost</th><th className="px-4 py-2">Discount</th><th className="px-4 py-2 text-right">Line Total</th></tr>
+                    <tr>
+                      <th className="px-4 py-2">Item Name</th>
+                      <th className="px-4 py-2">Qty</th>
+                      <th className="px-4 py-2">Unit Cost</th>
+                      <th className="px-4 py-2">Discount</th>
+                      <th className="px-4 py-2 text-right">Line Total</th>
+                      <th className="px-4 py-2 text-center w-14">Action</th>
+                    </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {detailLoading ? <tr><td colSpan={5} className="text-center py-4 text-slate-400">Loading...</td></tr> : poItems.map(item => (
-                      <tr key={item.id}>
-                        <td className="px-4 py-3">{item.inventory_items?.name}</td>
-                        <td className="px-4 py-3">{item.quantity} {item.inventory_items?.units?.abbreviation}</td>
-                        <td className="px-4 py-3">LKR {Number(item.cost_price).toFixed(2)}</td>
-                        <td className="px-4 py-3 text-red-500">- LKR {Number(item.discount_amount || 0).toFixed(2)}</td>
-                        <td className="px-4 py-3 font-bold text-right">LKR {Number(item.total_cost).toFixed(2)}</td>
-                      </tr>
-                    ))}
+                    {detailLoading ? (
+                      <tr><td colSpan={6} className="text-center py-4 text-slate-400">Loading...</td></tr>
+                    ) : (
+                      poItems.map(item => (
+                        <tr key={item.id} className="hover:bg-slate-50/50">
+                          <td className="px-4 py-3 font-medium text-slate-800">{item.inventory_items?.name}</td>
+                          <td className="px-4 py-3">{item.quantity} {item.inventory_items?.units?.abbreviation}</td>
+                          <td className="px-4 py-3">LKR {Number(item.cost_price).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-red-500">- LKR {Number(item.discount_amount || 0).toFixed(2)}</td>
+                          <td className="px-4 py-3 font-bold text-right">LKR {Number(item.total_cost).toFixed(2)}</td>
+                          <td className="px-4 py-3 text-center">
+                            {poItems.length > 1 && (
+                              <button
+                                type="button"
+                                onClick={() => openDeleteItemModal(item)}
+                                title={`Remove "${item.inventory_items?.name}" from this PO`}
+                                className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors inline-flex items-center justify-center"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -1199,6 +1275,88 @@ export const PurchaseOrders: React.FC = () => {
                 className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-xs flex items-center gap-1.5 shadow-sm disabled:opacity-50"
               >
                 {deleteLoading ? 'Deleting...' : 'Delete Purchase Order'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Single PO Item Delete Confirmation Modal ───────────────────────── */}
+      {deleteItemModalOpen && itemToDelete && selectedPo && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md p-4 sm:p-6 space-y-5 card-shadow max-h-[90vh] overflow-y-auto my-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 text-rose-600 border-b border-slate-100 pb-4">
+              <div className="p-2.5 bg-rose-50 rounded-xl">
+                <Trash2 size={22} className="text-rose-600" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-slate-800">Remove Item from PO?</h3>
+                <p className="text-xs text-slate-400 font-mono">{selectedPo.po_number}</p>
+              </div>
+            </div>
+
+            {deleteItemError && (
+              <div className="bg-rose-50 border-l-4 border-rose-500 p-3 rounded-r-xl text-xs font-semibold text-rose-700 flex items-start gap-2">
+                <AlertCircle size={15} className="shrink-0 mt-0.5" />
+                <span>{deleteItemError}</span>
+              </div>
+            )}
+
+            <div className="bg-slate-50 p-4 rounded-xl space-y-2 text-xs">
+              <div className="flex justify-between">
+                <span className="text-slate-500">Item:</span>
+                <span className="font-bold text-slate-800">{itemToDelete.inventory_items?.name}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Quantity:</span>
+                <span className="font-bold text-slate-800">{itemToDelete.quantity} {itemToDelete.inventory_items?.units?.abbreviation}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Unit Price:</span>
+                <span className="font-bold text-slate-800">LKR {Number(itemToDelete.cost_price).toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between border-t border-slate-200 pt-2 font-bold text-slate-800">
+                <span>Line Total to Deduct:</span>
+                <span className="text-rose-600">LKR {Number(itemToDelete.total_cost).toFixed(2)}</span>
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 p-3 rounded-xl text-xs text-amber-800 space-y-1">
+              <p className="font-bold flex items-center gap-1.5">
+                <AlertCircle size={14} className="shrink-0 text-amber-600" />
+                What happens when you remove this item:
+              </p>
+              <ul className="list-disc list-inside text-[11px] text-amber-700 space-y-0.5 pl-1">
+                {selectedPo.status === 'COMPLETED' ? (
+                  <>
+                    <li>Physical stock for this item will be <strong>removed from inventory</strong>.</li>
+                    <li>The supplier balance and PO grand total will be <strong>reduced by LKR {Number(itemToDelete.total_cost).toFixed(2)}</strong>.</li>
+                  </>
+                ) : (
+                  <>
+                    <li>This item line will be removed from the PO.</li>
+                    <li>PO grand total will be reduced by <strong>LKR {Number(itemToDelete.total_cost).toFixed(2)}</strong>.</li>
+                  </>
+                )}
+              </ul>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setDeleteItemModalOpen(false)}
+                disabled={deleteItemLoading}
+                className="flex-1 py-2.5 border border-slate-200 text-slate-600 font-semibold rounded-xl text-sm hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleDeletePoItem}
+                disabled={deleteItemLoading}
+                className="flex-1 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-sm transition-all shadow-md shadow-rose-600/20 active:scale-95 disabled:opacity-50"
+              >
+                {deleteItemLoading ? 'Removing...' : 'Confirm Removal'}
               </button>
             </div>
           </div>
