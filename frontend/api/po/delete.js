@@ -80,22 +80,23 @@ async function handler(req, res) {
     // 4. Perform GRN, Stock & Batch Reversals
     if (po.grns && po.grns.length > 0) {
       for (const grn of po.grns) {
-        // Delete stock movements linked to this GRN
-        await supabaseAdmin
-          .from('stock_movements')
-          .delete()
-          .eq('reference_id', grn.id)
-          .eq('reference_type', 'GRN');
+        const batchesToDelete = [];
+        const batchesToUpdate = [];
 
-        // Deduct/clean batches
+        // Pre-calculate batch adjustments
         if (grn.grn_items) {
           for (const gi of grn.grn_items) {
             if (!gi.batch_id) continue;
-            const { data: batch } = await supabaseAdmin
+            const { data: batch, error: bFetchErr } = await supabaseAdmin
               .from('batches')
               .select('*')
               .eq('id', gi.batch_id)
               .single();
+
+            if (bFetchErr) {
+              console.warn('[DELETE PO] Could not fetch batch:', gi.batch_id, bFetchErr);
+              continue;
+            }
 
             if (batch) {
               const qty = Number(gi.quantity || 0);
@@ -103,25 +104,68 @@ async function handler(req, res) {
               const newAvail = Math.max(0, Number(batch.available_qty || 0) - qty);
 
               if (newCur === 0) {
-                // Delete empty batch
-                await supabaseAdmin.from('batches').delete().eq('id', gi.batch_id);
+                batchesToDelete.push(gi.batch_id);
               } else {
-                await supabaseAdmin
-                  .from('batches')
-                  .update({
-                    current_qty: newCur,
-                    available_qty: newAvail,
-                    status: newAvail === 0 ? 'OUT_OF_STOCK' : 'ACTIVE'
-                  })
-                  .eq('id', gi.batch_id);
+                batchesToUpdate.push({
+                  id: gi.batch_id,
+                  current_qty: newCur,
+                  available_qty: newAvail,
+                  status: newAvail === 0 ? 'OUT_OF_STOCK' : 'ACTIVE'
+                });
               }
             }
           }
         }
 
-        // Delete GRN items & GRN record
-        await supabaseAdmin.from('grn_items').delete().eq('grn_id', grn.id);
-        await supabaseAdmin.from('grns').delete().eq('id', grn.id);
+        // A. Delete stock movements linked to this GRN and/or deleted batches
+        await supabaseAdmin
+          .from('stock_movements')
+          .delete()
+          .eq('reference_id', grn.id)
+          .eq('reference_type', 'GRN');
+
+        if (batchesToDelete.length > 0) {
+          await supabaseAdmin
+            .from('stock_movements')
+            .delete()
+            .in('batch_id', batchesToDelete);
+        }
+
+        // B. Delete GRN items (clears foreign key constraint on batches)
+        const { error: giDelErr } = await supabaseAdmin
+          .from('grn_items')
+          .delete()
+          .eq('grn_id', grn.id);
+        if (giDelErr) throw giDelErr;
+
+        // C. Delete GRN record
+        const { error: grnDelErr } = await supabaseAdmin
+          .from('grns')
+          .delete()
+          .eq('id', grn.id);
+        if (grnDelErr) throw grnDelErr;
+
+        // D. Delete empty batches (foreign keys now cleared)
+        if (batchesToDelete.length > 0) {
+          const { error: bDelErr } = await supabaseAdmin
+            .from('batches')
+            .delete()
+            .in('id', batchesToDelete);
+          if (bDelErr) throw bDelErr;
+        }
+
+        // E. Update partially remaining batches
+        for (const bu of batchesToUpdate) {
+          const { error: bUpdErr } = await supabaseAdmin
+            .from('batches')
+            .update({
+              current_qty: bu.current_qty,
+              available_qty: bu.available_qty,
+              status: bu.status
+            })
+            .eq('id', bu.id);
+          if (bUpdErr) throw bUpdErr;
+        }
       }
 
       // Revert supplier outstanding balance for unpaid portion of this PO
