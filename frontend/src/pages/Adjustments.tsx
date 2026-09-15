@@ -62,6 +62,7 @@ interface BulkLine {
   batchId: string;
   quantity: string;
   price?: string;
+  lastPrice?: number;
   batches: any[];
   unitLabel: string;
   searchQuery: string;
@@ -74,6 +75,7 @@ const newLine = (): BulkLine => ({
   batchId: '',
   quantity: '',
   price: '',
+  lastPrice: undefined,
   batches: [],
   unitLabel: '',
   searchQuery: '',
@@ -245,26 +247,66 @@ export const Adjustments: React.FC = () => {
 
   const loadBatchesForLine = async (lineId: string, itemId: string) => {
     if (!itemId) {
-      setLines(prev => prev.map(l => l.id === lineId ? { ...l, itemId, batchId: '', batches: [], unitLabel: '' } : l));
+      setLines(prev => prev.map(l => l.id === lineId ? { ...l, itemId, batchId: '', batches: [], unitLabel: '', price: '', lastPrice: undefined } : l));
       return;
     }
     const item = catalogItems.find(i => i.id === itemId);
     const unit = units.find(u => u.id === item?.base_unit_id);
-    const { data: itemBatches } = await supabase
-      .from('batches')
-      .select('id, batch_number, available_qty, expiry_date, received_date, supplier_id, inventory_items ( cost_price ), stock_movements ( type, cost_price ), grn_items ( cost_price, grns ( id, po_id, supplier_id, purchase_orders ( supplier_payments ( payment_date ) ) ) )')
-      .eq('item_id', itemId)
-      .gt('available_qty', 0)
-      .order('received_date', { ascending: false })
-      .order('created_at', { ascending: false });
+    const catalogCost = Number(item?.cost_price) || 0;
 
+    const [{ data: itemBatches }, { data: lastStockIn }] = await Promise.all([
+      supabase
+        .from('batches')
+        .select('id, batch_number, available_qty, expiry_date, received_date, supplier_id, inventory_items ( cost_price ), stock_movements ( type, cost_price ), grn_items ( cost_price, grns ( id, po_id, supplier_id, purchase_orders ( supplier_payments ( payment_date ) ) ) )')
+        .eq('item_id', itemId)
+        .gt('available_qty', 0)
+        .order('received_date', { ascending: false })
+        .order('created_at', { ascending: false }),
+      supabase
+        .from('stock_movements')
+        .select('cost_price')
+        .eq('item_id', itemId)
+        .eq('type', 'STOCK_IN')
+        .gt('cost_price', 0)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+    ]);
+
+    const resolvedPrice = (lastStockIn?.cost_price && Number(lastStockIn.cost_price) > 0)
+      ? Number(lastStockIn.cost_price)
+      : (catalogCost > 0 ? catalogCost : undefined);
+
+    setLines(prev => prev.map(l => {
+      if (l.id !== lineId) return l;
+      const currentPrice = l.price;
+      // Auto-update price if user hasn't typed a custom one or it was at the catalog fallback
+      const shouldUpdatePrice = resolvedPrice !== undefined && (!currentPrice || Number(currentPrice) === catalogCost);
+      return {
+        ...l,
+        itemId,
+        batchId: itemBatches?.[0]?.id || '',
+        batches: itemBatches || [],
+        unitLabel: unit?.abbreviation || '',
+        lastPrice: resolvedPrice !== undefined ? resolvedPrice : l.lastPrice,
+        price: shouldUpdatePrice ? resolvedPrice!.toString() : l.price
+      };
+    }));
+  };
+
+  const handleSelectItem = (lineId: string, item: any) => {
+    const cost = Number(item.cost_price) || 0;
+    const unit = units.find(u => u.id === item.base_unit_id);
     setLines(prev => prev.map(l => l.id === lineId ? {
       ...l,
-      itemId,
-      batchId: itemBatches?.[0]?.id || '',
-      batches: itemBatches || [],
+      itemId: item.id,
+      searchQuery: item.name,
+      showDropdown: false,
       unitLabel: unit?.abbreviation || '',
+      lastPrice: cost > 0 ? cost : undefined,
+      price: cost > 0 ? cost.toString() : (l.price || '')
     } : l));
+    loadBatchesForLine(lineId, item.id);
   };
 
   const updateLine = (lineId: string, field: keyof BulkLine, value: any) => {
@@ -993,6 +1035,8 @@ export const Adjustments: React.FC = () => {
                             updateLine(line.id, 'batchId', '');
                             updateLine(line.id, 'batches', []);
                             updateLine(line.id, 'unitLabel', '');
+                            updateLine(line.id, 'price', '');
+                            updateLine(line.id, 'lastPrice', undefined);
                           }
                         }}
                         onFocus={() => updateLine(line.id, 'showDropdown', true)}
@@ -1011,12 +1055,7 @@ export const Adjustments: React.FC = () => {
                             .map(item => (
                               <li
                                 key={item.id}
-                                onMouseDown={() => {
-                                  updateLine(line.id, 'itemId', item.id);
-                                  updateLine(line.id, 'searchQuery', item.name);
-                                  updateLine(line.id, 'showDropdown', false);
-                                  loadBatchesForLine(line.id, item.id);
-                                }}
+                                onMouseDown={() => handleSelectItem(line.id, item)}
                                 className="px-3 py-2 text-sm cursor-pointer hover:bg-blue-50 hover:text-primary transition-colors border-b border-slate-50 last:border-0"
                               >
                                 <span className="font-semibold">{item.name}</span>{' '}
@@ -1036,13 +1075,41 @@ export const Adjustments: React.FC = () => {
                     {/* Batch / Price */}
                     <div className="col-span-12 md:col-span-5">
                       {movementType === 'STOCK_IN' ? (
-                        <input
-                          type="number" step="0.001" min="0"
-                          placeholder="Optional price..."
-                          value={line.price || ''}
-                          onChange={e => updateLine(line.id, 'price', e.target.value)}
-                          className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm"
-                        />
+                        <div className="space-y-1">
+                          <input
+                            type="number" step="0.001" min="0"
+                            placeholder={line.lastPrice !== undefined ? `Last: ${Number(line.lastPrice).toFixed(2)}` : "Optional price..."}
+                            value={line.price || ''}
+                            onChange={e => updateLine(line.id, 'price', e.target.value)}
+                            className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary text-sm font-medium bg-white"
+                          />
+                          {line.itemId && line.lastPrice !== undefined && line.lastPrice > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-1 px-1 text-[11px] select-none">
+                              <button
+                                type="button"
+                                onClick={() => updateLine(line.id, 'price', String(line.lastPrice))}
+                                title="Click to reset price to last recorded price"
+                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 hover:text-slate-900 transition-all cursor-pointer group"
+                              >
+                                <span>🏷️ Last:</span>
+                                <span className="font-bold text-slate-800">
+                                  LKR {Number(line.lastPrice).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                                {line.price !== undefined && line.price !== '' && Number(line.price) !== Number(line.lastPrice) && (
+                                  <span className="text-primary font-bold group-hover:underline ml-1">
+                                    ↺ Reset
+                                  </span>
+                                )}
+                              </button>
+                              {line.price !== undefined && line.price !== '' && Number(line.price) !== Number(line.lastPrice) && (
+                                <span className={`font-bold text-[10px] ${Number(line.price) > Number(line.lastPrice) ? 'text-amber-600' : 'text-emerald-600'}`}>
+                                  {Number(line.price) > Number(line.lastPrice) ? '▲ +' : '▼ -'}
+                                  LKR {Math.abs(Number(line.price) - Number(line.lastPrice)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       ) : line.batches.length > 0 ? (
                         <select
                           value={line.batchId}
