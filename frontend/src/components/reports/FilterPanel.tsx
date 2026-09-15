@@ -307,7 +307,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({
         )}
       </div>
 
-      {jatKitchenTotals && (
+      {jatKitchenTotals && reportType !== 'missed_kitchen' && (
         <div className="md:col-span-2 flex gap-4 ml-0 md:ml-auto w-full">
           <div className="bg-orange-50 text-orange-700 px-4 py-2 rounded-xl flex-1 flex flex-col justify-center border border-orange-100">
             <span className="text-[10px] uppercase font-bold opacity-70">JAT Total</span>
