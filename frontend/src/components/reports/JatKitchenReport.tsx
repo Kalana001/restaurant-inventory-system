@@ -372,15 +372,33 @@ export const JatKitchenReport: React.FC<JatKitchenReportProps> = ({ month, day, 
       setTodayKitchen(tKitchen);
 
       // 5. Fetch All-Time Unsettled Balance for JAT
-      // Total JAT All-Time
-      const [ { data: allJat }, { data: allJatDp }, { data: allJatTc }, { data: allJatExp } ] = await Promise.all([
-        supabase.from('stock_movements').select('quantity, cost_price').eq('type', 'STOCK_OUT').eq('reason_id', jatReason),
+      // Total JAT All-Time — paginate stock movements to avoid 1,000-row cap
+      let allJatMovements: any[] = [];
+      let fetchMoreJat = true;
+      let fromJat = 0;
+      while (fetchMoreJat) {
+        const { data: chunk, error: chunkErr } = await supabase
+          .from('stock_movements')
+          .select('quantity, cost_price')
+          .eq('type', 'STOCK_OUT')
+          .eq('reason_id', jatReason)
+          .range(fromJat, fromJat + 999);
+        if (chunkErr || !chunk || chunk.length === 0) {
+          fetchMoreJat = false;
+        } else {
+          allJatMovements = [...allJatMovements, ...chunk];
+          fromJat += 1000;
+          if (chunk.length < 1000) fetchMoreJat = false;
+        }
+      }
+
+      const [ { data: allJatDp }, { data: allJatTc }, { data: allJatExp } ] = await Promise.all([
         supabase.from('daily_purchases').select('total_cost').eq('department', 'JAT'),
         supabase.from('transportation_costs').select('cost').eq('department', 'JAT'),
         supabase.from('expenses').select('total_amount').eq('category', 'JAT')
       ]);
 
-      const baseJatCost = allJat?.reduce((sum, m) => sum + ((Number(m.quantity) || 0) * (Number(m.cost_price) || 0)), 0) || 0;
+      const baseJatCost = allJatMovements.reduce((sum, m) => sum + ((Number(m.quantity) || 0) * (Number(m.cost_price) || 0)), 0);
       const dpJatCost = allJatDp?.reduce((sum, dp) => sum + (Number(dp.total_cost) || 0), 0) || 0;
       const tcJatCost = allJatTc?.reduce((sum, tc) => sum + (Number(tc.cost) || 0), 0) || 0;
       const expJatCost = allJatExp?.reduce((sum, exp) => sum + (Number(exp.total_amount) || 0), 0) || 0;

@@ -188,8 +188,8 @@ export const Dashboard: React.FC = () => {
                 .in('reason_id', allKitchenReasonIds)
                 .gte('created_at', monthStartIso)
             : Promise.resolve({ data: [] }),
-          supabase.from('daily_purchases').select('total_cost, department, date').gte('date', monthStartStr),
-          supabase.from('transportation_costs').select('cost, department, date').gte('date', monthStartStr),
+          supabase.from('daily_purchases').select('total_cost, department, date'),
+          supabase.from('transportation_costs').select('cost, department, date'),
           supabase.from('expenses').select('total_amount').eq('category', 'JAT')
         ]);
         
