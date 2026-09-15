@@ -154,7 +154,8 @@ async function handler(req, res) {
         if (dbError) throw new Error(dbError.message || 'Failed to process stock movement');
 
         if (eDate && movementId) {
-          const isoDate = `${eDate}T12:00:00.000Z`;
+          const currentTimeUTC = new Date().toISOString().split('T')[1]; // e.g. "12:34:56.789Z"
+          const isoDate = `${eDate}T${currentTimeUTC}`;
           await supabaseAdmin.from('stock_movements').update({ created_at: isoDate }).eq('id', movementId);
         }
 
