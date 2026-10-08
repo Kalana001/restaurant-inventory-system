@@ -21,6 +21,16 @@ interface BulkItem {
   department: 'JAT' | 'KITCHEN';
 }
 
+const COMMON_TRANSPORT_REASONS = [
+  'Gas',
+  'Vegetable',
+  'Ajantha',
+  'Fish',
+  'Buddhi',
+  'Gonapala',
+  'Piliyandala'
+];
+
 export const Transportation: React.FC = () => {
   const { user } = useAuth();
   const [costs, setCosts] = useState<TransportCost[]>([]);
@@ -92,6 +102,22 @@ export const Transportation: React.FC = () => {
 
   const updateRow = (id: string, field: keyof BulkItem, value: string) => {
     setBulkItems(bulkItems.map(item => item.id === id ? { ...item, [field]: value } : item));
+  };
+
+  const loadTemplate = (department: 'JAT' | 'KITCHEN') => {
+    const templateItems: BulkItem[] = COMMON_TRANSPORT_REASONS.map((name, index) => ({
+      id: Date.now().toString() + index + Math.random(),
+      reason: name,
+      cost: '',
+      department
+    }));
+    
+    // If the only row is empty, replace it. Otherwise, append.
+    if (bulkItems.length === 1 && !bulkItems[0].reason.trim() && !bulkItems[0].cost) {
+      setBulkItems(templateItems);
+    } else {
+      setBulkItems([...bulkItems, ...templateItems]);
+    }
   };
 
   const handleSaveBulk = async () => {
@@ -170,6 +196,23 @@ export const Transportation: React.FC = () => {
                 required
               />
             </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 mb-4">
+            <button
+              type="button"
+              onClick={() => loadTemplate('JAT')}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 bg-orange-50 text-orange-700 hover:bg-orange-100 rounded-lg transition-colors border border-orange-200 shadow-sm"
+            >
+              <ClipboardList size={14} /> Load JAT Template
+            </button>
+            <button
+              type="button"
+              onClick={() => loadTemplate('KITCHEN')}
+              className="flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg transition-colors border border-blue-200 shadow-sm"
+            >
+              <ClipboardList size={14} /> Load Kitchen Template
+            </button>
           </div>
           
           <div className="overflow-x-auto mb-4">
