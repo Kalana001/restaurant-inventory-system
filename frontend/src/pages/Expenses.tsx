@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { format } from 'date-fns';
 import { Pagination } from '../components/ui/Pagination';
-import { Plus, Search, Wallet, Building2, User, ChevronDown, CheckCircle2, Clock, AlertCircle, Pencil } from 'lucide-react';
+import { Plus, Search, Wallet, Building2, User, ChevronDown, CheckCircle2, Clock, AlertCircle, Pencil, Trash2 } from 'lucide-react';
 
 export const Expenses: React.FC = () => {
   const { user, hasPermission } = useAuth();
@@ -51,6 +51,13 @@ export const Expenses: React.FC = () => {
   const [editDesc, setEditDesc] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
   const [editLoading, setEditLoading] = useState(false);
+
+  // Delete Form State
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [expenseToDelete, setExpenseToDelete] = useState<any>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState<string | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const fetchExpenses = async () => {
     setLoading(true);
@@ -213,6 +220,61 @@ export const Expenses: React.FC = () => {
     }
   };
 
+  const openDeleteModal = (expense: any) => {
+    setExpenseToDelete(expense);
+    setDeleteError(null);
+    setDeleteModalOpen(true);
+  };
+
+  const handleDeleteExpense = async () => {
+    if (!expenseToDelete) return;
+
+    if (expenseToDelete.status !== 'UNPAID' || Number(expenseToDelete.paid_amount || 0) > 0) {
+      setDeleteError('Only unpaid expenses without any recorded payments can be deleted.');
+      return;
+    }
+
+    setDeleteLoading(true);
+    setDeleteError(null);
+
+    try {
+      // Safety check: if category is JAT, verify it is not allocated in any non-bounced settlement
+      if (expenseToDelete.category === 'JAT') {
+        const receiptCode = `EXP-${expenseToDelete.date}-${expenseToDelete.id.substring(0, 6)}`;
+        const { data: settlements } = await supabase
+          .from('jat_settlements')
+          .select('id, notes, settlement_number')
+          .neq('status', 'BOUNCED');
+
+        if (settlements && settlements.length > 0) {
+          for (const s of settlements) {
+            if (!s.notes) continue;
+            if (s.notes.includes(receiptCode) || s.notes.includes(expenseToDelete.id)) {
+              throw new Error(`Cannot delete this JAT expense because it is allocated in JAT Settlement (${s.settlement_number || s.id.substring(0, 8)}). Please adjust the settlement first.`);
+            }
+          }
+        }
+      }
+
+      const { error } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('id', expenseToDelete.id);
+
+      if (error) throw error;
+
+      setDeleteModalOpen(false);
+      setExpenseToDelete(null);
+      setDeleteSuccess('Expense deleted successfully.');
+      setTimeout(() => setDeleteSuccess(null), 4000);
+      fetchExpenses();
+    } catch (err: any) {
+      setDeleteError(err.message || 'Failed to delete expense.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -229,6 +291,13 @@ export const Expenses: React.FC = () => {
           </button>
         )}
       </div>
+
+      {deleteSuccess && (
+        <div className="p-3.5 bg-emerald-50 text-emerald-700 text-sm font-semibold rounded-xl border border-emerald-200 flex items-center gap-2 animate-in fade-in">
+          <CheckCircle2 size={16} className="text-emerald-600 shrink-0" />
+          <span>{deleteSuccess}</span>
+        </div>
+      )}
 
       <div className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex flex-col md:flex-row gap-4 items-center">
         <div className="relative flex-1 w-full">
@@ -341,6 +410,16 @@ export const Expenses: React.FC = () => {
                               className="text-primary hover:text-primary-dark font-bold text-xs bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-lg transition-colors"
                             >
                               Pay
+                            </button>
+                          )}
+                          {expense.status === 'UNPAID' && (Number(expense.paid_amount) || 0) === 0 && hasPermission('expenses:manage') && (
+                            <button
+                              onClick={() => openDeleteModal(expense)}
+                              className="text-slate-400 hover:text-rose-600 font-bold text-xs bg-slate-100 hover:bg-rose-50 px-2.5 py-1.5 rounded-lg transition-colors inline-flex items-center gap-1"
+                              title="Delete Expense"
+                            >
+                              <Trash2 size={12} />
+                              <span className="hidden sm:inline">Delete</span>
                             </button>
                           )}
                         </div>
@@ -576,6 +655,83 @@ export const Expenses: React.FC = () => {
               </button>
               <button onClick={handleEditExpense} disabled={editLoading} className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50">
                 {editLoading ? 'Saving...' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE EXPENSE MODAL */}
+      {deleteModalOpen && expenseToDelete && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 bg-slate-900/60 backdrop-blur-sm overflow-hidden animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-[calc(100vw-1.5rem)] sm:max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh] my-auto">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+              <div className="flex items-center gap-2.5 text-rose-600">
+                <div className="p-2 bg-rose-50 rounded-xl">
+                  <Trash2 size={20} className="text-rose-600" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-800">Delete Expense</h3>
+                  <p className="text-xs text-slate-400">Permanently remove this unpaid expense</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setDeleteModalOpen(false)} 
+                disabled={deleteLoading}
+                className="text-slate-400 hover:text-slate-600 transition-colors p-1 rounded-full hover:bg-slate-100"
+              >
+                <Plus className="rotate-45" size={24} />
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4">
+              {deleteError && (
+                <div className="p-3 bg-red-50 text-red-700 text-sm rounded-xl border border-red-100 flex items-center gap-2">
+                  <AlertCircle size={16} className="shrink-0" />
+                  <span>{deleteError}</span>
+                </div>
+              )}
+
+              <p className="text-sm text-slate-600">
+                Are you sure you want to delete this expense? This action cannot be undone.
+              </p>
+
+              <div className="bg-slate-50 p-4 rounded-xl space-y-2 border border-slate-100 text-xs">
+                <div className="flex justify-between font-semibold">
+                  <span className="text-slate-500">Category & Type:</span>
+                  <span className="text-slate-800 font-bold">{expenseToDelete.category} / {expenseToDelete.expense_type}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                  <span className="text-slate-500">Date:</span>
+                  <span className="text-slate-800">{format(new Date(expenseToDelete.date), 'MMM dd, yyyy')}</span>
+                </div>
+                <div className="flex justify-between font-semibold">
+                  <span className="text-slate-500">Amount:</span>
+                  <span className="text-slate-900 font-bold">LKR {Number(expenseToDelete.total_amount).toLocaleString(undefined, { minimumFractionDigits: 2 })}</span>
+                </div>
+                {expenseToDelete.description && (
+                  <div className="flex justify-between font-semibold pt-1 border-t border-slate-200">
+                    <span className="text-slate-500">Description:</span>
+                    <span className="text-slate-700 max-w-[200px] truncate" title={expenseToDelete.description}>{expenseToDelete.description}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="p-6 border-t border-slate-100 flex justify-end gap-3 bg-slate-50">
+              <button 
+                onClick={() => setDeleteModalOpen(false)} 
+                disabled={deleteLoading}
+                className="px-5 py-2.5 text-slate-600 font-bold text-sm hover:bg-slate-200 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleDeleteExpense} 
+                disabled={deleteLoading} 
+                className="px-5 py-2.5 bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm rounded-xl transition-colors shadow-sm disabled:opacity-50 flex items-center gap-1.5"
+              >
+                {deleteLoading ? 'Deleting...' : 'Delete Expense'}
               </button>
             </div>
           </div>
