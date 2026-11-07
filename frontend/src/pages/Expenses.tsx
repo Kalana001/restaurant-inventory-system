@@ -47,6 +47,8 @@ export const Expenses: React.FC = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editExpense, setEditExpense] = useState<any>(null);
   const [editDate, setEditDate] = useState('');
+  const [editCategory, setEditCategory] = useState<'RESTAURANT' | 'PERSONAL' | 'JAT'>('RESTAURANT');
+  const [editType, setEditType] = useState('ELECTRICITY');
   const [editAmount, setEditAmount] = useState<number | ''>('');
   const [editDesc, setEditDesc] = useState('');
   const [editError, setEditError] = useState<string | null>(null);
@@ -183,6 +185,8 @@ export const Expenses: React.FC = () => {
   const openEditModal = (expense: any) => {
     setEditExpense(expense);
     setEditDate(expense.date);
+    setEditCategory(expense.category);
+    setEditType(expense.expense_type);
     setEditAmount(Number(expense.total_amount));
     setEditDesc(expense.description || '');
     setEditError(null);
@@ -200,12 +204,43 @@ export const Expenses: React.FC = () => {
       setEditError('Please select a date.');
       return;
     }
+
+    // Safety checks for changing Category
+    const isCategoryChanged = editCategory !== editExpense.category;
+    const hasPayments = Number(editExpense.paid_amount || 0) > 0 || editExpense.status !== 'UNPAID';
+
+    if (isCategoryChanged && hasPayments) {
+      setEditError('Category cannot be changed because payments are already recorded for this expense.');
+      return;
+    }
+
     setEditLoading(true);
     try {
+      // If changing from JAT to another category, ensure it's not locked in a JAT settlement
+      if (isCategoryChanged && editExpense.category === 'JAT') {
+        const receiptCode = `EXP-${editExpense.date}-${editExpense.id.substring(0, 6)}`;
+        const { data: settlements } = await supabase
+          .from('jat_settlements')
+          .select('id, notes, settlement_number')
+          .neq('status', 'BOUNCED');
+
+        if (settlements && settlements.length > 0) {
+          for (const s of settlements) {
+            if (s.notes && s.notes.includes(receiptCode)) {
+              setEditError(`Cannot change category from JAT: Expense is included in Settlement #${s.settlement_number || s.id.substring(0, 8)}.`);
+              setEditLoading(false);
+              return;
+            }
+          }
+        }
+      }
+
       const { error } = await supabase
         .from('expenses')
         .update({ 
-          date: editDate, 
+          date: editDate,
+          category: editCategory,
+          expense_type: editType,
           total_amount: parsedAmount,
           description: editDesc 
         })
@@ -602,10 +637,6 @@ export const Expenses: React.FC = () => {
             </div>
 
             <div className="p-6 space-y-4">
-              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <p className="text-sm font-bold text-slate-700">{editExpense.category} / {editExpense.expense_type}</p>
-              </div>
-
               {editError && (
                 <div className="p-3 bg-red-50 text-red-700 text-sm rounded-xl border border-red-100 flex items-center gap-2">
                   <AlertCircle size={16} />{editError}
@@ -620,6 +651,43 @@ export const Expenses: React.FC = () => {
                   onChange={e => setEditDate(e.target.value)}
                   className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Category</label>
+                    {(Number(editExpense.paid_amount || 0) > 0 || editExpense.status !== 'UNPAID') && (
+                      <span className="text-[10px] font-semibold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded border border-amber-200" title="Category cannot be changed after payments are recorded">
+                        Locked (Paid)
+                      </span>
+                    )}
+                  </div>
+                  <select
+                    value={editCategory}
+                    disabled={Number(editExpense.paid_amount || 0) > 0 || editExpense.status !== 'UNPAID'}
+                    onChange={e => setEditCategory(e.target.value as any)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none disabled:bg-slate-100 disabled:text-slate-500 disabled:cursor-not-allowed"
+                  >
+                    <option value="RESTAURANT">Restaurant</option>
+                    <option value="JAT">JAT</option>
+                    <option value="PERSONAL">Personal</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Expense Type</label>
+                  <select
+                    value={editType}
+                    onChange={e => setEditType(e.target.value)}
+                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none"
+                  >
+                    <option value="ELECTRICITY">Electricity Bill</option>
+                    <option value="WATER">Water Bill</option>
+                    <option value="SALARY">Salary</option>
+                    <option value="RENT">Rent</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </div>
               </div>
 
               <div className="space-y-1.5">
