@@ -745,7 +745,7 @@ export const StockForecastReport: React.FC = () => {
       {/* DETAIL MODAL WITH VISUAL USAGE CHART & RECENT ACTIVITY */}
       {selectedItem && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-sm overflow-hidden animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-2xl md:max-w-3xl max-h-[92vh] shadow-2xl flex flex-col my-auto overflow-hidden">
+          <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-[calc(100vw-1.5rem)] sm:max-w-2xl md:max-w-4xl max-h-[92vh] shadow-2xl flex flex-col my-auto overflow-hidden">
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4 shrink-0 bg-slate-50/50">
               <div>
@@ -770,27 +770,27 @@ export const StockForecastReport: React.FC = () => {
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
               {/* Quick Stat Pill Cards - 5 Separate Metrics */}
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Current Stock</span>
-                  <p className="text-base sm:text-lg font-extrabold text-slate-800 mt-0.5 truncate">
+                <div className="bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-tight">Current Stock</span>
+                  <p className="text-sm sm:text-base font-extrabold text-slate-800 mt-1 leading-snug break-words">
                     {Number(selectedItem.currentStock).toLocaleString()} {selectedItem.unitAbbr}
                   </p>
                 </div>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Daily Usage</span>
-                  <p className="text-base sm:text-lg font-extrabold text-primary mt-0.5 truncate">
+                <div className="bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-tight">Avg Daily Usage</span>
+                  <p className="text-sm sm:text-base font-extrabold text-primary mt-1 leading-snug break-words">
                     {selectedItem.avgDailyUsage.toFixed(2)} {selectedItem.unitAbbr}/d
                   </p>
                 </div>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Runout Estimate</span>
-                  <p className="text-base sm:text-lg font-extrabold text-slate-800 mt-0.5 truncate">
+                <div className="bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-tight">Runout Estimate</span>
+                  <p className="text-sm sm:text-base font-extrabold text-slate-800 mt-1 leading-snug break-words">
                     {selectedItem.daysRemaining !== null ? `${selectedItem.daysRemaining.toFixed(1)} Days` : 'No usage'}
                   </p>
                 </div>
-                <div className="bg-blue-50/60 p-3 rounded-xl border border-blue-100">
-                  <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Order Cadence</span>
-                  <p className="text-base sm:text-lg font-extrabold text-blue-900 mt-0.5 truncate">
+                <div className="bg-blue-50/70 p-3 sm:p-3.5 rounded-xl border border-blue-200 flex flex-col justify-between">
+                  <span className="text-[10px] font-bold text-blue-700 uppercase tracking-wider leading-tight">Order Cadence</span>
+                  <p className="text-sm sm:text-base font-extrabold text-blue-900 mt-1 leading-snug break-words">
                     {selectedItem.avgPurchaseCadenceDays !== null
                       ? `Every ~${Math.max(1, Math.round(selectedItem.avgPurchaseCadenceDays))} Days`
                       : selectedItem.purchaseCount > 0
@@ -798,9 +798,9 @@ export const StockForecastReport: React.FC = () => {
                       : '—'}
                   </p>
                 </div>
-                <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 col-span-2 sm:col-span-1">
-                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Typical Order Size</span>
-                  <p className="text-base sm:text-lg font-extrabold text-emerald-900 mt-0.5 truncate">
+                <div className="bg-emerald-50/70 p-3 sm:p-3.5 rounded-xl border border-emerald-200 col-span-2 sm:col-span-1 flex flex-col justify-between">
+                  <span className="text-[10px] font-bold text-emerald-700 uppercase tracking-wider leading-tight">Typical Order Size</span>
+                  <p className="text-sm sm:text-base font-extrabold text-emerald-900 mt-1 leading-snug break-words">
                     {selectedItem.avgOrderQuantity !== null
                       ? `~${selectedItem.avgOrderQuantity.toFixed(1)} ${selectedItem.unitAbbr}`
                       : '—'}
