@@ -100,10 +100,9 @@ export const StockForecastReport: React.FC = () => {
         supabase
           .from('grn_items')
           .select(`
-            id, item_id, received_qty, unit_price,
-            grns ( id, grn_number, created_at, status )
+            id, item_id, quantity, cost_price,
+            grns ( id, grn_number, created_at, received_date )
           `)
-          .order('created_at', { ascending: false })
       ]);
 
       const kitchenReasonIds = new Set((reasonsRes.data || []).map(r => r.id));
@@ -176,8 +175,8 @@ export const StockForecastReport: React.FC = () => {
 
         if (purchases.length > 0) {
           const firstP = purchases[0]; // ordered desc
-          lastPurchaseDate = firstP.grns?.created_at || null;
-          lastPurchasePrice = Number(firstP.unit_price) || null;
+          lastPurchaseDate = firstP.grns?.received_date || firstP.grns?.created_at || null;
+          lastPurchasePrice = Number(firstP.cost_price) || null;
 
           if (purchases.length > 1) {
             const newestDate = new Date(purchases[0].grns?.created_at || Date.now()).getTime();
@@ -287,11 +286,10 @@ export const StockForecastReport: React.FC = () => {
         supabase
           .from('grn_items')
           .select(`
-            id, received_qty, unit_price,
-            grns ( id, grn_number, created_at, supplier_id, suppliers:supplier_id ( name ) )
+            id, quantity, cost_price,
+            grns ( id, grn_number, created_at, received_date, supplier_id, suppliers ( name ) )
           `)
           .eq('item_id', item.id)
-          .order('created_at', { ascending: false })
           .limit(10)
       ]);
 
@@ -925,7 +923,7 @@ export const StockForecastReport: React.FC = () => {
                         {itemPurchaseHistory.slice(0, 5).map((p, idx) => (
                           <tr key={idx} className="hover:bg-slate-50">
                             <td className="px-4 py-2.5 font-medium text-slate-700">
-                              {p.grns?.created_at ? format(parseISO(p.grns.created_at), 'dd MMM yyyy') : '—'}
+                              {p.grns?.received_date || p.grns?.created_at ? format(parseISO(p.grns?.received_date || p.grns?.created_at), 'dd MMM yyyy') : '—'}
                             </td>
                             <td className="px-4 py-2.5 font-mono text-slate-500">
                               {p.grns?.grn_number || '—'}
@@ -934,10 +932,10 @@ export const StockForecastReport: React.FC = () => {
                               {p.grns?.suppliers?.name || '—'}
                             </td>
                             <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
-                              +{Number(p.received_qty).toFixed(2)} {selectedItem.unitAbbr}
+                              +{Number(p.quantity).toFixed(2)} {selectedItem.unitAbbr}
                             </td>
                             <td className="px-4 py-2.5 text-right font-semibold text-slate-700">
-                              LKR {Number(p.unit_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              LKR {Number(p.cost_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
                             </td>
                           </tr>
                         ))}
