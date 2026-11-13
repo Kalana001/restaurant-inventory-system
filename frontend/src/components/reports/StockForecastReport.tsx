@@ -168,27 +168,50 @@ export const StockForecastReport: React.FC = () => {
         }
 
         // Purchase analytics from GRNs
-        const purchases = grnMap[item.id] || [];
-        const purchaseCount = purchases.length;
+        const allPurchases = grnMap[item.id] || [];
+        // Sort all purchases by date descending
+        allPurchases.sort((a: any, b: any) => {
+          const dateA = new Date(a.grns?.received_date || a.grns?.created_at || 0).getTime();
+          const dateB = new Date(b.grns?.received_date || b.grns?.created_at || 0).getTime();
+          return dateB - dateA;
+        });
+
+        // Filter purchases within the active lookback window
+        const windowStartTime = new Date(windowStartDate).getTime();
+        const windowPurchases = allPurchases.filter((p: any) => {
+          const pDate = new Date(p.grns?.received_date || p.grns?.created_at || 0).getTime();
+          return pDate >= windowStartTime;
+        });
+
+        // Primary metrics prioritize window purchases; fallback to recent purchases if none in window
+        const activePurchases = windowPurchases.length > 0 ? windowPurchases : allPurchases.slice(0, 5);
+        const purchaseCount = windowPurchases.length; // purchases strictly in window
         let lastPurchaseDate: string | null = null;
         let lastPurchasePrice: number | null = null;
         let avgPurchaseCadenceDays: number | null = null;
         let avgOrderQuantity: number | null = null;
 
-        if (purchases.length > 0) {
-          const firstP = purchases[0]; // ordered desc
-          lastPurchaseDate = firstP.grns?.received_date || firstP.grns?.created_at || null;
-          lastPurchasePrice = Number(firstP.cost_price) || null;
+        if (allPurchases.length > 0) {
+          const newest = allPurchases[0];
+          lastPurchaseDate = newest.grns?.received_date || newest.grns?.created_at || null;
+          lastPurchasePrice = Number(newest.cost_price) || null;
+        }
 
-          // Typical Order Size: Sum of quantities / total deliveries
-          const totalReceivedQty = purchases.reduce((sum: number, p: any) => sum + (Number(p.quantity) || 0), 0);
-          avgOrderQuantity = totalReceivedQty / purchases.length;
+        if (activePurchases.length > 0) {
+          // Typical Order Size: Sum of quantities / total deliveries in active set
+          const totalReceivedQty = activePurchases.reduce((sum: number, p: any) => sum + (Number(p.quantity) || 0), 0);
+          avgOrderQuantity = totalReceivedQty / activePurchases.length;
 
-          if (purchases.length > 1) {
-            const newestDate = new Date(purchases[0].grns?.received_date || purchases[0].grns?.created_at || Date.now()).getTime();
-            const oldestDate = new Date(purchases[purchases.length - 1].grns?.received_date || purchases[purchases.length - 1].grns?.created_at || Date.now()).getTime();
+          if (windowPurchases.length > 0) {
+            // In the lookback window: Cadence = lookbackDays / number of purchases in window
+            avgPurchaseCadenceDays = lookbackDays / windowPurchases.length;
+          } else if (allPurchases.length > 1) {
+            // If none in this window, calculate across last 3-5 orders as fallback
+            const sample = allPurchases.slice(0, 5);
+            const newestDate = new Date(sample[0].grns?.received_date || sample[0].grns?.created_at || Date.now()).getTime();
+            const oldestDate = new Date(sample[sample.length - 1].grns?.received_date || sample[sample.length - 1].grns?.created_at || Date.now()).getTime();
             const spanDays = Math.max(1, (newestDate - oldestDate) / (1000 * 60 * 60 * 24));
-            avgPurchaseCadenceDays = spanDays / (purchases.length - 1);
+            avgPurchaseCadenceDays = spanDays / (sample.length - 1);
           }
         }
 
@@ -297,11 +320,15 @@ export const StockForecastReport: React.FC = () => {
             grns ( id, grn_number, created_at, received_date, supplier_id, suppliers ( name ) )
           `)
           .eq('item_id', item.id)
-          .limit(10)
       ]);
 
       setItemUsageHistory(usageRes.data || []);
-      setItemPurchaseHistory(grnRes.data || []);
+      const sortedGrns = (grnRes.data || []).sort((a: any, b: any) => {
+        const dateA = new Date(a.grns?.received_date || a.grns?.created_at || 0).getTime();
+        const dateB = new Date(b.grns?.received_date || b.grns?.created_at || 0).getTime();
+        return dateB - dateA;
+      });
+      setItemPurchaseHistory(sortedGrns);
     } catch (err) {
       console.error('Failed to load item history modal:', err);
     } finally {
@@ -794,7 +821,7 @@ export const StockForecastReport: React.FC = () => {
                     {selectedItem.avgPurchaseCadenceDays !== null
                       ? `Every ~${Math.max(1, Math.round(selectedItem.avgPurchaseCadenceDays))} Days`
                       : selectedItem.purchaseCount > 0
-                      ? `Ordered ${selectedItem.purchaseCount}x`
+                      ? `Ordered ${selectedItem.purchaseCount}x in ${lookbackDays}d`
                       : '—'}
                   </p>
                 </div>
