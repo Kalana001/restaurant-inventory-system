@@ -35,6 +35,7 @@ export interface VelocityItem {
   // Purchase insights
   purchaseCount: number;
   avgPurchaseCadenceDays: number | null;
+  avgOrderQuantity: number | null;
   lastPurchaseDate: string | null;
   lastPurchasePrice: number | null;
 }
@@ -172,15 +173,20 @@ export const StockForecastReport: React.FC = () => {
         let lastPurchaseDate: string | null = null;
         let lastPurchasePrice: number | null = null;
         let avgPurchaseCadenceDays: number | null = null;
+        let avgOrderQuantity: number | null = null;
 
         if (purchases.length > 0) {
           const firstP = purchases[0]; // ordered desc
           lastPurchaseDate = firstP.grns?.received_date || firstP.grns?.created_at || null;
           lastPurchasePrice = Number(firstP.cost_price) || null;
 
+          // Typical Order Size: Sum of quantities / total deliveries
+          const totalReceivedQty = purchases.reduce((sum: number, p: any) => sum + (Number(p.quantity) || 0), 0);
+          avgOrderQuantity = totalReceivedQty / purchases.length;
+
           if (purchases.length > 1) {
-            const newestDate = new Date(purchases[0].grns?.created_at || Date.now()).getTime();
-            const oldestDate = new Date(purchases[purchases.length - 1].grns?.created_at || Date.now()).getTime();
+            const newestDate = new Date(purchases[0].grns?.received_date || purchases[0].grns?.created_at || Date.now()).getTime();
+            const oldestDate = new Date(purchases[purchases.length - 1].grns?.received_date || purchases[purchases.length - 1].grns?.created_at || Date.now()).getTime();
             const spanDays = Math.max(1, (newestDate - oldestDate) / (1000 * 60 * 60 * 24));
             avgPurchaseCadenceDays = spanDays / (purchases.length - 1);
           }
@@ -201,6 +207,7 @@ export const StockForecastReport: React.FC = () => {
           status,
           purchaseCount,
           avgPurchaseCadenceDays,
+          avgOrderQuantity,
           lastPurchaseDate,
           lastPurchasePrice
         };
@@ -571,7 +578,7 @@ export const StockForecastReport: React.FC = () => {
                 </th>
                 <th className="px-4 py-3.5 text-right">Avg Daily Usage</th>
                 <th className="px-4 py-3.5 text-center">Runout Forecast</th>
-                <th className="px-4 py-3.5 text-center">Purchase Frequency</th>
+                <th className="px-4 py-3.5 text-center">Order Cadence & Size</th>
                 <th className="px-4 py-3.5 text-right">Last Purchase</th>
                 <th className="px-4 py-3.5 text-center">Action</th>
               </tr>
@@ -682,16 +689,20 @@ export const StockForecastReport: React.FC = () => {
                         )}
                       </td>
 
-                      {/* Purchase Frequency */}
+                      {/* Purchase Cadence & Typical Order */}
                       <td className="px-4 py-4 text-center">
                         {item.purchaseCount > 0 ? (
-                          <div className="text-xs">
-                            <span className="font-bold text-slate-700">{item.purchaseCount}x</span>
-                            {item.avgPurchaseCadenceDays !== null ? (
-                              <span className="text-slate-400 text-[11px] ml-1">
-                                (~every {Math.round(item.avgPurchaseCadenceDays)}d)
+                          <div className="text-xs flex flex-col items-center">
+                            <span className="font-bold text-slate-800">
+                              {item.avgPurchaseCadenceDays !== null
+                                ? `Every ~${Math.max(1, Math.round(item.avgPurchaseCadenceDays))} Days`
+                                : `Ordered ${item.purchaseCount}x`}
+                            </span>
+                            {item.avgOrderQuantity !== null && (
+                              <span className="text-slate-500 text-[11px]">
+                                avg ~{item.avgOrderQuantity.toFixed(1)} {item.unitAbbr} / order
                               </span>
-                            ) : null}
+                            )}
                           </div>
                         ) : (
                           <span className="text-xs text-slate-400 italic">No GRN yet</span>
@@ -757,30 +768,42 @@ export const StockForecastReport: React.FC = () => {
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
-              {/* Quick Stat Pill Cards */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {/* Quick Stat Pill Cards - 5 Separate Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Current Stock</span>
-                  <p className="text-lg font-extrabold text-slate-800 mt-0.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Current Stock</span>
+                  <p className="text-base sm:text-lg font-extrabold text-slate-800 mt-0.5 truncate">
                     {Number(selectedItem.currentStock).toLocaleString()} {selectedItem.unitAbbr}
                   </p>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Avg Kitchen Usage</span>
-                  <p className="text-lg font-extrabold text-primary mt-0.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Avg Daily Usage</span>
+                  <p className="text-base sm:text-lg font-extrabold text-primary mt-0.5 truncate">
                     {selectedItem.avgDailyUsage.toFixed(2)} {selectedItem.unitAbbr}/d
                   </p>
                 </div>
                 <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Runout Estimate</span>
-                  <p className="text-lg font-extrabold text-slate-800 mt-0.5">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Runout Estimate</span>
+                  <p className="text-base sm:text-lg font-extrabold text-slate-800 mt-0.5 truncate">
                     {selectedItem.daysRemaining !== null ? `${selectedItem.daysRemaining.toFixed(1)} Days` : 'No usage'}
                   </p>
                 </div>
-                <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
-                  <span className="text-[11px] font-bold text-slate-400 uppercase">Purchases (GRN)</span>
-                  <p className="text-lg font-extrabold text-slate-800 mt-0.5">
-                    {selectedItem.purchaseCount}x
+                <div className="bg-blue-50/60 p-3 rounded-xl border border-blue-100">
+                  <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Order Cadence</span>
+                  <p className="text-base sm:text-lg font-extrabold text-blue-900 mt-0.5 truncate">
+                    {selectedItem.avgPurchaseCadenceDays !== null
+                      ? `Every ~${Math.max(1, Math.round(selectedItem.avgPurchaseCadenceDays))} Days`
+                      : selectedItem.purchaseCount > 0
+                      ? `Ordered ${selectedItem.purchaseCount}x`
+                      : '—'}
+                  </p>
+                </div>
+                <div className="bg-emerald-50/60 p-3 rounded-xl border border-emerald-100 col-span-2 sm:col-span-1">
+                  <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Typical Order Size</span>
+                  <p className="text-base sm:text-lg font-extrabold text-emerald-900 mt-0.5 truncate">
+                    {selectedItem.avgOrderQuantity !== null
+                      ? `~${selectedItem.avgOrderQuantity.toFixed(1)} ${selectedItem.unitAbbr}`
+                      : '—'}
                   </p>
                 </div>
               </div>
