@@ -99,11 +99,13 @@ export const StockForecastReport: React.FC = () => {
           .gte('created_at', windowStartDate),
 
         supabase
-          .from('grn_items')
+          .from('grns')
           .select(`
-            id, item_id, quantity, cost_price,
-            grns ( id, grn_number, created_at, received_date )
+            id, grn_number, created_at, received_date,
+            grn_items ( id, item_id, quantity, cost_price )
           `)
+          .order('received_date', { ascending: false })
+          .limit(500)
       ]);
 
       const kitchenReasonIds = new Set((reasonsRes.data || []).map(r => r.id));
@@ -121,11 +123,24 @@ export const StockForecastReport: React.FC = () => {
         }
       });
 
-      // Group GRN purchases by item_id
+      // Group GRN purchases by item_id (newest GRNs first)
       const grnMap: Record<string, any[]> = {};
-      (grnItemsRes.data || []).forEach(g => {
-        if (!grnMap[g.item_id]) grnMap[g.item_id] = [];
-        grnMap[g.item_id].push(g);
+      (grnItemsRes.data || []).forEach((grn: any) => {
+        (grn.grn_items || []).forEach((itemLine: any) => {
+          if (!grnMap[itemLine.item_id]) grnMap[itemLine.item_id] = [];
+          grnMap[itemLine.item_id].push({
+            id: itemLine.id,
+            item_id: itemLine.item_id,
+            quantity: itemLine.quantity,
+            cost_price: itemLine.cost_price,
+            grns: {
+              id: grn.id,
+              grn_number: grn.grn_number,
+              created_at: grn.created_at,
+              received_date: grn.received_date
+            }
+          });
+        });
       });
 
       // Extract unique categories
@@ -686,7 +701,7 @@ export const StockForecastReport: React.FC = () => {
                       </td>
 
                       {/* Runout Prediction Badge */}
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
                         {item.status === 'OUT_OF_STOCK' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                             <span className="w-1.5 h-1.5 rounded-full bg-rose-600"></span>
@@ -717,13 +732,15 @@ export const StockForecastReport: React.FC = () => {
                       </td>
 
                       {/* Purchase Cadence & Typical Order */}
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
                         {item.purchaseCount > 0 ? (
                           <div className="text-xs flex flex-col items-center">
                             <span className="font-bold text-slate-800">
                               {item.avgPurchaseCadenceDays !== null
                                 ? `Every ~${Math.max(1, Math.round(item.avgPurchaseCadenceDays))} Days`
-                                : `Ordered ${item.purchaseCount}x`}
+                                : item.purchaseCount > 0
+                                ? `Ordered ${item.purchaseCount}x in ${lookbackDays}d`
+                                : '—'}
                             </span>
                             {item.avgOrderQuantity !== null && (
                               <span className="text-slate-500 text-[11px]">
@@ -755,7 +772,7 @@ export const StockForecastReport: React.FC = () => {
                       </td>
 
                       {/* Action Chevron */}
-                      <td className="px-4 py-4 text-center">
+                      <td className="px-4 py-4 text-center whitespace-nowrap">
                         <button className="text-slate-400 group-hover:text-primary transition-colors p-1">
                           <ChevronRight size={18} />
                         </button>
