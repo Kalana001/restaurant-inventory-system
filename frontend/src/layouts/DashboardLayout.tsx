@@ -175,6 +175,7 @@ export const DashboardLayout: React.FC = () => {
       icon: <TrendingUp size={20} />, 
       permission: 'reports:read',
       subItems: [
+        { label: 'Stock Forecast & Runout', path: '/reports/forecast', permission: 'reports:read' },
         { label: 'Inventory Valuation', path: '/reports/valuation', permission: 'reports:read' },
         { label: 'Expiry Warning', path: '/reports/expiry', permission: 'reports:read' },
         { label: 'Supplier Balances', path: '/reports/outstanding', permission: 'reports:read' },

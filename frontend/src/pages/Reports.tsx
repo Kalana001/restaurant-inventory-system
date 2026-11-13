@@ -8,6 +8,7 @@ import { ExportPanel } from '../components/reports/ExportPanel';
 import { JatKitchenReport } from '../components/reports/JatKitchenReport';
 import { JatTransactionsReport } from '../components/reports/JatTransactionsReport';
 import { MissedKitchenReport } from '../components/reports/MissedKitchenReport';
+import { StockForecastReport } from '../components/reports/StockForecastReport';
 import { generateCSV, generateExcel, generatePDF } from '../lib/exportUtils';
 import type { ExportColumn } from '../lib/exportUtils';
 import { format } from 'date-fns';
@@ -516,28 +517,34 @@ export const Reports: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-20">
-      <div>
-        <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2 capitalize">
-          <TrendingUp className="text-primary" />
-          {reportType.replace('-', ' ')} Report
-        </h2>
-        <p className="text-sm text-slate-500 mt-1">Generate, filter, and export comprehensive operational data.</p>
-      </div>
+      {reportType !== 'forecast' && (
+        <div>
+          <h2 className="text-2xl font-bold text-slate-800 tracking-tight flex items-center gap-2 capitalize">
+            <TrendingUp className="text-primary" />
+            {reportType.replace('-', ' ')} Report
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">Generate, filter, and export comprehensive operational data.</p>
+        </div>
+      )}
 
-      <FilterPanel 
-        reportType={reportType}
-        filters={filters}
-        setFilters={setFilters}
-        onApply={fetchReportData}
-        onReset={() => { setFilters({}); setTimeout(fetchReportData, 0); }}
-        categories={categories}
-        suppliers={suppliers}
-        users={users}
-        poPaymentMethods={poPaymentMethods}
-        jatKitchenTotals={jatKitchenTotals}
-      />
+      {reportType !== 'forecast' && (
+        <FilterPanel 
+          reportType={reportType}
+          filters={filters}
+          setFilters={setFilters}
+          onApply={fetchReportData}
+          onReset={() => { setFilters({}); setTimeout(fetchReportData, 0); }}
+          categories={categories}
+          suppliers={suppliers}
+          users={users}
+          poPaymentMethods={poPaymentMethods}
+          jatKitchenTotals={jatKitchenTotals}
+        />
+      )}
 
-      {reportType === 'jat_kitchen' ? (
+      {reportType === 'forecast' ? (
+        <StockForecastReport />
+      ) : reportType === 'jat_kitchen' ? (
         <JatKitchenReport 
           month={filters.month} 
           day={filters.day} 
