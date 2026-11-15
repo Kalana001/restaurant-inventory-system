@@ -161,13 +161,14 @@ export const ProfitAndLoss: React.FC = () => {
 
       // Parallel fetch:
       // A. Existing Saved P&L summary record (stored in expenses with expense_type = 'DAILY_PNL_SUMMARY')
-      // B. Stock out movements for the date
-      // C. Daily Purchases for the date
-      // D. Transportation costs for the date
-      // E. General expenses for the date
+      // B. Stock out movements for the date (Strictly Kitchen: Kitchen Usage & Missed Kitchen Usage)
+      // C. Daily Purchases for the date (Strictly KITCHEN department, excluding JAT)
+      // D. Transportation costs for the date (Strictly KITCHEN department, excluding JAT)
+      // E. General expenses for the date (Strictly RESTAURANT, excluding JAT)
+      // F. Kitchen movement reasons
       const [
         pnlRes,
-        movementsRes,
+        reasonsRes,
         purchasesRes,
         transportRes,
         generalExpRes
@@ -180,34 +181,49 @@ export const ProfitAndLoss: React.FC = () => {
           .maybeSingle(),
 
         supabase
-          .from('stock_movements')
-          .select('quantity, cost_price')
-          .eq('type', 'STOCK_OUT')
-          .gte('created_at', dayStart)
-          .lte('created_at', dayEnd),
+          .from('movement_reasons')
+          .select('id, name')
+          .in('name', ['Kitchen Usage', 'Missed Kitchen Usage']),
 
         supabase
           .from('daily_purchases')
-          .select('total_cost')
-          .eq('date', targetDate),
+          .select('total_cost, department')
+          .eq('date', targetDate)
+          .eq('department', 'KITCHEN'),
 
         supabase
           .from('transportation_costs')
-          .select('cost')
-          .eq('date', targetDate),
+          .select('cost, department')
+          .eq('date', targetDate)
+          .eq('department', 'KITCHEN'),
 
         supabase
           .from('expenses')
-          .select('total_amount')
+          .select('total_amount, category')
           .eq('date', targetDate)
           .neq('expense_type', 'DAILY_PNL_SUMMARY')
+          .neq('category', 'JAT')
       ]);
 
-      // Calculate System Auto-Aggregations
-      const sysStockOut = (movementsRes.data || []).reduce(
-        (sum, m) => sum + (Number(m.quantity) || 0) * (Number(m.cost_price) || 0),
-        0
-      );
+      const kitchenReasonIds = (reasonsRes.data || []).map(r => r.id);
+
+      // Fetch stock movements strictly for Kitchen reasons
+      let sysStockOut = 0;
+      if (kitchenReasonIds.length > 0) {
+        const { data: movementsData } = await supabase
+          .from('stock_movements')
+          .select('quantity, cost_price, reason_id')
+          .eq('type', 'STOCK_OUT')
+          .in('reason_id', kitchenReasonIds)
+          .gte('created_at', dayStart)
+          .lte('created_at', dayEnd);
+
+        sysStockOut = (movementsData || []).reduce(
+          (sum, m) => sum + (Number(m.quantity) || 0) * (Number(m.cost_price) || 0),
+          0
+        );
+      }
+
       const sysPurchases = (purchasesRes.data || []).reduce(
         (sum, p) => sum + (Number(p.total_cost) || 0),
         0
@@ -748,9 +764,13 @@ export const ProfitAndLoss: React.FC = () => {
                     <label className="text-xs font-bold text-slate-700">
                       🥩 Kitchen Stock-Out Cost (COGS)
                     </label>
-                    {autoSystemCost.stockOut > 0 && (
+                    {autoSystemCost.stockOut > 0 ? (
                       <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        ⚡ System: LKR {autoSystemCost.stockOut.toLocaleString()}
+                        ⚡ Kitchen System: LKR {autoSystemCost.stockOut.toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-medium text-slate-400">
+                        (Excludes JAT)
                       </span>
                     )}
                   </div>
@@ -762,7 +782,7 @@ export const ProfitAndLoss: React.FC = () => {
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-rose-500/20 outline-none"
                   />
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-[11px] text-slate-400">Cost of raw ingredients depleted today</span>
+                    <span className="text-[11px] text-slate-400">Raw kitchen ingredients depleted (Kitchen Usage only)</span>
                     {autoSystemCost.stockOut > 0 && (
                       <button
                         type="button"
@@ -779,11 +799,15 @@ export const ProfitAndLoss: React.FC = () => {
                 <div className="border-b border-slate-100 pb-3">
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-slate-700">
-                      🛒 Daily Market Purchases (Vegetables, Fish, Meat)
+                      🛒 Daily Market Purchases (Kitchen Dept Only)
                     </label>
-                    {autoSystemCost.dailyPurchases > 0 && (
+                    {autoSystemCost.dailyPurchases > 0 ? (
                       <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        ⚡ System: LKR {autoSystemCost.dailyPurchases.toLocaleString()}
+                        ⚡ Kitchen System: LKR {autoSystemCost.dailyPurchases.toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-medium text-slate-400">
+                        (Excludes JAT)
                       </span>
                     )}
                   </div>
@@ -795,7 +819,7 @@ export const ProfitAndLoss: React.FC = () => {
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-rose-500/20 outline-none"
                   />
                   <div className="flex items-center justify-between mt-1">
-                    <span className="text-[11px] text-slate-400">Direct cash purchases logged in Daily Purchases</span>
+                    <span className="text-[11px] text-slate-400">Cash vegetable/meat purchases for KITCHEN</span>
                     {autoSystemCost.dailyPurchases > 0 && (
                       <button
                         type="button"
@@ -812,11 +836,15 @@ export const ProfitAndLoss: React.FC = () => {
                 <div className="border-b border-slate-100 pb-3">
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-slate-700">
-                      🚚 Transportation / Delivery Costs
+                      🚚 Transportation Costs (Kitchen Dept Only)
                     </label>
-                    {autoSystemCost.transport > 0 && (
+                    {autoSystemCost.transport > 0 ? (
                       <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        ⚡ System: LKR {autoSystemCost.transport.toLocaleString()}
+                        ⚡ Kitchen System: LKR {autoSystemCost.transport.toLocaleString()}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-medium text-slate-400">
+                        (Excludes JAT)
                       </span>
                     )}
                   </div>
@@ -827,14 +855,25 @@ export const ProfitAndLoss: React.FC = () => {
                     onChange={e => setExpenseTransport(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-rose-500/20 outline-none"
                   />
-                  <span className="text-[11px] text-slate-400">Gas delivery, tuk tuk, market transport trips</span>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-[11px] text-slate-400">Gas, market transport trips for KITCHEN</span>
+                    {autoSystemCost.transport > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setExpenseTransport(autoSystemCost.transport)}
+                        className="text-[11px] text-primary hover:underline font-semibold"
+                      >
+                        Reset to system value
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* 4. General Expenses */}
                 <div className="border-b border-slate-100 pb-3">
                   <div className="flex items-center justify-between mb-1">
                     <label className="text-xs font-bold text-slate-700">
-                      🧾 General Direct Expenses
+                      🧾 General Restaurant Expenses
                     </label>
                     {autoSystemCost.generalExpenses > 0 && (
                       <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
@@ -849,7 +888,7 @@ export const ProfitAndLoss: React.FC = () => {
                     onChange={e => setExpenseGeneral(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-rose-500/20 outline-none"
                   />
-                  <span className="text-[11px] text-slate-400">Kitchen supplies, repairs, consumables</span>
+                  <span className="text-[11px] text-slate-400">Kitchen supplies, restaurant repairs, consumables (Excludes JAT)</span>
                 </div>
 
                 {/* 5. Labor & Overheads Grid: Bank charges, Salary, EPF/ETF */}
