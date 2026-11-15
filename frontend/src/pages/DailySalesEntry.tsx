@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { SEED_MENU_ITEMS } from '../data/menuSeedData';
 import { 
@@ -68,6 +68,9 @@ export const DailySalesEntry: React.FC = () => {
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
   const [editPriceVal, setEditPriceVal] = useState<number | ''>('');
   const [savingPrice, setSavingPrice] = useState<boolean>(false);
+
+  // Input refs for Enter key navigation
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   // Format currency
   const formatCurrency = (amount: number) => {
@@ -265,11 +268,39 @@ export const DailySalesEntry: React.FC = () => {
 
   // Handle Quantity Change
   const handleQuantityChange = (itemId: string, val: string) => {
-    const num = val === '' ? '' : Math.max(0, Number(val));
+    if (val === '') {
+      if (salesChannel === 'RESTAURANT') {
+        setRestaurantQuantities(prev => ({ ...prev, [itemId]: '' }));
+      } else {
+        setPickmeQuantities(prev => ({ ...prev, [itemId]: '' }));
+      }
+      return;
+    }
+
+    const num = Math.max(0, Number(val));
     if (salesChannel === 'RESTAURANT') {
       setRestaurantQuantities(prev => ({ ...prev, [itemId]: num }));
     } else {
       setPickmeQuantities(prev => ({ ...prev, [itemId]: num }));
+    }
+  };
+
+  // Handle Enter / Arrow key navigation between items
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' || e.key === 'ArrowDown') {
+      e.preventDefault();
+      const nextInput = inputRefs.current[index + 1];
+      if (nextInput) {
+        nextInput.focus();
+        nextInput.select();
+      }
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const prevInput = inputRefs.current[index - 1];
+      if (prevInput) {
+        prevInput.focus();
+        prevInput.select();
+      }
     }
   };
 
@@ -593,7 +624,7 @@ export const DailySalesEntry: React.FC = () => {
                   </td>
                 </tr>
               ) : (
-                filteredItems.map(item => {
+                filteredItems.map((item, index) => {
                   const activeQuantities = salesChannel === 'RESTAURANT' ? restaurantQuantities : pickmeQuantities;
                   const qty = activeQuantities[item.id] ?? '';
                   const lineTotal = (Number(qty) || 0) * Number(item.current_price);
@@ -638,15 +669,18 @@ export const DailySalesEntry: React.FC = () => {
                         </button>
                       </td>
 
-                      {/* Quantity Input */}
+                      {/* Quantity Input with Enter Key Navigation */}
                       <td className="px-6 py-2.5 text-center">
                         <input
+                          ref={el => (inputRefs.current[index] = el)}
                           type="number"
                           step="1"
                           min="0"
                           placeholder="0"
                           value={qty}
                           onChange={e => handleQuantityChange(item.id, e.target.value)}
+                          onKeyDown={e => handleKeyDown(index, e)}
+                          onFocus={e => e.target.select()}
                           className={`w-28 px-3 py-1.5 border rounded-xl text-center font-bold text-sm outline-none transition-all ${
                             Number(qty) > 0
                               ? 'border-primary ring-2 ring-primary/20 bg-white text-primary'
