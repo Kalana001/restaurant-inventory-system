@@ -29,7 +29,9 @@ export interface VelocityItem {
   costPrice: number;
   // Calculations
   totalKitchenUsage: number;
-  avgDailyUsage: number;
+  avgKitchenDailyUsage: number;
+  totalOverallUsage: number;
+  avgDailyUsage: number; // overall total daily usage driving runout
   daysRemaining: number | null; // null if no usage
   status: 'OUT_OF_STOCK' | 'CRITICAL' | 'REORDER_SOON' | 'SAFE' | 'NO_USAGE';
   // Purchase insights
@@ -110,14 +112,25 @@ export const StockForecastReport: React.FC = () => {
 
       const kitchenReasonIds = new Set((reasonsRes.data || []).map(r => r.id));
 
-      // Group kitchen usage by item_id
+      // Group kitchen usage and total usage by item_id
       const kitchenUsageMap: Record<string, { total: number; entries: any[] }> = {};
+      const totalUsageMap: Record<string, { total: number; entries: any[] }> = {};
+
       (movementsRes.data || []).forEach(m => {
+        const qty = Number(m.quantity) || 0;
+        
+        // Track Total Overall Usage
+        if (!totalUsageMap[m.item_id]) {
+          totalUsageMap[m.item_id] = { total: 0, entries: [] };
+        }
+        totalUsageMap[m.item_id].total += qty;
+        totalUsageMap[m.item_id].entries.push(m);
+
+        // Track Kitchen Usage
         if (kitchenReasonIds.has(m.reason_id)) {
           if (!kitchenUsageMap[m.item_id]) {
             kitchenUsageMap[m.item_id] = { total: 0, entries: [] };
           }
-          const qty = Number(m.quantity) || 0;
           kitchenUsageMap[m.item_id].total += qty;
           kitchenUsageMap[m.item_id].entries.push(m);
         }
@@ -156,12 +169,16 @@ export const StockForecastReport: React.FC = () => {
           return sum + (Number(b.available_qty) || 0);
         }, 0);
 
-        // Usage calculations (Kitchen Only)
-        const usageData = kitchenUsageMap[item.id];
-        const totalKitchenUsage = usageData ? usageData.total : 0;
-        const avgDailyUsage = totalKitchenUsage / lookbackDays;
+        // Usage calculations (Overall & Kitchen)
+        const kitchenData = kitchenUsageMap[item.id];
+        const totalKitchenUsage = kitchenData ? kitchenData.total : 0;
+        const avgKitchenDailyUsage = totalKitchenUsage / lookbackDays;
 
-        // Days remaining
+        const totalData = totalUsageMap[item.id];
+        const totalOverallUsage = totalData ? totalData.total : 0;
+        const avgDailyUsage = totalOverallUsage / lookbackDays;
+
+        // Days remaining (driven by total overall depletion)
         let daysRemaining: number | null = null;
         let status: VelocityItem['status'] = 'SAFE';
 
@@ -240,6 +257,8 @@ export const StockForecastReport: React.FC = () => {
           maxStock: Number(item.max_stock) || 0,
           costPrice: Number(item.cost_price) || 0,
           totalKitchenUsage,
+          avgKitchenDailyUsage,
+          totalOverallUsage,
           avgDailyUsage,
           daysRemaining,
           status,
@@ -314,17 +333,16 @@ export const StockForecastReport: React.FC = () => {
     try {
       const windowStartDate = startOfDay(subDays(new Date(), lookbackDays)).toISOString();
 
-      const [usageRes, grnRes] = await Promise.all([
+      const [usageRes, grnRes, reasonsRes] = await Promise.all([
         supabase
           .from('stock_movements')
           .select(`
-            id, quantity, cost_price, created_at, movement_number,
-            movement_reasons!inner ( name ),
+            id, quantity, cost_price, created_at, movement_number, reason_id,
+            movement_reasons ( id, name ),
             profiles:created_by ( username )
           `)
           .eq('item_id', item.id)
           .eq('type', 'STOCK_OUT')
-          .in('movement_reasons.name', ['Kitchen Usage', 'Missed Kitchen Usage'])
           .gte('created_at', windowStartDate)
           .order('created_at', { ascending: false }),
 
@@ -334,10 +352,21 @@ export const StockForecastReport: React.FC = () => {
             id, quantity, cost_price,
             grns ( id, grn_number, created_at, received_date, supplier_id, suppliers ( name ) )
           `)
-          .eq('item_id', item.id)
+          .eq('item_id', item.id),
+
+        supabase
+          .from('movement_reasons')
+          .select('id, name')
+          .in('name', ['Kitchen Usage', 'Missed Kitchen Usage'])
       ]);
 
-      setItemUsageHistory(usageRes.data || []);
+      const kitchenReasonIds = new Set((reasonsRes.data || []).map(r => r.id));
+      const taggedMovements = (usageRes.data || []).map((m: any) => ({
+        ...m,
+        isKitchen: kitchenReasonIds.has(m.reason_id)
+      }));
+
+      setItemUsageHistory(taggedMovements);
       const sortedGrns = (grnRes.data || []).sort((a: any, b: any) => {
         const dateA = new Date(a.grns?.received_date || a.grns?.created_at || 0).getTime();
         const dateB = new Date(b.grns?.received_date || b.grns?.created_at || 0).getTime();
@@ -351,28 +380,38 @@ export const StockForecastReport: React.FC = () => {
     }
   };
 
-  // Group daily usage for charting in modal
+  // Group daily usage (Kitchen vs Non-Kitchen) for charting in modal
   const chartData = useMemo(() => {
     if (!selectedItem) return [];
 
-    const days: Record<string, number> = {};
+    const days: Record<string, { kitchenQty: number; otherQty: number }> = {};
     for (let i = lookbackDays - 1; i >= 0; i--) {
       const d = format(subDays(new Date(), i), 'yyyy-MM-dd');
-      days[d] = 0;
+      days[d] = { kitchenQty: 0, otherQty: 0 };
     }
 
     itemUsageHistory.forEach(u => {
       const d = format(parseISO(u.created_at), 'yyyy-MM-dd');
       if (days[d] !== undefined) {
-        days[d] += Number(u.quantity) || 0;
+        const qty = Number(u.quantity) || 0;
+        if (u.isKitchen) {
+          days[d].kitchenQty += qty;
+        } else {
+          days[d].otherQty += qty;
+        }
       }
     });
 
-    return Object.entries(days).map(([dateStr, qty]) => ({
-      date: dateStr,
-      label: format(parseISO(dateStr), 'MMM dd'),
-      qty: Number(qty.toFixed(2))
-    }));
+    return Object.entries(days).map(([dateStr, val]) => {
+      const totalQty = Number((val.kitchenQty + val.otherQty).toFixed(2));
+      return {
+        date: dateStr,
+        label: format(parseISO(dateStr), 'MMM dd'),
+        kitchenQty: Number(val.kitchenQty.toFixed(2)),
+        otherQty: Number(val.otherQty.toFixed(2)),
+        qty: totalQty
+      };
+    });
   }, [selectedItem, itemUsageHistory, lookbackDays]);
 
   const maxChartQty = useMemo(() => {
@@ -686,14 +725,19 @@ export const StockForecastReport: React.FC = () => {
                         <span className="text-xs text-slate-500 font-medium">{item.unitAbbr}</span>
                       </td>
 
-                      {/* Avg Daily Usage */}
+                      {/* Avg Daily Usage (Total & Kitchen stacked) */}
                       <td className="px-4 py-4 text-right">
-                        {item.avgDailyUsage > 0 ? (
-                          <div>
-                            <span className="font-bold text-slate-700">
-                              {item.avgDailyUsage.toFixed(2)}
-                            </span>{' '}
-                            <span className="text-xs text-slate-400 font-medium">{item.unitAbbr}/day</span>
+                        {item.avgDailyUsage > 0 || item.avgKitchenDailyUsage > 0 ? (
+                          <div className="flex flex-col items-end">
+                            <div>
+                              <span className="font-extrabold text-slate-800">
+                                {item.avgDailyUsage.toFixed(2)}
+                              </span>{' '}
+                              <span className="text-xs text-slate-500 font-medium">{item.unitAbbr}/d</span>
+                            </div>
+                            <span className="text-[11px] font-semibold text-slate-400">
+                              ({item.avgKitchenDailyUsage.toFixed(2)} {item.unitAbbr} kitchen)
+                            </span>
                           </div>
                         ) : (
                           <span className="text-xs text-slate-400 italic">—</span>
@@ -812,8 +856,8 @@ export const StockForecastReport: React.FC = () => {
             </div>
 
             <div className="p-6 overflow-y-auto space-y-6 flex-1">
-              {/* Quick Stat Pill Cards - 5 Separate Metrics */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {/* Quick Stat Pill Cards - 6 Key Metrics */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
                 <div className="bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-100 flex flex-col justify-between">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-tight">Current Stock</span>
                   <p className="text-sm sm:text-base font-extrabold text-slate-800 mt-1 leading-snug break-words">
@@ -821,9 +865,15 @@ export const StockForecastReport: React.FC = () => {
                   </p>
                 </div>
                 <div className="bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-100 flex flex-col justify-between">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-tight">Avg Daily Usage</span>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-tight">Avg Total Usage</span>
                   <p className="text-sm sm:text-base font-extrabold text-primary mt-1 leading-snug break-words">
                     {selectedItem.avgDailyUsage.toFixed(2)} {selectedItem.unitAbbr}/d
+                  </p>
+                </div>
+                <div className="bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-100 flex flex-col justify-between">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-tight">Avg Kitchen Usage</span>
+                  <p className="text-sm sm:text-base font-extrabold text-blue-600 mt-1 leading-snug break-words">
+                    {selectedItem.avgKitchenDailyUsage.toFixed(2)} {selectedItem.unitAbbr}/d
                   </p>
                 </div>
                 <div className="bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-100 flex flex-col justify-between">
@@ -852,23 +902,31 @@ export const StockForecastReport: React.FC = () => {
                 </div>
               </div>
 
-              {/* VISUAL USAGE GRAPH (SVG Bar Chart) */}
+              {/* VISUAL USAGE GRAPH (SVG Bar Chart with Stacked Kitchen vs Other) */}
               <div className="bg-slate-50/70 p-5 rounded-2xl border border-slate-200">
-                <div className="flex items-center justify-between mb-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
                   <div>
                     <h4 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
                       <TrendingUp size={16} className="text-primary" />
-                      Daily Kitchen Usage Trend
+                      Daily Usage Trend (Kitchen vs Other)
                     </h4>
                     <p className="text-[11px] text-slate-400">
-                      Total: {selectedItem.totalKitchenUsage.toFixed(2)} {selectedItem.unitAbbr} consumed over {lookbackDays} days
+                      Total: {selectedItem.totalOverallUsage.toFixed(2)} {selectedItem.unitAbbr} consumed ({selectedItem.totalKitchenUsage.toFixed(2)} {selectedItem.unitAbbr} kitchen) over {lookbackDays} days
                     </p>
                   </div>
-                  {selectedItem.avgDailyUsage > 0 && (
-                    <span className="text-xs font-semibold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm">
-                      Avg: {selectedItem.avgDailyUsage.toFixed(2)} {selectedItem.unitAbbr}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+                      <span className="w-2.5 h-2.5 rounded bg-primary"></span> Kitchen
+                    </div>
+                    <div className="flex items-center gap-1 text-[11px] font-semibold text-slate-600">
+                      <span className="w-2.5 h-2.5 rounded bg-amber-400"></span> Other
+                    </div>
+                    {selectedItem.avgDailyUsage > 0 && (
+                      <span className="text-xs font-semibold text-slate-600 bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-sm ml-1">
+                        Avg: {selectedItem.avgDailyUsage.toFixed(2)} {selectedItem.unitAbbr}/d
+                      </span>
+                    )}
+                  </div>
                 </div>
 
                 {modalLoading ? (
@@ -876,38 +934,55 @@ export const StockForecastReport: React.FC = () => {
                     <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin mr-2" />
                     Loading trend...
                   </div>
-                ) : chartData.length === 0 || selectedItem.totalKitchenUsage === 0 ? (
+                ) : chartData.length === 0 || selectedItem.totalOverallUsage === 0 ? (
                   <div className="h-40 flex flex-col items-center justify-center text-slate-400">
                     <Clock size={32} className="opacity-25 mb-1" />
-                    <p className="text-xs font-medium">No kitchen usage recorded during this {lookbackDays}-day window.</p>
+                    <p className="text-xs font-medium">No usage recorded during this {lookbackDays}-day window.</p>
                   </div>
                 ) : (
                   <div className="relative pt-6">
-                    {/* SVG Interactive Chart */}
+                    {/* SVG Interactive Stacked Chart */}
                     <div className="h-44 flex items-end gap-1 sm:gap-2 border-b border-slate-200 pb-1">
                       {chartData.map((d, i) => {
-                        const heightPct = Math.min(100, (d.qty / maxChartQty) * 100);
-                        const isAboveAvg = selectedItem.avgDailyUsage > 0 && d.qty > selectedItem.avgDailyUsage;
+                        const totalHeightPct = Math.min(100, (d.qty / maxChartQty) * 100);
+                        const kitchenHeightPct = d.qty > 0 ? (d.kitchenQty / d.qty) * totalHeightPct : 0;
+                        const otherHeightPct = d.qty > 0 ? (d.otherQty / d.qty) * totalHeightPct : 0;
 
                         return (
                           <div key={i} className="flex-1 flex flex-col items-center group/bar relative">
                             {/* Hover Tooltip */}
-                            <div className="absolute -top-9 bg-slate-900 text-white text-[10px] font-bold py-1 px-2 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
-                              {d.label}: {d.qty} {selectedItem.unitAbbr}
+                            <div className="absolute -top-11 bg-slate-900 text-white text-[10px] font-bold py-1 px-2 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-md">
+                              <div>{d.label}: {d.qty} {selectedItem.unitAbbr} total</div>
+                              <div className="text-primary-light text-[9px] font-normal">
+                                Kitchen: {d.kitchenQty} | Other: {d.otherQty}
+                              </div>
                             </div>
 
-                            {/* Bar */}
-                            <div className="w-full flex justify-center h-36 items-end">
-                              <div
-                                style={{ height: `${Math.max(4, heightPct)}%` }}
-                                className={`w-full max-w-[28px] rounded-t-md transition-all duration-300 ${
-                                  d.qty === 0
-                                    ? 'bg-slate-200/60'
-                                    : isAboveAvg
-                                    ? 'bg-primary hover:bg-primary-dark shadow-sm'
-                                    : 'bg-blue-400/80 hover:bg-blue-500'
-                                }`}
-                              />
+                            {/* Stacked Bar Container */}
+                            <div className="w-full flex flex-col justify-end h-36 items-center">
+                              {d.qty === 0 ? (
+                                <div className="w-full max-w-[28px] h-1.5 rounded-t bg-slate-200/60" />
+                              ) : (
+                                <div
+                                  style={{ height: `${Math.max(4, totalHeightPct)}%` }}
+                                  className="w-full max-w-[28px] rounded-t-md overflow-hidden flex flex-col justify-end shadow-sm"
+                                >
+                                  {/* Other Usage (Top segment in Amber) */}
+                                  {d.otherQty > 0 && (
+                                    <div
+                                      style={{ height: `${(d.otherQty / d.qty) * 100}%` }}
+                                      className="w-full bg-amber-400 hover:bg-amber-500 transition-colors"
+                                    />
+                                  )}
+                                  {/* Kitchen Usage (Bottom segment in Primary Blue) */}
+                                  {d.kitchenQty > 0 && (
+                                    <div
+                                      style={{ height: `${(d.kitchenQty / d.qty) * 100}%` }}
+                                      className="w-full bg-primary hover:bg-primary-dark transition-colors"
+                                    />
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             {/* X-Axis Date Label */}
