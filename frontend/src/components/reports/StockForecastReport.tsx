@@ -755,17 +755,17 @@ export const StockForecastReport: React.FC = () => {
                         {item.status === 'CRITICAL' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-300 animate-pulse">
                             <Clock size={12} className="text-amber-600" />
-                            {item.daysRemaining !== null ? `${item.daysRemaining.toFixed(1)} Days Left` : 'Critical'}
+                            {item.daysRemaining !== null ? `${Math.floor(item.daysRemaining)} Days Left` : 'Critical'}
                           </span>
                         )}
                         {item.status === 'REORDER_SOON' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-orange-50 text-orange-700 border border-orange-200">
-                            {item.daysRemaining !== null ? `${item.daysRemaining.toFixed(1)} Days Left` : 'Reorder Soon'}
+                            {item.daysRemaining !== null ? `${Math.floor(item.daysRemaining)} Days Left` : 'Reorder Soon'}
                           </span>
                         )}
                         {item.status === 'SAFE' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                            {item.daysRemaining !== null ? `${item.daysRemaining.toFixed(1)} Days Left` : 'Safe'}
+                            {item.daysRemaining !== null ? `${Math.floor(item.daysRemaining)} Days Left` : 'Safe'}
                           </span>
                         )}
                         {item.status === 'NO_USAGE' && (
@@ -879,7 +879,7 @@ export const StockForecastReport: React.FC = () => {
                 <div className="bg-slate-50 p-3 sm:p-3.5 rounded-xl border border-slate-100 flex flex-col justify-between">
                   <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-tight">Runout Estimate</span>
                   <p className="text-sm sm:text-base font-extrabold text-slate-800 mt-1 leading-snug break-words">
-                    {selectedItem.daysRemaining !== null ? `${selectedItem.daysRemaining.toFixed(1)} Days` : 'No usage'}
+                    {selectedItem.daysRemaining !== null ? `${Math.floor(selectedItem.daysRemaining)} Days` : 'No usage'}
                   </p>
                 </div>
                 <div className="bg-blue-50/70 p-3 sm:p-3.5 rounded-xl border border-blue-200 flex flex-col justify-between">
