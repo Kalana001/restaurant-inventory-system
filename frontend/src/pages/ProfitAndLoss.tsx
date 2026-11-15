@@ -7,7 +7,8 @@ import {
   startOfMonth, 
   endOfMonth, 
   eachDayOfInterval, 
-  subDays 
+  subDays,
+  addDays
 } from 'date-fns';
 import { 
   DollarSign, 
@@ -29,7 +30,9 @@ import {
   Percent,
   Sparkles,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  Edit3,
+  RotateCcw
 } from 'lucide-react';
 
 export interface DailyPnLRecord {
@@ -471,6 +474,25 @@ export const ProfitAndLoss: React.FC = () => {
     }
   };
 
+  // Day navigation helpers
+  const handlePrevDay = () => {
+    try {
+      const prev = subDays(parseISO(selectedDate), 1);
+      setSelectedDate(format(prev, 'yyyy-MM-dd'));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleNextDay = () => {
+    try {
+      const next = addDays(parseISO(selectedDate), 1);
+      setSelectedDate(format(next, 'yyyy-MM-dd'));
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   // Month navigation helpers
   const handlePrevMonth = () => {
     const current = parseISO(`${selectedMonth}-01`);
@@ -594,21 +616,49 @@ export const ProfitAndLoss: React.FC = () => {
         <div className="space-y-6">
           {/* Date Selector & Action Bar */}
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
-            <div className="flex items-center gap-3 w-full sm:w-auto">
-              <div className="flex items-center gap-2 text-sm font-bold text-slate-700">
-                <Calendar size={18} className="text-primary" />
-                Select Date:
+            <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+              <button
+                type="button"
+                onClick={handlePrevDay}
+                className="p-1.5 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-600"
+                title="Previous Day"
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <div className="flex items-center gap-2 text-sm font-bold text-slate-700 bg-slate-50 px-2.5 py-1 rounded-xl border border-slate-100">
+                <Calendar size={16} className="text-primary" />
+                <input
+                  type="date"
+                  value={selectedDate}
+                  onChange={e => setSelectedDate(e.target.value)}
+                  className="bg-transparent text-sm font-bold text-slate-800 outline-none cursor-pointer"
+                />
               </div>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={e => setSelectedDate(e.target.value)}
-                className="px-3 py-1.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-primary/20 outline-none"
-              />
+
+              <button
+                type="button"
+                onClick={handleNextDay}
+                className="p-1.5 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors text-slate-600"
+                title="Next Day"
+              >
+                <ChevronRight size={16} />
+              </button>
+
+              {selectedDate !== format(new Date(), 'yyyy-MM-dd') && (
+                <button
+                  type="button"
+                  onClick={() => setSelectedDate(format(new Date(), 'yyyy-MM-dd'))}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 transition-colors"
+                >
+                  Jump to Today
+                </button>
+              )}
+
               <button
                 onClick={() => fetchDayData(selectedDate)}
                 className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition-colors"
-                title="Refresh from system"
+                title="Reload from system"
               >
                 <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />
               </button>
@@ -628,13 +678,34 @@ export const ProfitAndLoss: React.FC = () => {
               <button
                 onClick={handleSaveDailyRecord}
                 disabled={saving || loading}
-                className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50"
+                className={`flex items-center gap-2 px-5 py-2.5 text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50 ${
+                  recordId ? 'bg-amber-600 hover:bg-amber-700' : 'bg-primary hover:bg-primary-dark'
+                }`}
               >
-                <Save size={16} />
+                {recordId ? <Edit3 size={15} /> : <Save size={15} />}
                 {saving ? 'Saving...' : recordId ? 'Update Day-Close' : 'Save Day-Close'}
               </button>
             </div>
           </div>
+
+          {/* Edit Mode Notice if editing existing day-close */}
+          {recordId && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3 bg-amber-50/80 border border-amber-200 rounded-xl text-xs text-amber-900 animate-in fade-in">
+              <div className="flex items-center gap-2">
+                <Edit3 size={15} className="text-amber-600 shrink-0" />
+                <span>
+                  <strong>Editing Saved Day-Close:</strong> You are viewing previously reconciled numbers for <strong>{format(parseISO(selectedDate), 'dd MMMM yyyy')}</strong>. You can freely edit any numbers or notes below and click <strong>Update Day-Close</strong> to save the adjustments.
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => fetchDayData(selectedDate)}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold transition-colors shrink-0"
+              >
+                <RotateCcw size={12} /> Revert Changes
+              </button>
+            </div>
+          )}
 
           {/* Top 3 KPI Cards: Total Income, Total Expenses, Net Profit */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -1249,9 +1320,17 @@ export const ProfitAndLoss: React.FC = () => {
                                 <CheckCircle2 size={11} /> Reconciled
                               </span>
                             ) : (
-                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-500">
-                                Pending
-                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSelectedDate(dateKey);
+                                  setActiveTab('DAILY');
+                                }}
+                                className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 transition-colors"
+                              >
+                                <Edit3 size={10} /> Enter Day
+                              </button>
                             )}
                           </td>
                         </tr>
