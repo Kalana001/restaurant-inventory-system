@@ -22,7 +22,8 @@ import {
   Clock,
   ShoppingBag,
   Truck,
-  Wallet
+  Wallet,
+  DollarSign
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
@@ -157,6 +158,12 @@ export const DashboardLayout: React.FC = () => {
       label: 'Expenses', 
       path: '/expenses', 
       icon: <Wallet size={20} />, 
+      permission: null 
+    },
+    { 
+      label: 'Daily P&L / Profit', 
+      path: '/profit-and-loss', 
+      icon: <DollarSign size={20} className="text-emerald-500" />, 
       permission: null 
     },
     { 
