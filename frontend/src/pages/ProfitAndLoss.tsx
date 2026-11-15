@@ -106,6 +106,7 @@ export const ProfitAndLoss: React.FC = () => {
 
   // Monthly state
   const [monthlyRecords, setMonthlyRecords] = useState<Record<string, DailyPnLRecord>>({});
+  const [monthlySalesMap, setMonthlySalesMap] = useState<Record<string, { restAmount: number; pickmeAmount: number }>>({});
   const [monthlyLoading, setMonthlyLoading] = useState<boolean>(false);
 
   // Calculated Real-time Totals
@@ -351,17 +352,36 @@ export const ProfitAndLoss: React.FC = () => {
       const start = format(startOfMonth(monthDate), 'yyyy-MM-dd');
       const end = format(endOfMonth(monthDate), 'yyyy-MM-dd');
 
-      const { data, error } = await supabase
-        .from('expenses')
-        .select('*')
-        .eq('expense_type', 'DAILY_PNL_SUMMARY')
-        .gte('date', start)
-        .lte('date', end);
+      const [pnlRes, salesRes] = await Promise.all([
+        supabase
+          .from('expenses')
+          .select('*')
+          .eq('expense_type', 'DAILY_PNL_SUMMARY')
+          .gte('date', start)
+          .lte('date', end),
+        supabase
+          .from('daily_menu_sales')
+          .select('date, sales_channel, total_amount')
+          .gte('date', start)
+          .lte('date', end)
+      ]);
 
-      if (error) throw error;
+      if (pnlRes.error) throw pnlRes.error;
+
+      // Group menu sales by date
+      const sMap: Record<string, { restAmount: number; pickmeAmount: number }> = {};
+      (salesRes.data || []).forEach(row => {
+        if (!sMap[row.date]) sMap[row.date] = { restAmount: 0, pickmeAmount: 0 };
+        if (row.sales_channel === 'RESTAURANT') {
+          sMap[row.date].restAmount += Number(row.total_amount) || 0;
+        } else if (row.sales_channel === 'PICKME') {
+          sMap[row.date].pickmeAmount += Number(row.total_amount) || 0;
+        }
+      });
+      setMonthlySalesMap(sMap);
 
       const map: Record<string, DailyPnLRecord> = {};
-      (data || []).forEach(row => {
+      (pnlRes.data || []).forEach(row => {
         try {
           const p = JSON.parse(row.description || '{}');
           map[row.date] = {
@@ -531,12 +551,24 @@ export const ProfitAndLoss: React.FC = () => {
     const epfEtf = records.reduce((s, r) => s + r.expenseEpfEtf, 0);
     const bankCharges = records.reduce((s, r) => s + r.expenseBankCharges, 0);
 
+    // Calculate total net difference between (Cash+Card+PickMe) and (Restaurant + PickMe Item Sales)
+    let totalMonthlyDiff = 0;
+    records.forEach(r => {
+      const sales = monthlySalesMap[r.date];
+      if (sales && (sales.restAmount > 0 || sales.pickmeAmount > 0)) {
+        const cashCardDiff = (r.incomeCash + r.incomeCard) - sales.restAmount;
+        const pickmeDiff = r.incomePickme - sales.pickmeAmount;
+        totalMonthlyDiff += (cashCardDiff + pickmeDiff);
+      }
+    });
+
     return {
       totalRev,
       totalExp,
       net,
       margin,
       daysReconciled,
+      totalMonthlyDiff,
       cash,
       card,
       pickme,
@@ -550,7 +582,7 @@ export const ProfitAndLoss: React.FC = () => {
       epfEtf,
       bankCharges
     };
-  }, [monthlyRecords]);
+  }, [monthlyRecords, monthlySalesMap]);
 
   // Calendar days array for the selected month
   const monthDaysList = useMemo(() => {
@@ -1179,7 +1211,7 @@ export const ProfitAndLoss: React.FC = () => {
           </div>
 
           {/* Monthly KPI Overview */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Total Revenue</span>
               <p className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-2">
@@ -1219,6 +1251,29 @@ export const ProfitAndLoss: React.FC = () => {
               </p>
               <p className="text-[11px] text-slate-400 mt-1">Profit percentage of sales</p>
             </div>
+
+            {/* NEW: Total Monthly Difference (Cash+Card+PickMe vs Quantities Sold) */}
+            <div className={`p-4 rounded-2xl border shadow-sm ${
+              Math.abs(monthlyAggregates.totalMonthlyDiff) < 0.01
+                ? 'bg-emerald-50/50 border-emerald-200'
+                : 'bg-amber-50/60 border-amber-300'
+            }`}>
+              <span className="text-xs font-bold text-amber-900 uppercase tracking-wider">
+                Monthly Sales Difference
+              </span>
+              <p className={`text-xl sm:text-2xl font-extrabold mt-2 ${
+                Math.abs(monthlyAggregates.totalMonthlyDiff) < 0.01 ? 'text-emerald-700' : 'text-amber-800'
+              }`}>
+                {Math.abs(monthlyAggregates.totalMonthlyDiff) < 0.01
+                  ? 'LKR 0.00'
+                  : `${monthlyAggregates.totalMonthlyDiff > 0 ? '+' : '-'}LKR ${formatCurrency(Math.abs(monthlyAggregates.totalMonthlyDiff))}`}
+              </p>
+              <p className="text-[11px] text-slate-500 mt-1">
+                {Math.abs(monthlyAggregates.totalMonthlyDiff) < 0.01
+                  ? 'Matched with portion sales'
+                  : '(Cash+Card+PickMe) vs Item Portion Sales'}
+              </p>
+            </div>
           </div>
 
           {/* Monthly Day-by-Day Table */}
@@ -1241,6 +1296,7 @@ export const ProfitAndLoss: React.FC = () => {
                     <th className="px-4 py-3 text-right">Total Revenue</th>
                     <th className="px-4 py-3 text-right">Kitchen & Expenses</th>
                     <th className="px-4 py-3 text-right">Net Profit</th>
+                    <th className="px-4 py-3 text-right">Total Difference</th>
                     <th className="px-4 py-3 text-center">Status</th>
                   </tr>
                 </thead>
@@ -1312,6 +1368,36 @@ export const ProfitAndLoss: React.FC = () => {
                             ) : (
                               <span className="text-slate-400 italic font-normal">Not Reconciled</span>
                             )}
+                          </td>
+
+                          {/* NEW: Total Combined Difference Column */}
+                          <td className="px-4 py-3 text-right font-bold whitespace-nowrap">
+                            {(() => {
+                              if (!rec) return <span className="text-slate-300 font-normal">—</span>;
+                              const sales = monthlySalesMap[dateKey];
+                              if (!sales || (sales.restAmount === 0 && sales.pickmeAmount === 0)) {
+                                return <span className="text-slate-400 font-normal text-[11px]">No Qty</span>;
+                              }
+
+                              const cashCardDiff = (rec.incomeCash + rec.incomeCard) - sales.restAmount;
+                              const pickmeDiff = rec.incomePickme - sales.pickmeAmount;
+                              const combinedDiff = cashCardDiff + pickmeDiff;
+                              const isExact = Math.abs(combinedDiff) < 0.01;
+
+                              return (
+                                <span className={`text-xs ${
+                                  isExact
+                                    ? 'text-emerald-700 font-semibold'
+                                    : combinedDiff > 0
+                                    ? 'text-blue-700 font-bold'
+                                    : 'text-rose-600 font-bold'
+                                }`}>
+                                  {isExact
+                                    ? 'LKR 0.00'
+                                    : `${combinedDiff > 0 ? '+' : '-'}LKR ${formatCurrency(Math.abs(combinedDiff))}`}
+                                </span>
+                              );
+                            })()}
                           </td>
 
                           <td className="px-4 py-3 text-center">
