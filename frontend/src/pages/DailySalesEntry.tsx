@@ -17,7 +17,8 @@ import {
   Bike,
   Store,
   Layers,
-  Sparkles
+  Sparkles,
+  Plus
 } from 'lucide-react';
 import { format, parseISO, subDays, addDays } from 'date-fns';
 
@@ -69,6 +70,15 @@ export const DailySalesEntry: React.FC = () => {
   const [editPriceVal, setEditPriceVal] = useState<number | ''>('');
   const [savingPrice, setSavingPrice] = useState<boolean>(false);
 
+  // Add Item Modal
+  const [showAddModal, setShowAddModal] = useState<boolean>(false);
+  const [newItemCode, setNewItemCode] = useState<string>('');
+  const [newItemName, setNewItemName] = useState<string>('');
+  const [newItemCategory, setNewItemCategory] = useState<string>('RICE');
+  const [newItemPrice, setNewItemPrice] = useState<number | ''>('');
+  const [savingNewItem, setSavingNewItem] = useState<boolean>(false);
+  const [addItemError, setAddItemError] = useState<string | null>(null);
+
   // Input refs for Enter key navigation
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
@@ -118,24 +128,33 @@ export const DailySalesEntry: React.FC = () => {
 
         if (seedErr) {
           console.warn('Auto-seed insert skipped:', seedErr.message);
-          setMenuItems(SEED_MENU_ITEMS.map((item) => ({
-            id: `seed-${item.item_code}`,
-            ...item,
-            is_active: true
-          })));
+          const sortedSeed = [...SEED_MENU_ITEMS]
+            .sort((a, b) => Number(a.item_code) - Number(b.item_code))
+            .map((item) => ({
+              id: `seed-${item.item_code}`,
+              ...item,
+              is_active: true
+            }));
+          setMenuItems(sortedSeed);
         } else {
-          setMenuItems(seeded || []);
+          const sorted = (seeded || []).sort((a, b) => Number(a.item_code) - Number(b.item_code));
+          setMenuItems(sorted);
         }
       } else {
-        setMenuItems(data);
+        // Sort strictly by numeric item_code ascending (1, 2, 3, 4...)
+        const sorted = [...data].sort((a, b) => Number(a.item_code) - Number(b.item_code));
+        setMenuItems(sorted);
       }
     } catch (err: any) {
       console.error('Error in fetchMenuItems:', err);
-      setMenuItems(SEED_MENU_ITEMS.map((item) => ({
-        id: `seed-${item.item_code}`,
-        ...item,
-        is_active: true
-      })));
+      const sortedSeed = [...SEED_MENU_ITEMS]
+        .sort((a, b) => Number(a.item_code) - Number(b.item_code))
+        .map((item) => ({
+          id: `seed-${item.item_code}`,
+          ...item,
+          is_active: true
+        }));
+      setMenuItems(sortedSeed);
     } finally {
       setLoading(false);
     }
@@ -378,6 +397,75 @@ export const DailySalesEntry: React.FC = () => {
     }
   };
 
+  // 6. Handle Add New Menu Item
+  const handleAddNewItem = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAddItemError(null);
+
+    const trimmedCode = newItemCode.trim();
+    const trimmedName = newItemName.trim();
+    const priceNum = Number(newItemPrice);
+
+    if (!trimmedCode) {
+      setAddItemError('Please enter an item code.');
+      return;
+    }
+    if (!trimmedName) {
+      setAddItemError('Please enter an item name.');
+      return;
+    }
+    if (isNaN(priceNum) || priceNum < 0) {
+      setAddItemError('Please enter a valid price (>= 0).');
+      return;
+    }
+
+    // Check for duplicate code
+    if (menuItems.some(i => i.item_code.trim() === trimmedCode)) {
+      setAddItemError(`Item code #${trimmedCode} already exists. Please choose a different code.`);
+      return;
+    }
+
+    setSavingNewItem(true);
+    try {
+      const { data, error } = await supabase
+        .from('menu_items')
+        .insert({
+          item_code: trimmedCode,
+          name: trimmedName,
+          category: newItemCategory || 'OTHER',
+          current_price: priceNum,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (error) {
+        // If table doesn't support insert or offline, fallback to local state
+        console.warn('DB insert warning:', error.message);
+        const fallbackItem: MenuItem = {
+          id: `custom-${trimmedCode}-${Date.now()}`,
+          item_code: trimmedCode,
+          name: trimmedName,
+          category: newItemCategory || 'OTHER',
+          current_price: priceNum,
+          is_active: true
+        };
+        setMenuItems(prev => [...prev, fallbackItem].sort((a, b) => Number(a.item_code) - Number(b.item_code)));
+      } else if (data) {
+        setMenuItems(prev => [...prev, data].sort((a, b) => Number(a.item_code) - Number(b.item_code)));
+      }
+
+      setShowAddModal(false);
+      setNewItemCode('');
+      setNewItemName('');
+      setNewItemPrice('');
+    } catch (err: any) {
+      setAddItemError(err.message || 'Failed to add item');
+    } finally {
+      setSavingNewItem(false);
+    }
+  };
+
   return (
     <div className="space-y-6 pb-20">
       {/* Top Header */}
@@ -577,8 +665,25 @@ export const DailySalesEntry: React.FC = () => {
             />
           </div>
 
-          <div className="text-xs text-slate-400 font-medium">
-            Showing <strong className="text-slate-700">{filteredItems.length}</strong> items • Click ✏️ to edit any item's price
+          <div className="flex items-center gap-3">
+            <div className="text-xs text-slate-400 font-medium">
+              Showing <strong className="text-slate-700">{filteredItems.length}</strong> items • Click ✏️ to edit price
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setAddItemError(null);
+                setNewItemCode('');
+                setNewItemName('');
+                setNewItemPrice('');
+                setNewItemCategory('RICE');
+                setShowAddModal(true);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap"
+            >
+              <Plus size={14} />
+              Add New Item
+            </button>
           </div>
         </div>
 
@@ -755,6 +860,106 @@ export const DailySalesEntry: React.FC = () => {
                   className="px-5 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-sm transition-all"
                 >
                   {savingPrice ? 'Updating...' : 'Update Price'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: ADD NEW MENU ITEM */}
+      {showAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white rounded-2xl border border-slate-100 max-w-md w-full p-6 shadow-2xl relative">
+            <button
+              onClick={() => setShowAddModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
+            >
+              <X size={18} />
+            </button>
+
+            <h3 className="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
+              <Plus size={16} className="text-primary" />
+              Add New Menu Item
+            </h3>
+            <p className="text-xs text-slate-400 mb-4">
+              Add a new item with an item code (1, 2, 3...). It will automatically appear sorted numerically.
+            </p>
+
+            {addItemError && (
+              <div className="mb-3 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-2">
+                <AlertCircle size={14} className="shrink-0" />
+                <span>{addItemError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleAddNewItem} className="space-y-3.5 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Item Code * (e.g. 101)</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 101"
+                    value={newItemCode}
+                    onChange={e => setNewItemCode(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Category *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. RICE, KOTTU"
+                    value={newItemCategory}
+                    onChange={e => setNewItemCategory(e.target.value.toUpperCase())}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-slate-800 uppercase outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Item Name *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="e.g. EGG NOODLES FULL"
+                  value={newItemName}
+                  onChange={e => setNewItemName(e.target.value)}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-slate-700 mb-1">Selling Price (LKR) *</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  required
+                  placeholder="0.00"
+                  value={newItemPrice}
+                  onChange={e => setNewItemPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-base text-slate-800 outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingNewItem}
+                  className="px-5 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-sm transition-all"
+                >
+                  {savingNewItem ? 'Adding...' : 'Add Item'}
                 </button>
               </div>
             </form>
