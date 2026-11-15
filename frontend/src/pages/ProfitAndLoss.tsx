@@ -145,6 +145,14 @@ export const ProfitAndLoss: React.FC = () => {
     return (netProfit / totalIncome) * 100;
   }, [netProfit, totalIncome]);
 
+  // Helper to format currency consistently to exactly 2 decimal places
+  const formatCurrency = (amount: number) => {
+    return amount.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  };
+
   // Auto-calculate suggested bank charge when card sales change (default ~2.5% if blank)
   const handleCardSalesChange = (val: number | '') => {
     setIncomeCard(val);
@@ -628,7 +636,7 @@ export const ProfitAndLoss: React.FC = () => {
                 </span>
               </div>
               <p className="text-2xl sm:text-3xl font-extrabold text-slate-800 mt-2">
-                LKR {totalIncome.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                LKR {formatCurrency(totalIncome)}
               </p>
               <p className="text-xs text-slate-400 mt-1">Cash + Card + PickMe + Occasions</p>
             </div>
@@ -644,7 +652,7 @@ export const ProfitAndLoss: React.FC = () => {
                 </span>
               </div>
               <p className="text-2xl sm:text-3xl font-extrabold text-slate-800 mt-2">
-                LKR {totalExpenses.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                LKR {formatCurrency(totalExpenses)}
               </p>
               <p className="text-xs text-slate-400 mt-1">COGS + Purchases + Trans + Overheads</p>
             </div>
@@ -672,7 +680,7 @@ export const ProfitAndLoss: React.FC = () => {
               <p className={`text-2xl sm:text-3xl font-extrabold mt-2 ${
                 netProfit >= 0 ? 'text-emerald-700' : 'text-rose-700'
               }`}>
-                {netProfit < 0 ? '-' : ''}LKR {Math.abs(netProfit).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                {netProfit < 0 ? '-' : ''}LKR {formatCurrency(Math.abs(netProfit))}
               </p>
               <p className={`text-xs mt-1 ${netProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>
                 {netProfit >= 0 ? 'Profitable day' : 'Operating at a loss for this day'}
@@ -692,7 +700,7 @@ export const ProfitAndLoss: React.FC = () => {
                   </h3>
                 </div>
                 <span className="text-xs font-bold text-emerald-800">
-                  Total: LKR {totalIncome.toLocaleString()}
+                  Total: LKR {formatCurrency(totalIncome)}
                 </span>
               </div>
 
@@ -704,6 +712,7 @@ export const ProfitAndLoss: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    step="0.01"
                     placeholder="0.00"
                     value={incomeCash}
                     onChange={e => setIncomeCash(e.target.value === '' ? '' : Number(e.target.value))}
@@ -719,6 +728,7 @@ export const ProfitAndLoss: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    step="0.01"
                     placeholder="0.00"
                     value={incomeCard}
                     onChange={e => handleCardSalesChange(e.target.value === '' ? '' : Number(e.target.value))}
@@ -734,6 +744,7 @@ export const ProfitAndLoss: React.FC = () => {
                   </label>
                   <input
                     type="number"
+                    step="0.01"
                     placeholder="0.00"
                     value={incomePickme}
                     onChange={e => setIncomePickme(e.target.value === '' ? '' : Number(e.target.value))}
@@ -752,6 +763,7 @@ export const ProfitAndLoss: React.FC = () => {
                   </div>
                   <input
                     type="number"
+                    step="0.01"
                     placeholder="0.00"
                     value={incomeSpecial}
                     onChange={e => setIncomeSpecial(e.target.value === '' ? '' : Number(e.target.value))}
@@ -778,7 +790,7 @@ export const ProfitAndLoss: React.FC = () => {
                   </h3>
                 </div>
                 <span className="text-xs font-bold text-rose-800">
-                  Total: LKR {totalExpenses.toLocaleString()}
+                  Total: LKR {formatCurrency(totalExpenses)}
                 </span>
               </div>
 
@@ -791,7 +803,7 @@ export const ProfitAndLoss: React.FC = () => {
                     </label>
                     {autoSystemCost.stockOut > 0 ? (
                       <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        ⚡ Kitchen System: LKR {autoSystemCost.stockOut.toLocaleString()}
+                        ⚡ Kitchen System: LKR {formatCurrency(autoSystemCost.stockOut)}
                       </span>
                     ) : (
                       <span className="text-[10px] font-medium text-slate-400">
@@ -801,6 +813,7 @@ export const ProfitAndLoss: React.FC = () => {
                   </div>
                   <input
                     type="number"
+                    step="0.01"
                     placeholder="0.00"
                     value={expenseStockOut}
                     onChange={e => setExpenseStockOut(e.target.value === '' ? '' : Number(e.target.value))}
@@ -828,7 +841,7 @@ export const ProfitAndLoss: React.FC = () => {
                     </label>
                     {autoSystemCost.dailyPurchases > 0 ? (
                       <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        ⚡ Kitchen System: LKR {autoSystemCost.dailyPurchases.toLocaleString()}
+                        ⚡ Kitchen System: LKR {formatCurrency(autoSystemCost.dailyPurchases)}
                       </span>
                     ) : (
                       <span className="text-[10px] font-medium text-slate-400">
@@ -838,6 +851,7 @@ export const ProfitAndLoss: React.FC = () => {
                   </div>
                   <input
                     type="number"
+                    step="0.01"
                     placeholder="0.00"
                     value={expenseDailyPurchases}
                     onChange={e => setExpenseDailyPurchases(e.target.value === '' ? '' : Number(e.target.value))}
@@ -865,7 +879,7 @@ export const ProfitAndLoss: React.FC = () => {
                     </label>
                     {autoSystemCost.transport > 0 ? (
                       <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        ⚡ Kitchen System: LKR {autoSystemCost.transport.toLocaleString()}
+                        ⚡ Kitchen System: LKR {formatCurrency(autoSystemCost.transport)}
                       </span>
                     ) : (
                       <span className="text-[10px] font-medium text-slate-400">
@@ -875,6 +889,7 @@ export const ProfitAndLoss: React.FC = () => {
                   </div>
                   <input
                     type="number"
+                    step="0.01"
                     placeholder="0.00"
                     value={expenseTransport}
                     onChange={e => setExpenseTransport(e.target.value === '' ? '' : Number(e.target.value))}
@@ -902,7 +917,7 @@ export const ProfitAndLoss: React.FC = () => {
                     </label>
                     {autoSystemCost.generalExpenses > 0 ? (
                       <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                        ⚡ System: LKR {autoSystemCost.generalExpenses.toLocaleString()}
+                        ⚡ System: LKR {formatCurrency(autoSystemCost.generalExpenses)}
                       </span>
                     ) : (
                       <span className="text-[10px] font-medium text-slate-400">
@@ -912,6 +927,7 @@ export const ProfitAndLoss: React.FC = () => {
                   </div>
                   <input
                     type="number"
+                    step="0.01"
                     placeholder="0.00"
                     value={expenseGeneral}
                     onChange={e => setExpenseGeneral(e.target.value === '' ? '' : Number(e.target.value))}
@@ -928,7 +944,7 @@ export const ProfitAndLoss: React.FC = () => {
                     </label>
                     {autoSystemCost.personalExpenses > 0 ? (
                       <span className="text-[10px] font-semibold text-purple-700 bg-purple-100 px-2 py-0.5 rounded border border-purple-200">
-                        ⚡ System: LKR {autoSystemCost.personalExpenses.toLocaleString()}
+                        ⚡ System: LKR {formatCurrency(autoSystemCost.personalExpenses)}
                       </span>
                     ) : (
                       <span className="text-[10px] font-medium text-purple-400">
@@ -938,6 +954,7 @@ export const ProfitAndLoss: React.FC = () => {
                   </div>
                   <input
                     type="number"
+                    step="0.01"
                     placeholder="0.00"
                     value={expensePersonal}
                     onChange={e => setExpensePersonal(e.target.value === '' ? '' : Number(e.target.value))}
@@ -965,6 +982,7 @@ export const ProfitAndLoss: React.FC = () => {
                     </label>
                     <input
                       type="number"
+                      step="0.01"
                       placeholder="0.00"
                       value={expenseBankCharges}
                       onChange={e => setExpenseBankCharges(e.target.value === '' ? '' : Number(e.target.value))}
@@ -979,6 +997,7 @@ export const ProfitAndLoss: React.FC = () => {
                     </label>
                     <input
                       type="number"
+                      step="0.01"
                       placeholder="0.00"
                       value={expenseSalary}
                       onChange={e => setExpenseSalary(e.target.value === '' ? '' : Number(e.target.value))}
@@ -993,6 +1012,7 @@ export const ProfitAndLoss: React.FC = () => {
                     </label>
                     <input
                       type="number"
+                      step="0.01"
                       placeholder="0.00"
                       value={expenseEpfEtf}
                       onChange={e => setExpenseEpfEtf(e.target.value === '' ? '' : Number(e.target.value))}
@@ -1061,7 +1081,7 @@ export const ProfitAndLoss: React.FC = () => {
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">Total Revenue</span>
               <p className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-2">
-                LKR {monthlyAggregates.totalRev.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                LKR {formatCurrency(monthlyAggregates.totalRev)}
               </p>
               <p className="text-[11px] text-slate-400 mt-1">Cash, Card, Delivery & Events</p>
             </div>
@@ -1069,7 +1089,7 @@ export const ProfitAndLoss: React.FC = () => {
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <span className="text-xs font-bold text-rose-700 uppercase tracking-wider">Total Cost & Expenses</span>
               <p className="text-xl sm:text-2xl font-extrabold text-slate-800 mt-2">
-                LKR {monthlyAggregates.totalExp.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                LKR {formatCurrency(monthlyAggregates.totalExp)}
               </p>
               <p className="text-[11px] text-slate-400 mt-1">Kitchen + Purchases + Overheads</p>
             </div>
@@ -1085,7 +1105,7 @@ export const ProfitAndLoss: React.FC = () => {
               <p className={`text-xl sm:text-2xl font-extrabold mt-2 ${
                 monthlyAggregates.net >= 0 ? 'text-emerald-700' : 'text-rose-700'
               }`}>
-                {monthlyAggregates.net < 0 ? '-' : ''}LKR {Math.abs(monthlyAggregates.net).toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                {monthlyAggregates.net < 0 ? '-' : ''}LKR {formatCurrency(Math.abs(monthlyAggregates.net))}
               </p>
               <p className="text-[11px] text-slate-500 mt-1">Bottom-line profit for {format(parseISO(`${selectedMonth}-01`), 'MMM yyyy')}</p>
             </div>
@@ -1093,7 +1113,7 @@ export const ProfitAndLoss: React.FC = () => {
             <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
               <span className="text-xs font-bold text-blue-700 uppercase tracking-wider">Net Profit Margin</span>
               <p className="text-xl sm:text-2xl font-extrabold text-blue-900 mt-2">
-                {monthlyAggregates.margin.toFixed(1)}%
+                {monthlyAggregates.margin.toFixed(2)}%
               </p>
               <p className="text-[11px] text-slate-400 mt-1">Profit percentage of sales</p>
             </div>
@@ -1163,29 +1183,29 @@ export const ProfitAndLoss: React.FC = () => {
                           </td>
 
                           <td className="px-4 py-3 text-right text-slate-600">
-                            {rec ? `LKR ${rec.incomeCash.toLocaleString()}` : '—'}
+                            {rec ? `LKR ${formatCurrency(rec.incomeCash)}` : '—'}
                           </td>
 
                           <td className="px-4 py-3 text-right text-slate-600">
-                            {rec ? `LKR ${rec.incomeCard.toLocaleString()}` : '—'}
+                            {rec ? `LKR ${formatCurrency(rec.incomeCard)}` : '—'}
                           </td>
 
                           <td className="px-4 py-3 text-right text-slate-600">
-                            {rec ? `LKR ${rec.incomePickme.toLocaleString()}` : '—'}
+                            {rec ? `LKR ${formatCurrency(rec.incomePickme)}` : '—'}
                           </td>
 
                           <td className="px-4 py-3 text-right font-extrabold text-emerald-700">
-                            {rec ? `LKR ${rec.totalIncome.toLocaleString()}` : '—'}
+                            {rec ? `LKR ${formatCurrency(rec.totalIncome)}` : '—'}
                           </td>
 
                           <td className="px-4 py-3 text-right font-extrabold text-rose-600">
-                            {rec ? `LKR ${rec.totalExpenses.toLocaleString()}` : '—'}
+                            {rec ? `LKR ${formatCurrency(rec.totalExpenses)}` : '—'}
                           </td>
 
                           <td className="px-4 py-3 text-right font-extrabold">
                             {rec ? (
                               <span className={rec.netProfit >= 0 ? 'text-emerald-700' : 'text-rose-600'}>
-                                {rec.netProfit < 0 ? '-' : ''}LKR {Math.abs(rec.netProfit).toLocaleString()}
+                                {rec.netProfit < 0 ? '-' : ''}LKR {formatCurrency(Math.abs(rec.netProfit))}
                               </span>
                             ) : (
                               <span className="text-slate-400 italic font-normal">Not Reconciled</span>
