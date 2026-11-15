@@ -23,6 +23,7 @@ import { DailyPurchases } from './pages/DailyPurchases';
 import { Transportation } from './pages/Transportation';
 import { Expenses } from './pages/Expenses';
 import { ProfitAndLoss } from './pages/ProfitAndLoss';
+import { StaffManagement } from './pages/StaffManagement';
 
 function App() {
   return (
@@ -66,6 +67,7 @@ function App() {
               <Route path="/transportation" element={<Transportation />} />
               <Route path="/expenses" element={<Expenses />} />
               <Route path="/profit-and-loss" element={<ProfitAndLoss />} />
+              <Route path="/staff" element={<StaffManagement />} />
             </Route>
 
             <Route element={<ProtectedRoute requiredPermission="reports:read" />}>

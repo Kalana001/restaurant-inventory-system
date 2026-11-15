@@ -161,6 +161,12 @@ export const DashboardLayout: React.FC = () => {
       permission: null 
     },
     { 
+      label: 'Staff & Payroll', 
+      path: '/staff', 
+      icon: <Users size={20} className="text-blue-500" />, 
+      permission: null 
+    },
+    { 
       label: 'Daily P&L / Profit', 
       path: '/profit-and-loss', 
       icon: <DollarSign size={20} className="text-emerald-500" />, 

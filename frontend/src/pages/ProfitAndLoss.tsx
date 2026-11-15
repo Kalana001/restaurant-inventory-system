@@ -79,7 +79,8 @@ export const ProfitAndLoss: React.FC = () => {
     dailyPurchases: 0,
     transport: 0,
     generalExpenses: 0,
-    personalExpenses: 0
+    personalExpenses: 0,
+    staffSalary: 0
   });
 
   // Current Form State for the selected day
@@ -179,14 +180,16 @@ export const ProfitAndLoss: React.FC = () => {
       // D. Transportation costs for the date (Strictly KITCHEN department, excluding JAT)
       // E. General restaurant expenses for the date (Strictly RESTAURANT, excluding JAT)
       // F. Personal expenses for the date (category = 'PERSONAL', excluding JAT)
-      // G. Kitchen movement reasons
+      // G. Staff salaries for the date (from staff_salaries)
+      // H. Kitchen movement reasons
       const [
         pnlRes,
         reasonsRes,
         purchasesRes,
         transportRes,
         generalExpRes,
-        personalExpRes
+        personalExpRes,
+        staffSalariesRes
       ] = await Promise.all([
         supabase
           .from('expenses')
@@ -224,7 +227,12 @@ export const ProfitAndLoss: React.FC = () => {
           .select('total_amount, category')
           .eq('date', targetDate)
           .neq('expense_type', 'DAILY_PNL_SUMMARY')
-          .eq('category', 'PERSONAL')
+          .eq('category', 'PERSONAL'),
+
+        supabase
+          .from('staff_salaries')
+          .select('amount')
+          .eq('date', targetDate)
       ]);
 
       const kitchenReasonIds = (reasonsRes.data || []).map(r => r.id);
@@ -262,13 +270,18 @@ export const ProfitAndLoss: React.FC = () => {
         (sum, e) => sum + (Number(e.total_amount) || 0),
         0
       );
+      const sysStaffSalary = (staffSalariesRes.data || []).reduce(
+        (sum, s) => sum + (Number(s.amount) || 0),
+        0
+      );
 
       setAutoSystemCost({
         stockOut: Math.round(sysStockOut * 100) / 100,
         dailyPurchases: Math.round(sysPurchases * 100) / 100,
         transport: Math.round(sysTransport * 100) / 100,
         generalExpenses: Math.round(sysGeneralExp * 100) / 100,
-        personalExpenses: Math.round(sysPersonalExp * 100) / 100
+        personalExpenses: Math.round(sysPersonalExp * 100) / 100,
+        staffSalary: Math.round(sysStaffSalary * 100) / 100
       });
 
       // If a saved P&L summary exists for this day, populate from it
@@ -293,7 +306,7 @@ export const ProfitAndLoss: React.FC = () => {
         setExpenseGeneral(parsedData.expenseGeneral ?? (sysGeneralExp > 0 ? sysGeneralExp : ''));
         setExpensePersonal(parsedData.expensePersonal ?? (sysPersonalExp > 0 ? sysPersonalExp : ''));
         setExpenseBankCharges(parsedData.expenseBankCharges ?? '');
-        setExpenseSalary(parsedData.expenseSalary ?? '');
+        setExpenseSalary(parsedData.expenseSalary ?? (sysStaffSalary > 0 ? sysStaffSalary : ''));
         setExpenseEpfEtf(parsedData.expenseEpfEtf ?? '');
         setExpenseNotes(parsedData.expenseNotes || '');
       } else {
@@ -311,7 +324,7 @@ export const ProfitAndLoss: React.FC = () => {
         setExpenseGeneral(sysGeneralExp > 0 ? sysGeneralExp : '');
         setExpensePersonal(sysPersonalExp > 0 ? sysPersonalExp : '');
         setExpenseBankCharges('');
-        setExpenseSalary('');
+        setExpenseSalary(sysStaffSalary > 0 ? sysStaffSalary : '');
         setExpenseEpfEtf('');
         setExpenseNotes('');
       }
@@ -992,9 +1005,16 @@ export const ProfitAndLoss: React.FC = () => {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      💼 Daily Staff Salary
-                    </label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-bold text-slate-700">
+                        💼 Daily Staff Salary
+                      </label>
+                      {autoSystemCost.staffSalary > 0 && (
+                        <span className="text-[10px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.2 rounded border border-blue-200" title="Calculated from Staff Payroll records">
+                          ⚡ Payroll: LKR {formatCurrency(autoSystemCost.staffSalary)}
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="number"
                       step="0.01"
@@ -1003,7 +1023,18 @@ export const ProfitAndLoss: React.FC = () => {
                       onChange={e => setExpenseSalary(e.target.value === '' ? '' : Number(e.target.value))}
                       className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-rose-500/20 outline-none"
                     />
-                    <span className="text-[10px] text-slate-400">Daily labor cost</span>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-[10px] text-slate-400">Daily labor cost</span>
+                      {autoSystemCost.staffSalary > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => setExpenseSalary(autoSystemCost.staffSalary)}
+                          className="text-[10px] text-primary hover:underline font-semibold"
+                        >
+                          Reset to payroll
+                        </button>
+                      )}
+                    </div>
                   </div>
 
                   <div>
