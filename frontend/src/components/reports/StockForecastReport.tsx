@@ -997,92 +997,108 @@ export const StockForecastReport: React.FC = () => {
                 )}
               </div>
 
-              {/* RECENT KITCHEN STOCK-OUT HISTORY */}
+              {/* RECENT KITCHEN & STOCK-OUT USAGE HISTORY */}
               <div>
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-                  Recent Kitchen Usage Logs ({itemUsageHistory.length})
-                </h4>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Recent Usage Logs (Last {lookbackDays} Days • {itemUsageHistory.length})
+                  </h4>
+                  <span className="text-[11px] text-slate-400">Scrollable table</span>
+                </div>
                 {itemUsageHistory.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic">No kitchen stock-outs in this period.</p>
+                  <p className="text-xs text-slate-400 italic">No stock-outs in this period.</p>
                 ) : (
-                  <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-500 uppercase text-[10px]">
-                        <tr>
-                          <th className="px-4 py-2">Date & Time</th>
-                          <th className="px-4 py-2">Voucher / Movement</th>
-                          <th className="px-4 py-2">Reason</th>
-                          <th className="px-4 py-2 text-right">Deducted Qty</th>
-                          <th className="px-4 py-2">Recorded By</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {itemUsageHistory.slice(0, 5).map((u, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="px-4 py-2.5 font-medium text-slate-700">
-                              {format(parseISO(u.created_at), 'dd MMM yyyy, hh:mm a')}
-                            </td>
-                            <td className="px-4 py-2.5 font-mono text-slate-500">
-                              {u.movement_number}
-                            </td>
-                            <td className="px-4 py-2.5 text-slate-600 font-medium">
-                              {u.movement_reasons?.name}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-bold text-rose-600">
-                              −{Number(u.quantity).toFixed(2)} {selectedItem.unitAbbr}
-                            </td>
-                            <td className="px-4 py-2.5 text-slate-500">
-                              {u.profiles?.username || 'System'}
-                            </td>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-500 uppercase text-[10px] sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-2.5 bg-slate-50">Date & Time</th>
+                            <th className="px-4 py-2.5 bg-slate-50">Voucher / Movement</th>
+                            <th className="px-4 py-2.5 bg-slate-50">Reason</th>
+                            <th className="px-4 py-2.5 bg-slate-50 text-right">Deducted Qty</th>
+                            <th className="px-4 py-2.5 bg-slate-50">Recorded By</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {itemUsageHistory.map((u, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">
+                                {format(parseISO(u.created_at), 'dd MMM yyyy, hh:mm a')}
+                              </td>
+                              <td className="px-4 py-2.5 font-mono text-slate-500 whitespace-nowrap">
+                                {u.movement_number}
+                              </td>
+                              <td className="px-4 py-2.5 text-slate-600 font-medium">
+                                <span className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-semibold ${
+                                  u.isKitchen
+                                    ? 'bg-blue-50 text-blue-700 border border-blue-200'
+                                    : 'bg-amber-50 text-amber-700 border border-amber-200'
+                                }`}>
+                                  {u.movement_reasons?.name || 'Stock Out'}
+                                </span>
+                              </td>
+                              <td className="px-4 py-2.5 text-right font-bold text-rose-600 whitespace-nowrap">
+                                −{Number(u.quantity).toFixed(2)} {selectedItem.unitAbbr}
+                              </td>
+                              <td className="px-4 py-2.5 text-slate-500 whitespace-nowrap">
+                                {u.profiles?.username || 'System'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>
 
               {/* RECENT PURCHASE / GRN HISTORY */}
               <div>
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">
-                  Purchase & GRN History ({itemPurchaseHistory.length})
-                </h4>
+                <div className="flex items-center justify-between mb-2">
+                  <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">
+                    Purchase & GRN History ({itemPurchaseHistory.length})
+                  </h4>
+                  <span className="text-[11px] text-slate-400">Scrollable table</span>
+                </div>
                 {itemPurchaseHistory.length === 0 ? (
                   <p className="text-xs text-slate-400 italic">No purchase orders / GRNs recorded for this item.</p>
                 ) : (
-                  <div className="border border-slate-200 rounded-xl overflow-hidden">
-                    <table className="w-full text-left text-xs">
-                      <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-500 uppercase text-[10px]">
-                        <tr>
-                          <th className="px-4 py-2">GRN Date</th>
-                          <th className="px-4 py-2">GRN Number</th>
-                          <th className="px-4 py-2">Supplier</th>
-                          <th className="px-4 py-2 text-right">Received Qty</th>
-                          <th className="px-4 py-2 text-right">Unit Price</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100">
-                        {itemPurchaseHistory.slice(0, 5).map((p, idx) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="px-4 py-2.5 font-medium text-slate-700">
-                              {p.grns?.received_date || p.grns?.created_at ? format(parseISO(p.grns?.received_date || p.grns?.created_at), 'dd MMM yyyy') : '—'}
-                            </td>
-                            <td className="px-4 py-2.5 font-mono text-slate-500">
-                              {p.grns?.grn_number || '—'}
-                            </td>
-                            <td className="px-4 py-2.5 font-semibold text-slate-700">
-                              {p.grns?.suppliers?.name || '—'}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-bold text-emerald-600">
-                              +{Number(p.quantity).toFixed(2)} {selectedItem.unitAbbr}
-                            </td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-slate-700">
-                              LKR {Number(p.cost_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </td>
+                  <div className="border border-slate-200 rounded-xl overflow-hidden shadow-sm">
+                    <div className="max-h-60 overflow-y-auto divide-y divide-slate-100 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-slate-100">
+                      <table className="w-full text-left text-xs">
+                        <thead className="bg-slate-50 border-b border-slate-200 font-bold text-slate-500 uppercase text-[10px] sticky top-0 z-10">
+                          <tr>
+                            <th className="px-4 py-2.5 bg-slate-50">GRN Date</th>
+                            <th className="px-4 py-2.5 bg-slate-50">GRN Number</th>
+                            <th className="px-4 py-2.5 bg-slate-50">Supplier</th>
+                            <th className="px-4 py-2.5 bg-slate-50 text-right">Received Qty</th>
+                            <th className="px-4 py-2.5 bg-slate-50 text-right">Unit Price</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-slate-100">
+                          {itemPurchaseHistory.map((p, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50/80 transition-colors">
+                              <td className="px-4 py-2.5 font-medium text-slate-700 whitespace-nowrap">
+                                {p.grns?.received_date || p.grns?.created_at ? format(parseISO(p.grns?.received_date || p.grns?.created_at), 'dd MMM yyyy') : '—'}
+                              </td>
+                              <td className="px-4 py-2.5 font-mono text-slate-500 whitespace-nowrap">
+                                {p.grns?.grn_number || '—'}
+                              </td>
+                              <td className="px-4 py-2.5 font-semibold text-slate-700">
+                                {p.grns?.suppliers?.name || '—'}
+                              </td>
+                              <td className="px-4 py-2.5 text-right font-bold text-emerald-600 whitespace-nowrap">
+                                +{Number(p.quantity).toFixed(2)} {selectedItem.unitAbbr}
+                              </td>
+                              <td className="px-4 py-2.5 text-right font-semibold text-slate-700 whitespace-nowrap">
+                                LKR {Number(p.cost_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 )}
               </div>
