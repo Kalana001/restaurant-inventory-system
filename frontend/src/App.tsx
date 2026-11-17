@@ -26,6 +26,7 @@ import { ProfitAndLoss } from './pages/ProfitAndLoss';
 import { StaffManagement } from './pages/StaffManagement';
 import { DailySalesEntry } from './pages/DailySalesEntry';
 import { PersonalExpenses } from './pages/PersonalExpenses';
+import { ReorderLevels } from './pages/ReorderLevels';
 
 function App() {
   return (
@@ -42,6 +43,7 @@ function App() {
 
             <Route element={<ProtectedRoute requiredPermission="items:read" />}>
               <Route path="/inventory" element={<Inventory />} />
+              <Route path="/inventory/reorder-levels" element={<ReorderLevels />} />
             </Route>
 
             <Route element={<ProtectedRoute requiredPermission="items:read" />}>

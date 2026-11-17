@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../lib/supabase';
+import { Link, useSearchParams } from 'react-router-dom';
 import { 
   TrendingDown, 
   AlertTriangle, 
@@ -14,7 +15,8 @@ import {
   Package,
   ShoppingCart,
   ArrowUpDown,
-  Filter
+  Filter,
+  Layers
 } from 'lucide-react';
 import { format, subDays, startOfDay, parseISO } from 'date-fns';
 
@@ -26,6 +28,7 @@ export interface VelocityItem {
   currentStock: number;
   minStock: number;
   maxStock: number;
+  reorderLevel: number;
   costPrice: number;
   // Calculations
   totalKitchenUsage: number;
@@ -43,12 +46,14 @@ export interface VelocityItem {
 }
 
 export const StockForecastReport: React.FC = () => {
+  const [searchParams] = useSearchParams();
   const [lookbackDays, setLookbackDays] = useState<7 | 14 | 30>(14);
   const [items, setItems] = useState<VelocityItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
-  const [filterUrgency, setFilterUrgency] = useState<'ALL' | 'ACTION_NEEDED' | 'OUT' | 'CRITICAL' | 'SAFE' | 'NO_USAGE'>('ALL');
+  const initialUrgency = searchParams.get('urgency') === 'ACTION_NEEDED' ? 'ACTION_NEEDED' : 'ALL';
+  const [filterUrgency, setFilterUrgency] = useState<'ALL' | 'ACTION_NEEDED' | 'OUT' | 'CRITICAL' | 'SAFE' | 'NO_USAGE'>(initialUrgency);
   const [categories, setCategories] = useState<string[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -81,7 +86,7 @@ export const StockForecastReport: React.FC = () => {
         supabase
           .from('inventory_items')
           .select(`
-            id, name, min_stock, max_stock, cost_price, status,
+            id, name, min_stock, max_stock, cost_price, status, reorder_level,
             categories ( name ),
             units:units!inventory_items_base_unit_id_fkey ( abbreviation ),
             batches ( id, available_qty, current_qty, status )
@@ -182,14 +187,20 @@ export const StockForecastReport: React.FC = () => {
         let daysRemaining: number | null = null;
         let status: VelocityItem['status'] = 'SAFE';
 
+        const reorderLevelNum = Number(item.reorder_level);
+        const isTrackingOff = reorderLevelNum === 0;
+        const reorderThreshold = reorderLevelNum > 0 ? reorderLevelNum : (Number(item.min_stock) || 0);
+
         if (currentStock <= 0) {
           daysRemaining = 0;
-          status = 'OUT_OF_STOCK';
+          status = isTrackingOff ? 'SAFE' : 'OUT_OF_STOCK';
         } else if (avgDailyUsage > 0) {
           daysRemaining = currentStock / avgDailyUsage;
-          if (daysRemaining <= 2) {
+          if (isTrackingOff) {
+            status = 'SAFE';
+          } else if (daysRemaining <= 2 || currentStock <= reorderThreshold * 0.5) {
             status = 'CRITICAL';
-          } else if (daysRemaining <= 5 || currentStock <= (Number(item.min_stock) || 0)) {
+          } else if (daysRemaining <= 5 || currentStock <= reorderThreshold) {
             status = 'REORDER_SOON';
           } else {
             status = 'SAFE';
@@ -255,6 +266,7 @@ export const StockForecastReport: React.FC = () => {
           currentStock,
           minStock: Number(item.min_stock) || 0,
           maxStock: Number(item.max_stock) || 0,
+          reorderLevel: reorderLevelNum,
           costPrice: Number(item.cost_price) || 0,
           totalKitchenUsage,
           avgKitchenDailyUsage,
@@ -497,6 +509,15 @@ export const StockForecastReport: React.FC = () => {
               </button>
             ))}
           </div>
+
+          <Link
+            to="/inventory/reorder-levels"
+            className="flex items-center gap-1.5 px-3 py-2 bg-purple-50 border border-purple-200 text-purple-700 rounded-xl text-xs font-bold hover:bg-purple-100 transition-all shadow-sm active:scale-95"
+            title="Configure and manage reorder level thresholds"
+          >
+            <Layers size={14} className="text-purple-600" />
+            <span className="hidden sm:inline">Reorder Levels</span>
+          </Link>
 
           <button
             onClick={() => fetchVelocityData(true)}

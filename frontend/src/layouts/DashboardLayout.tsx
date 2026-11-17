@@ -49,22 +49,40 @@ export const DashboardLayout: React.FC = () => {
           .eq('status', 'ACTIVE');
           
         if (items) {
+          const lowStockList: any[] = [];
           items.forEach(item => {
             const currentStock = item.batches
               ?.filter((b: any) => b.status === 'ACTIVE')
               .reduce((sum: number, b: any) => sum + Number(b.available_qty || 0), 0) || 0;
 
             if (Number(item.reorder_level) > 0 && currentStock <= Number(item.reorder_level)) {
+              lowStockList.push({ item, currentStock });
+            }
+          });
+
+          // Consolidated alert at the top of notifications
+          if (lowStockList.length > 0) {
+            notifications.push({
+              id: 'consolidated-low-stock',
+              type: 'LOW_STOCK',
+              title: `⚠️ ${lowStockList.length} Item${lowStockList.length > 1 ? 's' : ''} Below Reorder Level`,
+              message: `Click to review reorder thresholds and initiate purchase orders.`,
+              time: new Date().toISOString(),
+              link: '/inventory/reorder-levels?filter=NEEDS_REORDER'
+            });
+
+            // Add individual item alerts (up to 5 to avoid alert fatigue)
+            lowStockList.slice(0, 5).forEach(({ item, currentStock }) => {
               notifications.push({
                 id: `ls-${item.id}`,
                 type: 'LOW_STOCK',
                 title: 'Low Stock Alert',
                 message: `${item.name} is running low (${currentStock} remaining).`,
                 time: new Date().toISOString(),
-                link: `/inventory?openBatchId=${item.id}`
+                link: '/inventory/reorder-levels?filter=NEEDS_REORDER'
               });
-            }
-          });
+            });
+          }
         }
 
         // Fetch expiring batches (within 7 days)
@@ -138,6 +156,7 @@ export const DashboardLayout: React.FC = () => {
       permission: 'items:read',
       subItems: [
         { label: 'Inventory Items', path: '/inventory', permission: 'items:read' },
+        { label: 'Reorder Levels', path: '/inventory/reorder-levels', permission: 'items:read' },
         { label: 'Categories', path: '/categories', permission: 'items:read' },
         { label: 'Stock Adjustments', path: '/adjustments', permission: 'stock:read' }
       ]
