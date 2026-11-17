@@ -16,7 +16,8 @@ import {
   ShoppingCart,
   ArrowUpDown,
   Filter,
-  Layers
+  Layers,
+  ShieldOff
 } from 'lucide-react';
 import { format, subDays, startOfDay, parseISO } from 'date-fns';
 
@@ -36,7 +37,7 @@ export interface VelocityItem {
   totalOverallUsage: number;
   avgDailyUsage: number; // overall total daily usage driving runout
   daysRemaining: number | null; // null if no usage
-  status: 'OUT_OF_STOCK' | 'CRITICAL' | 'REORDER_SOON' | 'SAFE' | 'NO_USAGE';
+  status: 'OUT_OF_STOCK' | 'CRITICAL' | 'REORDER_SOON' | 'SAFE' | 'NO_USAGE' | 'MUTED';
   // Purchase insights
   purchaseCount: number;
   avgPurchaseCadenceDays: number | null;
@@ -53,7 +54,8 @@ export const StockForecastReport: React.FC = () => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const initialUrgency = searchParams.get('urgency') === 'ACTION_NEEDED' ? 'ACTION_NEEDED' : 'ALL';
-  const [filterUrgency, setFilterUrgency] = useState<'ALL' | 'ACTION_NEEDED' | 'OUT' | 'CRITICAL' | 'SAFE' | 'NO_USAGE'>(initialUrgency);
+  const [filterUrgency, setFilterUrgency] = useState<'ALL' | 'ACTION_NEEDED' | 'OUT' | 'CRITICAL' | 'SAFE' | 'NO_USAGE' | 'MUTED'>(initialUrgency);
+  const [includeMuted, setIncludeMuted] = useState<boolean>(false);
   const [categories, setCategories] = useState<string[]>([]);
   const [lastRefreshed, setLastRefreshed] = useState<Date>(new Date());
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -191,14 +193,15 @@ export const StockForecastReport: React.FC = () => {
         const isTrackingOff = reorderLevelNum === 0;
         const reorderThreshold = reorderLevelNum > 0 ? reorderLevelNum : (Number(item.min_stock) || 0);
 
-        if (currentStock <= 0) {
+        if (isTrackingOff) {
+          daysRemaining = avgDailyUsage > 0 ? currentStock / avgDailyUsage : null;
+          status = 'MUTED';
+        } else if (currentStock <= 0) {
           daysRemaining = 0;
-          status = isTrackingOff ? 'SAFE' : 'OUT_OF_STOCK';
+          status = 'OUT_OF_STOCK';
         } else if (avgDailyUsage > 0) {
           daysRemaining = currentStock / avgDailyUsage;
-          if (isTrackingOff) {
-            status = 'SAFE';
-          } else if (daysRemaining <= 2 || currentStock <= reorderThreshold * 0.5) {
+          if (daysRemaining <= 2 || currentStock <= reorderThreshold * 0.5) {
             status = 'CRITICAL';
           } else if (daysRemaining <= 5 || currentStock <= reorderThreshold) {
             status = 'REORDER_SOON';
@@ -435,6 +438,12 @@ export const StockForecastReport: React.FC = () => {
   // Filtered Items
   const filteredItems = useMemo(() => {
     return items.filter(item => {
+      // Muted handling:
+      // If item is muted (reorder_level === 0), hide by default unless includeMuted is checked or filterUrgency is 'MUTED'
+      if (item.status === 'MUTED') {
+        if (!includeMuted && filterUrgency !== 'MUTED') return false;
+      }
+
       // Category filter
       if (selectedCategory !== 'ALL' && item.categoryName !== selectedCategory) {
         return false;
@@ -450,6 +459,8 @@ export const StockForecastReport: React.FC = () => {
         if (item.status !== 'SAFE') return false;
       } else if (filterUrgency === 'NO_USAGE') {
         if (item.status !== 'NO_USAGE') return false;
+      } else if (filterUrgency === 'MUTED') {
+        if (item.status !== 'MUTED') return false;
       }
       // Search filter
       if (search) {
@@ -458,7 +469,7 @@ export const StockForecastReport: React.FC = () => {
       }
       return true;
     });
-  }, [items, selectedCategory, filterUrgency, search]);
+  }, [items, selectedCategory, filterUrgency, includeMuted, search]);
 
   // KPI Summary stats
   const kpiStats = useMemo(() => {
@@ -466,7 +477,8 @@ export const StockForecastReport: React.FC = () => {
     const criticalCount = items.filter(i => i.status === 'CRITICAL').length;
     const reorderCount = items.filter(i => i.status === 'REORDER_SOON').length;
     const safeCount = items.filter(i => i.status === 'SAFE').length;
-    return { outCount, criticalCount, reorderCount, safeCount };
+    const mutedCount = items.filter(i => i.status === 'MUTED').length;
+    return { outCount, criticalCount, reorderCount, safeCount, mutedCount };
   }, [items]);
 
   return (
@@ -648,14 +660,34 @@ export const StockForecastReport: React.FC = () => {
               onChange={e => setFilterUrgency(e.target.value as any)}
               className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none"
             >
-              <option value="ALL">All Stock Statuses</option>
+              <option value="ALL">All Active Statuses</option>
               <option value="ACTION_NEEDED">Action Needed (Out & Low)</option>
               <option value="OUT">Out of Stock</option>
               <option value="CRITICAL">Critical (&lt; 2 Days)</option>
               <option value="SAFE">Adequate Stock</option>
               <option value="NO_USAGE">No Recent Usage</option>
+              <option value="MUTED">Muted Tracking (ROL = 0)</option>
             </select>
           </div>
+
+          {/* Toggle Muted Items */}
+          <label 
+            className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer select-none shrink-0 ${
+              includeMuted 
+                ? 'bg-slate-800 text-white border-slate-800 shadow-sm' 
+                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+            }`}
+            title="Toggle visibility of items with reorder level set to 0"
+          >
+            <input
+              type="checkbox"
+              checked={includeMuted}
+              onChange={e => setIncludeMuted(e.target.checked)}
+              className="sr-only"
+            />
+            <ShieldOff size={14} className={includeMuted ? 'text-amber-400' : 'text-slate-400'} />
+            <span>Show Muted ({kpiStats.mutedCount})</span>
+          </label>
         </div>
 
         <div className="text-xs text-slate-400 shrink-0">
@@ -792,6 +824,12 @@ export const StockForecastReport: React.FC = () => {
                         {item.status === 'NO_USAGE' && (
                           <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium text-slate-400 bg-slate-100">
                             No Usage
+                          </span>
+                        )}
+                        {item.status === 'MUTED' && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-500 border border-slate-200" title="Reorder tracking disabled (ROL = 0)">
+                            <ShieldOff size={12} className="text-slate-400" />
+                            Tracking Off (0)
                           </span>
                         )}
                       </td>
