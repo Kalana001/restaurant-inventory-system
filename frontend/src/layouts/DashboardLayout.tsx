@@ -85,30 +85,6 @@ export const DashboardLayout: React.FC = () => {
           }
         }
 
-        // Fetch expiring batches (within 7 days)
-        const thresholdDate = new Date();
-        thresholdDate.setDate(thresholdDate.getDate() + 7);
-        const { data: expiring } = await supabase
-          .from('batches')
-          .select('id, batch_number, expiry_date, inventory_items(name)')
-          .gt('available_qty', 0)
-          .not('expiry_date', 'is', null)
-          .lte('expiry_date', format(thresholdDate, 'yyyy-MM-dd'));
-
-        if (expiring) {
-          expiring.forEach(batch => {
-            const diffDays = Math.ceil((new Date(batch.expiry_date).getTime() - new Date().getTime()) / (1000 * 3600 * 24));
-            notifications.push({
-              id: `ex-${batch.id}`,
-              type: 'EXPIRY',
-              title: 'Expiring Soon',
-              message: `Batch ${batch.batch_number} of ${(batch.inventory_items as any)?.name} expires in ${diffDays < 0 ? '0' : diffDays} days.`,
-              time: new Date().toISOString(),
-              link: '/reports/expiry'
-            });
-          });
-        }
-
         // Fetch cheque realization alerts
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
