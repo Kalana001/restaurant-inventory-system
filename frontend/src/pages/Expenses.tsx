@@ -18,7 +18,7 @@ export const Expenses: React.FC = () => {
 
   // Filters
   const [search, setSearch] = useState('');
-  const [filterCategory, setFilterCategory] = useState<'ALL' | 'RESTAURANT' | 'PERSONAL' | 'JAT'>('ALL');
+  const [filterCategory, setFilterCategory] = useState<'ALL' | 'RESTAURANT' | 'JAT'>('ALL');
   const [filterStatus, setFilterStatus] = useState<'ALL' | 'UNPAID' | 'PARTIAL' | 'PAID'>('ALL');
 
   // Modals
@@ -27,7 +27,7 @@ export const Expenses: React.FC = () => {
 
   // Create Form State
   const [newDate, setNewDate] = useState(format(new Date(), 'yyyy-MM-dd'));
-  const [newCategory, setNewCategory] = useState<'RESTAURANT' | 'PERSONAL' | 'JAT'>('RESTAURANT');
+  const [newCategory, setNewCategory] = useState<'RESTAURANT' | 'JAT'>('RESTAURANT');
   const [newType, setNewType] = useState('ELECTRICITY');
   const [newDesc, setNewDesc] = useState('');
   const [newAmount, setNewAmount] = useState<number | ''>('');
@@ -47,7 +47,7 @@ export const Expenses: React.FC = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editExpense, setEditExpense] = useState<any>(null);
   const [editDate, setEditDate] = useState('');
-  const [editCategory, setEditCategory] = useState<'RESTAURANT' | 'PERSONAL' | 'JAT'>('RESTAURANT');
+  const [editCategory, setEditCategory] = useState<'RESTAURANT' | 'JAT'>('RESTAURANT');
   const [editType, setEditType] = useState('ELECTRICITY');
   const [editAmount, setEditAmount] = useState<number | ''>('');
   const [editDesc, setEditDesc] = useState('');
@@ -66,7 +66,12 @@ export const Expenses: React.FC = () => {
     try {
       let query = supabase.from('expenses').select('*, profiles:created_by(username)', { count: 'exact' });
       
-      if (filterCategory !== 'ALL') query = query.eq('category', filterCategory);
+      if (filterCategory !== 'ALL') {
+        query = query.eq('category', filterCategory);
+      } else {
+        // Only show Restaurant and JAT operational expenses (Personal is isolated)
+        query = query.in('category', ['RESTAURANT', 'JAT']);
+      }
       if (filterStatus !== 'ALL') query = query.eq('status', filterStatus);
       if (search) query = query.ilike('description', `%${search}%`);
 
@@ -315,7 +320,7 @@ export const Expenses: React.FC = () => {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 tracking-tight">Expenses</h1>
-          <p className="text-sm text-slate-500 mt-1">Manage utility bills, salaries, and personal expenses.</p>
+          <p className="text-sm text-slate-500 mt-1">Manage utility bills, salaries, and operational expenses.</p>
         </div>
         {hasPermission('expenses:manage') && (
           <button 
@@ -354,7 +359,6 @@ export const Expenses: React.FC = () => {
              <option value="ALL">All Categories</option>
              <option value="RESTAURANT">Restaurant</option>
              <option value="JAT">JAT</option>
-             <option value="PERSONAL">Personal</option>
           </select>
           <select
              value={filterStatus}
@@ -390,16 +394,15 @@ export const Expenses: React.FC = () => {
                 <tr><td colSpan={7} className="text-center py-8 text-slate-400">No expenses found matching the criteria.</td></tr>
               ) : (
                 expenses.map((expense) => {
-                  const isPersonal = expense.category === 'PERSONAL';
                   const isJat = expense.category === 'JAT';
                   return (
                     <tr key={expense.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-6 py-4">{format(new Date(expense.date), 'MMM dd, yyyy')}</td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2">
-                          {isPersonal ? <User size={14} className="text-purple-500" /> : isJat ? <Building2 size={14} className="text-amber-500" /> : <Building2 size={14} className="text-blue-500" />}
+                          {isJat ? <Building2 size={14} className="text-amber-500" /> : <Building2 size={14} className="text-blue-500" />}
                           <div className="flex flex-col">
-                            <span className={`text-[10px] uppercase font-bold ${isPersonal ? 'text-purple-600' : isJat ? 'text-amber-600' : 'text-blue-600'}`}>
+                            <span className={`text-[10px] uppercase font-bold ${isJat ? 'text-amber-600' : 'text-blue-600'}`}>
                               {expense.category}
                             </span>
                             <span className="text-slate-800">{expense.expense_type}</span>
@@ -506,7 +509,6 @@ export const Expenses: React.FC = () => {
                   <select value={newCategory} onChange={e => setNewCategory(e.target.value as any)} className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-medium focus:ring-2 focus:ring-primary/20 outline-none">
                     <option value="RESTAURANT">Restaurant</option>
                     <option value="JAT">JAT</option>
-                    <option value="PERSONAL">Personal</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
@@ -671,7 +673,6 @@ export const Expenses: React.FC = () => {
                   >
                     <option value="RESTAURANT">Restaurant</option>
                     <option value="JAT">JAT</option>
-                    <option value="PERSONAL">Personal</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">

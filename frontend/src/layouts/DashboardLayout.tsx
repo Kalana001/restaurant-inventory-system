@@ -179,6 +179,12 @@ export const DashboardLayout: React.FC = () => {
       permission: null 
     },
     { 
+      label: 'Personal Expenses', 
+      path: '/personal-expenses', 
+      icon: <UserCheck size={20} className="text-purple-500" />, 
+      permission: null 
+    },
+    { 
       label: 'Purchase Orders', 
       path: '/purchase-orders', 
       icon: <ClipboardList size={20} />, 

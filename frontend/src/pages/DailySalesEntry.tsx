@@ -74,7 +74,8 @@ export const DailySalesEntry: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState<boolean>(false);
   const [newItemCode, setNewItemCode] = useState<string>('');
   const [newItemName, setNewItemName] = useState<string>('');
-  const [newItemCategory, setNewItemCategory] = useState<string>('RICE');
+  const [selectedAddCategory, setSelectedAddCategory] = useState<string>('');
+  const [customCategoryInput, setCustomCategoryInput] = useState<string>('');
   const [newItemPrice, setNewItemPrice] = useState<number | ''>('');
   const [savingNewItem, setSavingNewItem] = useState<boolean>(false);
   const [addItemError, setAddItemError] = useState<string | null>(null);
@@ -406,12 +407,23 @@ export const DailySalesEntry: React.FC = () => {
     const trimmedName = newItemName.trim();
     const priceNum = Number(newItemPrice);
 
+    // Resolve Category: either from selected dropdown or custom input
+    const finalCategory = (
+      selectedAddCategory === '__NEW__'
+        ? customCategoryInput.trim()
+        : selectedAddCategory.trim()
+    ).toUpperCase();
+
     if (!trimmedCode) {
       setAddItemError('Please enter an item code.');
       return;
     }
     if (!trimmedName) {
       setAddItemError('Please enter an item name.');
+      return;
+    }
+    if (!finalCategory) {
+      setAddItemError('Please select or specify a category.');
       return;
     }
     if (isNaN(priceNum) || priceNum < 0) {
@@ -432,7 +444,7 @@ export const DailySalesEntry: React.FC = () => {
         .insert({
           item_code: trimmedCode,
           name: trimmedName,
-          category: newItemCategory || 'OTHER',
+          category: finalCategory,
           current_price: priceNum,
           is_active: true
         })
@@ -446,7 +458,7 @@ export const DailySalesEntry: React.FC = () => {
           id: `custom-${trimmedCode}-${Date.now()}`,
           item_code: trimmedCode,
           name: trimmedName,
-          category: newItemCategory || 'OTHER',
+          category: finalCategory,
           current_price: priceNum,
           is_active: true
         };
@@ -459,6 +471,8 @@ export const DailySalesEntry: React.FC = () => {
       setNewItemCode('');
       setNewItemName('');
       setNewItemPrice('');
+      setSelectedAddCategory('');
+      setCustomCategoryInput('');
     } catch (err: any) {
       setAddItemError(err.message || 'Failed to add item');
     } finally {
@@ -676,7 +690,10 @@ export const DailySalesEntry: React.FC = () => {
                 setNewItemCode('');
                 setNewItemName('');
                 setNewItemPrice('');
-                setNewItemCategory('RICE');
+                // Default to first existing category or RICE
+                const existingCats = categories.filter(c => c !== 'ALL');
+                setSelectedAddCategory(existingCats[0] || 'RICE');
+                setCustomCategoryInput('');
                 setShowAddModal(true);
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap"
@@ -909,16 +926,41 @@ export const DailySalesEntry: React.FC = () => {
 
                 <div>
                   <label className="block font-bold text-slate-700 mb-1">Category *</label>
+                  <select
+                    value={selectedAddCategory}
+                    onChange={e => {
+                      setSelectedAddCategory(e.target.value);
+                      if (e.target.value !== '__NEW__') {
+                        setCustomCategoryInput('');
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-slate-800 outline-none focus:ring-2 focus:ring-primary/20 bg-white"
+                  >
+                    {categories.filter(c => c !== 'ALL').map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                    <option value="__NEW__">+ Create New Category...</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* If user selected "+ Create New Category...", show input */}
+              {selectedAddCategory === '__NEW__' && (
+                <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl animate-in fade-in duration-150">
+                  <label className="block font-bold text-amber-900 mb-1">New Category Name *</label>
                   <input
                     type="text"
                     required
-                    placeholder="e.g. RICE, KOTTU"
-                    value={newItemCategory}
-                    onChange={e => setNewItemCategory(e.target.value.toUpperCase())}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-slate-800 uppercase outline-none focus:ring-2 focus:ring-primary/20"
+                    placeholder="e.g. BEVERAGES, DESSERT, SOUP"
+                    value={customCategoryInput}
+                    onChange={e => setCustomCategoryInput(e.target.value.toUpperCase())}
+                    className="w-full px-3 py-2 border border-amber-300 rounded-lg font-bold text-slate-800 uppercase outline-none focus:ring-2 focus:ring-amber-500/30 bg-white"
                   />
+                  <span className="text-[10px] text-amber-700 mt-1 block">
+                    This new category will be created and added to the category list.
+                  </span>
                 </div>
-              </div>
+              )}
 
               <div>
                 <label className="block font-bold text-slate-700 mb-1">Item Name *</label>
