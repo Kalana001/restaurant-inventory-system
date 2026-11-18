@@ -380,8 +380,14 @@ export const StaffManagement: React.FC = () => {
     const halfDays = staffAttendanceHistory.filter(a => a.status === 'HALF_DAY').length;
     const absentDays = staffAttendanceHistory.filter(a => a.status === 'ABSENT').length;
     const leaveDays = staffAttendanceHistory.filter(a => a.status === 'LEAVE').length;
-    return { totalPaid, presentDays, halfDays, absentDays, leaveDays };
-  }, [staffSalaryHistory, staffAttendanceHistory]);
+
+    // Wage calculation based on daily rate
+    const dailyRate = selectedStaff?.default_daily_rate ?? 0;
+    const wagesEarned = (presentDays * dailyRate) + (halfDays * dailyRate * 0.5);
+    const balanceDue = Math.max(0, wagesEarned - totalPaid);
+
+    return { totalPaid, presentDays, halfDays, absentDays, leaveDays, dailyRate, wagesEarned, balanceDue };
+  }, [staffSalaryHistory, staffAttendanceHistory, selectedStaff]);
 
   // Total daily salaries for selected date
   const totalSalariesForDate = useMemo(() => {
@@ -1047,6 +1053,51 @@ export const StaffManagement: React.FC = () => {
                 <p className="font-extrabold text-blue-600 mt-0.5">{staffStats.leaveDays} days</p>
               </div>
             </div>
+
+            {/* Wage Calculation Summary */}
+            {staffStats.dailyRate > 0 && (
+              <div className="px-4 py-3 bg-amber-50/70 border-b border-amber-200/60">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div className="flex items-center gap-2 text-xs text-amber-800 font-semibold">
+                    <DollarSign size={15} className="text-amber-600 shrink-0" />
+                    <span>
+                      Wage Calculation (Last 30 Days) —&nbsp;
+                      <span className="font-bold">LKR {formatLKR(staffStats.dailyRate)} / day</span>
+                      {staffStats.halfDays > 0 && (
+                        <span className="text-amber-600 ml-1">
+                          · {staffStats.presentDays} full + {staffStats.halfDays} half days
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 text-xs font-bold flex-wrap">
+                    <div className="text-right">
+                      <span className="text-slate-500 font-semibold block text-[10px] uppercase tracking-wider">Wages Earned</span>
+                      <span className="text-slate-800 text-sm">LKR {formatLKR(staffStats.wagesEarned)}</span>
+                    </div>
+                    <div className="text-slate-300 text-lg font-light">−</div>
+                    <div className="text-right">
+                      <span className="text-slate-500 font-semibold block text-[10px] uppercase tracking-wider">Total Paid</span>
+                      <span className="text-emerald-700 text-sm">LKR {formatLKR(staffStats.totalPaid)}</span>
+                    </div>
+                    <div className="text-slate-300 text-lg font-light">=</div>
+                    <div className={`text-right px-3 py-1.5 rounded-xl border ${staffStats.balanceDue > 0 ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                      <span className="text-slate-500 font-semibold block text-[10px] uppercase tracking-wider">Balance Due</span>
+                      <span className={`text-sm font-black ${staffStats.balanceDue > 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+                        LKR {formatLKR(staffStats.balanceDue)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {staffStats.dailyRate === 0 && (
+              <div className="px-4 py-2 bg-slate-50 border-b border-slate-200 text-[11px] text-slate-400 italic flex items-center gap-1.5">
+                <AlertCircle size={13} />
+                No daily rate set for this worker — wage calculation unavailable.
+              </div>
+            )}
 
             {/* Content: Salary & Attendance History */}
             <div className="p-5 overflow-y-auto space-y-6 flex-1 text-xs">
