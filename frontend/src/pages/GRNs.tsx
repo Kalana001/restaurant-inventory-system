@@ -86,6 +86,11 @@ export const GRNs: React.FC = () => {
       return;
     }
 
+    const selectedPo = approvedPOs.find(p => p.id === poId);
+    if (selectedPo?.order_date) {
+      setReceivedDate(selectedPo.order_date);
+    }
+
     try {
       const { data: poLines, error } = await supabase
         .from('purchase_order_items')
@@ -340,7 +345,40 @@ export const GRNs: React.FC = () => {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-xs font-bold text-slate-500 uppercase">Received Date <span className="text-rose-500">*</span></label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Received Date <span className="text-rose-500">*</span></label>
+                    {selectedPoId && approvedPOs.find(p => p.id === selectedPoId)?.order_date && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const po = approvedPOs.find(p => p.id === selectedPoId);
+                            if (po?.order_date) setReceivedDate(po.order_date);
+                          }}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors ${
+                            receivedDate === approvedPOs.find(p => p.id === selectedPoId)?.order_date
+                              ? 'bg-primary text-white'
+                              : 'text-slate-500 hover:bg-slate-100'
+                          }`}
+                          title="Default to PO Order Date"
+                        >
+                          PO Date
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setReceivedDate(format(new Date(), 'yyyy-MM-dd'))}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors ${
+                            receivedDate === format(new Date(), 'yyyy-MM-dd')
+                              ? 'bg-primary text-white'
+                              : 'text-slate-500 hover:bg-slate-100'
+                          }`}
+                          title="Set to Today's Date"
+                        >
+                          Today
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <input
                     type="date"
                     required

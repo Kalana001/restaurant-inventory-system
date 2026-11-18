@@ -412,7 +412,7 @@ export const PurchaseOrders: React.FC = () => {
   // ── Open GRN Modal ────────────────────────────────────────────
   const openGrnModal = async (po: any) => {
     setGrnPo(po);
-    setGrnReceivedDate(format(new Date(), 'yyyy-MM-dd'));
+    setGrnReceivedDate(po.order_date || format(new Date(), 'yyyy-MM-dd'));
     setGrnInvoiceNumber('');
     setGrnRemarks('');
     setGrnError(null);
@@ -1049,7 +1049,37 @@ export const PurchaseOrders: React.FC = () => {
             <div className="overflow-y-auto flex-1 space-y-4 pr-1">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 uppercase">Received Date <span className="text-rose-500">*</span></label>
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-500 uppercase">Received Date <span className="text-rose-500">*</span></label>
+                    {grnPo?.order_date && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setGrnReceivedDate(grnPo.order_date)}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors ${
+                            grnReceivedDate === grnPo.order_date
+                              ? 'bg-primary text-white'
+                              : 'text-slate-500 hover:bg-slate-100'
+                          }`}
+                          title="Default to PO Order Date"
+                        >
+                          PO Date
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGrnReceivedDate(format(new Date(), 'yyyy-MM-dd'))}
+                          className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors ${
+                            grnReceivedDate === format(new Date(), 'yyyy-MM-dd')
+                              ? 'bg-primary text-white'
+                              : 'text-slate-500 hover:bg-slate-100'
+                          }`}
+                          title="Set to Today's Date"
+                        >
+                          Today
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   <input
                     type="date"
                     required
