@@ -379,7 +379,8 @@ export const StaffManagement: React.FC = () => {
     const presentDays = staffAttendanceHistory.filter(a => a.status === 'PRESENT').length;
     const halfDays = staffAttendanceHistory.filter(a => a.status === 'HALF_DAY').length;
     const absentDays = staffAttendanceHistory.filter(a => a.status === 'ABSENT').length;
-    return { totalPaid, presentDays, halfDays, absentDays };
+    const leaveDays = staffAttendanceHistory.filter(a => a.status === 'LEAVE').length;
+    return { totalPaid, presentDays, halfDays, absentDays, leaveDays };
   }, [staffSalaryHistory, staffAttendanceHistory]);
 
   // Total daily salaries for selected date
@@ -1024,7 +1025,7 @@ export const StaffManagement: React.FC = () => {
             </div>
 
             {/* Quick Stats Banner */}
-            <div className="p-4 bg-slate-100/50 border-b border-slate-200 grid grid-cols-4 gap-2 text-center text-xs">
+            <div className="p-4 bg-slate-100/50 border-b border-slate-200 grid grid-cols-5 gap-2 text-center text-xs">
               <div className="bg-white p-2 rounded-xl border border-slate-200">
                 <span className="text-[10px] text-slate-400 font-bold uppercase">Total Paid</span>
                 <p className="font-extrabold text-emerald-700 mt-0.5">LKR {formatLKR(staffStats.totalPaid)}</p>
@@ -1040,6 +1041,10 @@ export const StaffManagement: React.FC = () => {
               <div className="bg-white p-2 rounded-xl border border-slate-200">
                 <span className="text-[10px] text-slate-400 font-bold uppercase">Absent</span>
                 <p className="font-extrabold text-rose-600 mt-0.5">{staffStats.absentDays} days</p>
+              </div>
+              <div className="bg-white p-2 rounded-xl border border-slate-200">
+                <span className="text-[10px] text-slate-400 font-bold uppercase">Leave</span>
+                <p className="font-extrabold text-blue-600 mt-0.5">{staffStats.leaveDays} days</p>
               </div>
             </div>
 
