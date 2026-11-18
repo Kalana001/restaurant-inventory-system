@@ -120,7 +120,7 @@ export const PersonalExpenses: React.FC = () => {
   }, [bulkRows]);
 
   const handleAddBulkRow = () => {
-    setBulkRows(prev => [...prev, { id: Math.random().toString(36).substring(2, 9), reason: '', amount: '' }]);
+    setBulkRows(prev => [{ id: Math.random().toString(36).substring(2, 9), reason: '', amount: '' }, ...prev]);
   };
 
   const handleRemoveBulkRow = (id: string) => {
@@ -1286,7 +1286,7 @@ export const PersonalExpenses: React.FC = () => {
                         <div className="col-span-6 sm:col-span-7">
                           <input
                             type="text"
-                            placeholder={`Item #${index + 1} (e.g. Groceries)`}
+                            placeholder="Description (e.g. Groceries)"
                             value={row.reason}
                             onChange={e => handleUpdateBulkRow(row.id, 'reason', e.target.value)}
                             className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
