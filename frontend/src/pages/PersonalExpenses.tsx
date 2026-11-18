@@ -23,8 +23,15 @@ import {
   FileText,
   CreditCard,
   Banknote,
-  RefreshCw
+  RefreshCw,
+  Layers
 } from 'lucide-react';
+
+interface BulkExpenseRow {
+  id: string;
+  reason: string;
+  amount: number | '';
+}
 
 interface PersonalExpenseDesc {
   person_type: 'HOME' | 'OVIN';
@@ -86,16 +93,47 @@ export const PersonalExpenses: React.FC = () => {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
   // Add / Edit Form State
+  const [entryMode, setEntryMode] = useState<'SINGLE' | 'BULK'>('SINGLE');
   const [formType, setFormType] = useState<'HOME' | 'OVIN'>('HOME');
   const [formDate, setFormDate] = useState<string>(format(now, 'yyyy-MM-dd'));
   const [formAmount, setFormAmount] = useState<number | ''>('');
   const [formReason, setFormReason] = useState<string>('');
+  const [bulkRows, setBulkRows] = useState<BulkExpenseRow[]>([
+    { id: '1', reason: '', amount: '' },
+    { id: '2', reason: '', amount: '' },
+    { id: '3', reason: '', amount: '' }
+  ]);
 
   // Settlement Form State
   const [settleDate, setSettleDate] = useState<string>(format(now, 'yyyy-MM-dd'));
   const [settlePaymentType, setSettlePaymentType] = useState<'CASH' | 'CHEQUE'>('CASH');
   const [chequeRealizeDate, setChequeRealizeDate] = useState<string>('');
   const [settleNotes, setSettleNotes] = useState<string>('');
+
+  // Bulk Expense Helpers
+  const bulkTotalAmount = useMemo(() => {
+    return bulkRows.reduce((acc, r) => acc + (Number(r.amount) || 0), 0);
+  }, [bulkRows]);
+
+  const bulkFilledCount = useMemo(() => {
+    return bulkRows.filter(r => Number(r.amount) > 0).length;
+  }, [bulkRows]);
+
+  const handleAddBulkRow = () => {
+    setBulkRows(prev => [...prev, { id: Math.random().toString(36).substring(2, 9), reason: '', amount: '' }]);
+  };
+
+  const handleRemoveBulkRow = (id: string) => {
+    if (bulkRows.length <= 1) {
+      setBulkRows([{ id: Math.random().toString(36).substring(2, 9), reason: '', amount: '' }]);
+      return;
+    }
+    setBulkRows(prev => prev.filter(r => r.id !== id));
+  };
+
+  const handleUpdateBulkRow = (id: string, field: 'reason' | 'amount', value: any) => {
+    setBulkRows(prev => prev.map(r => r.id === id ? { ...r, [field]: value } : r));
+  };
 
   // Handle Preset Changes
   const handlePresetChange = (preset: 'THIS_MONTH' | 'LAST_MONTH' | 'CUSTOM') => {
@@ -307,11 +345,17 @@ export const PersonalExpenses: React.FC = () => {
   };
 
   // Open Create Modal
-  const openCreateModal = () => {
+  const openCreateModal = (mode: 'SINGLE' | 'BULK' = 'SINGLE') => {
+    setEntryMode(mode);
     setFormType('HOME');
     setFormDate(format(new Date(), 'yyyy-MM-dd'));
     setFormAmount('');
     setFormReason('');
+    setBulkRows([
+      { id: '1', reason: '', amount: '' },
+      { id: '2', reason: '', amount: '' },
+      { id: '3', reason: '', amount: '' }
+    ]);
     setModalError(null);
     setAddModalOpen(true);
   };
@@ -345,43 +389,91 @@ export const PersonalExpenses: React.FC = () => {
     e.preventDefault();
     setModalError(null);
 
-    const amountNum = Number(formAmount);
-    if (!amountNum || amountNum <= 0) {
-      setModalError('Please enter a valid amount greater than 0');
-      return;
-    }
+    if (entryMode === 'SINGLE') {
+      const amountNum = Number(formAmount);
+      if (!amountNum || amountNum <= 0) {
+        setModalError('Please enter a valid amount greater than 0');
+        return;
+      }
 
-    setActionLoading(true);
-    try {
-      const descriptionPayload: PersonalExpenseDesc = {
-        person_type: formType,
-        reason: formReason.trim(),
-        is_settled: false,
-        settled_date: null,
-        payment_type: null,
-        cheque_realize_date: null,
-        settle_notes: ''
-      };
+      setActionLoading(true);
+      try {
+        const descriptionPayload: PersonalExpenseDesc = {
+          person_type: formType,
+          reason: formReason.trim(),
+          is_settled: false,
+          settled_date: null,
+          payment_type: null,
+          cheque_realize_date: null,
+          settle_notes: ''
+        };
 
-      const { error } = await supabase.from('expenses').insert({
-        date: formDate,
-        category: 'PERSONAL',
-        expense_type: formType === 'HOME' ? 'PERSONAL_HOME' : 'PERSONAL_OVIN',
-        description: JSON.stringify(descriptionPayload),
-        total_amount: amountNum,
-        status: 'UNPAID',
-        created_by: user?.id || null
-      });
+        const { error } = await supabase.from('expenses').insert({
+          date: formDate,
+          category: 'PERSONAL',
+          expense_type: formType === 'HOME' ? 'PERSONAL_HOME' : 'PERSONAL_OVIN',
+          description: JSON.stringify(descriptionPayload),
+          total_amount: amountNum,
+          status: 'UNPAID',
+          created_by: user?.id || null
+        });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      setAddModalOpen(false);
-      setNotification({ type: 'success', message: `${formType === 'HOME' ? 'Home' : 'Ovin'} expense added successfully.` });
-      fetchData();
-    } catch (err: any) {
-      setModalError(err.message || 'Failed to save expense');
-    } finally {
-      setActionLoading(false);
+        setAddModalOpen(false);
+        setNotification({ type: 'success', message: `${formType === 'HOME' ? 'Home' : 'Ovin'} expense added successfully.` });
+        fetchData();
+      } catch (err: any) {
+        setModalError(err.message || 'Failed to save expense');
+      } finally {
+        setActionLoading(false);
+      }
+    } else {
+      // Bulk Entry Mode
+      const validRows = bulkRows.filter(r => Number(r.amount) > 0);
+      if (validRows.length === 0) {
+        setModalError('Please enter at least one expense with an amount greater than 0');
+        return;
+      }
+
+      setActionLoading(true);
+      try {
+        const insertPayloads = validRows.map(row => {
+          const desc: PersonalExpenseDesc = {
+            person_type: formType,
+            reason: row.reason.trim(),
+            is_settled: false,
+            settled_date: null,
+            payment_type: null,
+            cheque_realize_date: null,
+            settle_notes: ''
+          };
+
+          return {
+            date: formDate,
+            category: 'PERSONAL',
+            expense_type: formType === 'HOME' ? 'PERSONAL_HOME' : 'PERSONAL_OVIN',
+            description: JSON.stringify(desc),
+            total_amount: Number(row.amount),
+            status: 'UNPAID',
+            created_by: user?.id || null
+          };
+        });
+
+        const { error } = await supabase.from('expenses').insert(insertPayloads);
+        if (error) throw error;
+
+        setAddModalOpen(false);
+        setNotification({
+          type: 'success',
+          message: `Successfully recorded ${insertPayloads.length} ${formType === 'HOME' ? 'Home' : 'Ovin'} expense(s).`
+        });
+        fetchData();
+      } catch (err: any) {
+        setModalError(err.message || 'Failed to save bulk expenses');
+      } finally {
+        setActionLoading(false);
+      }
     }
   };
 
@@ -567,7 +659,15 @@ export const PersonalExpenses: React.FC = () => {
             <RefreshCw size={18} className={loading ? 'animate-spin text-purple-600' : ''} />
           </button>
           <button
-            onClick={openCreateModal}
+            onClick={() => openCreateModal('BULK')}
+            className="inline-flex items-center gap-2 px-4 py-2.5 bg-purple-50 hover:bg-purple-100 active:scale-95 text-purple-700 border border-purple-200 font-semibold text-sm rounded-xl shadow-xs transition-all"
+            title="Record multiple personal expenses with the same date & type"
+          >
+            <Layers size={18} />
+            <span>Bulk Add</span>
+          </button>
+          <button
+            onClick={() => openCreateModal('SINGLE')}
             className="inline-flex items-center gap-2 px-5 py-2.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-semibold text-sm rounded-xl shadow-sm transition-all shadow-purple-600/20"
           >
             <Plus size={18} />
@@ -1012,17 +1112,47 @@ export const PersonalExpenses: React.FC = () => {
       {/* ----------------- CREATE / RECORD MODAL ----------------- */}
       {addModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95">
+          <div className={`bg-white rounded-2xl ${entryMode === 'BULK' ? 'max-w-2xl' : 'max-w-md'} w-full border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95 transition-all`}>
+            {/* Modal Header */}
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-purple-50/50">
               <div className="flex items-center gap-2">
                 <Plus size={18} className="text-purple-600" />
-                <h3 className="font-bold text-base text-slate-800">Record Personal Expense</h3>
+                <h3 className="font-bold text-base text-slate-800">
+                  {entryMode === 'BULK' ? 'Bulk Record Personal Expenses' : 'Record Personal Expense'}
+                </h3>
               </div>
               <button
                 onClick={() => setAddModalOpen(false)}
                 className="p-1 text-slate-400 hover:text-slate-600 rounded-lg"
               >
                 <X size={18} />
+              </button>
+            </div>
+
+            {/* Entry Mode Tabs */}
+            <div className="flex border-b border-slate-100 bg-slate-50/70 p-1.5 gap-1.5">
+              <button
+                type="button"
+                onClick={() => setEntryMode('SINGLE')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  entryMode === 'SINGLE'
+                    ? 'bg-white text-purple-700 shadow-sm border border-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span>Single Entry</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setEntryMode('BULK')}
+                className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                  entryMode === 'BULK'
+                    ? 'bg-white text-purple-700 shadow-sm border border-slate-200/80'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Layers size={14} />
+                <span>Bulk Entry (Same Date & Type)</span>
               </button>
             </div>
 
@@ -1034,88 +1164,177 @@ export const PersonalExpenses: React.FC = () => {
                 </div>
               )}
 
-              {/* Type Toggle: Home vs Ovin */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
-                  Expense Type
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setFormType('HOME')}
-                    className={`py-2.5 px-4 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                      formType === 'HOME'
-                        ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    <Home size={16} />
-                    <span>Home</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormType('OVIN')}
-                    className={`py-2.5 px-4 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
-                      formType === 'OVIN'
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
-                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                    }`}
-                  >
-                    <User size={16} />
-                    <span>Ovin</span>
-                  </button>
+              {/* Shared Settings: Type Toggle and Date */}
+              <div className={`grid ${entryMode === 'BULK' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-3`}>
+                {/* Type Toggle: Home vs Ovin */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                    Expense Type
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setFormType('HOME')}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                        formType === 'HOME'
+                          ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Home size={15} />
+                      <span>Home</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormType('OVIN')}
+                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                        formType === 'OVIN'
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <User size={15} />
+                      <span>Ovin</span>
+                    </button>
+                  </div>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  {formType === 'HOME'
-                    ? 'Home drawing (deducted directly from True Profit).'
-                    : 'Ovin drawing (can be selected & settled later when received).'}
-                </p>
+
+                {/* Date */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
+                    Date
+                  </label>
+                  <input
+                    type="date"
+                    value={formDate}
+                    onChange={e => setFormDate(e.target.value)}
+                    required
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                  />
+                </div>
               </div>
 
-              {/* Date */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Date
-                </label>
-                <input
-                  type="date"
-                  value={formDate}
-                  onChange={e => setFormDate(e.target.value)}
-                  required
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
-                />
-              </div>
+              <p className="text-[11px] text-slate-400">
+                {formType === 'HOME'
+                  ? 'Home drawing (deducted directly from True Profit).'
+                  : 'Ovin drawing (can be selected & settled later when received).'}
+              </p>
 
-              {/* Amount */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Amount (LKR)
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  placeholder="0.00"
-                  value={formAmount}
-                  onChange={e => setFormAmount(e.target.value === '' ? '' : Number(e.target.value))}
-                  required
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-extrabold text-slate-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
-                />
-              </div>
+              {/* SINGLE MODE FIELDS */}
+              {entryMode === 'SINGLE' && (
+                <>
+                  {/* Amount */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Amount (LKR)
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      placeholder="0.00"
+                      value={formAmount}
+                      onChange={e => setFormAmount(e.target.value === '' ? '' : Number(e.target.value))}
+                      required
+                      className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-extrabold text-slate-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                    />
+                  </div>
 
-              {/* Reason / Notes */}
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Reason / Description (Optional)
-                </label>
-                <textarea
-                  rows={2}
-                  placeholder="e.g. Grocery purchase, school fees, cash advance..."
-                  value={formReason}
-                  onChange={e => setFormReason(e.target.value)}
-                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
-                />
-              </div>
+                  {/* Reason / Notes */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Reason / Description (Optional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="e.g. Grocery purchase, school fees, cash advance..."
+                      value={formReason}
+                      onChange={e => setFormReason(e.target.value)}
+                      className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                    />
+                  </div>
+                </>
+              )}
+
+              {/* BULK MODE FIELDS */}
+              {entryMode === 'BULK' && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                      Line Items ({bulkRows.length})
+                    </label>
+                    <button
+                      type="button"
+                      onClick={handleAddBulkRow}
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-purple-700 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg transition-colors border border-purple-200"
+                    >
+                      <Plus size={14} />
+                      <span>Add Row</span>
+                    </button>
+                  </div>
+
+                  {/* Bulk Table List */}
+                  <div className="max-h-64 overflow-y-auto space-y-2 pr-1 border border-slate-100 p-2 rounded-xl bg-slate-50/50">
+                    <div className="grid grid-cols-12 gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">
+                      <div className="col-span-6 sm:col-span-7">Description / Reason</div>
+                      <div className="col-span-5 sm:col-span-4 text-right">Amount (LKR)</div>
+                      <div className="col-span-1 text-center"></div>
+                    </div>
+
+                    {bulkRows.map((row, index) => (
+                      <div key={row.id} className="grid grid-cols-12 gap-2 items-center bg-white p-2 rounded-lg border border-slate-200 shadow-xs">
+                        <div className="col-span-6 sm:col-span-7">
+                          <input
+                            type="text"
+                            placeholder={`Item #${index + 1} (e.g. Groceries)`}
+                            value={row.reason}
+                            onChange={e => handleUpdateBulkRow(row.id, 'reason', e.target.value)}
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-medium text-slate-800 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                          />
+                        </div>
+                        <div className="col-span-5 sm:col-span-4">
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0.00"
+                            value={row.amount}
+                            onChange={e => handleUpdateBulkRow(row.id, 'amount', e.target.value === '' ? '' : Number(e.target.value))}
+                            className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg text-xs font-bold text-right text-slate-900 focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500 outline-none"
+                          />
+                        </div>
+                        <div className="col-span-1 flex justify-center">
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveBulkRow(row.id)}
+                            className="p-1.5 text-slate-300 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                            title="Remove row"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Bulk Summary Card */}
+                  <div className="flex items-center justify-between p-3 bg-purple-50/70 border border-purple-200/80 rounded-xl">
+                    <div>
+                      <span className="text-xs font-bold text-purple-900">
+                        Total {bulkFilledCount} {bulkFilledCount === 1 ? 'item' : 'items'}
+                      </span>
+                      {bulkRows.length > bulkFilledCount && (
+                        <span className="text-[11px] text-purple-600 ml-1.5 hidden sm:inline">
+                          ({bulkRows.length - bulkFilledCount} empty row{bulkRows.length - bulkFilledCount > 1 ? 's' : ''} ignored)
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-base font-black text-purple-700">
+                      LKR {bulkTotalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Buttons */}
               <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
@@ -1128,10 +1347,19 @@ export const PersonalExpenses: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={actionLoading}
-                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-sm transition-all shadow-purple-600/20 disabled:opacity-50"
+                  disabled={actionLoading || (entryMode === 'BULK' && bulkFilledCount === 0)}
+                  className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 active:scale-95 text-white font-semibold text-xs rounded-xl shadow-sm transition-all shadow-purple-600/20 disabled:opacity-50 flex items-center gap-1.5"
                 >
-                  {actionLoading ? 'Saving...' : 'Save Expense'}
+                  {actionLoading ? (
+                    'Saving...'
+                  ) : entryMode === 'BULK' ? (
+                    <>
+                      <Check size={15} />
+                      <span>Save All ({bulkFilledCount}) Expenses</span>
+                    </>
+                  ) : (
+                    'Save Expense'
+                  )}
                 </button>
               </div>
             </form>
