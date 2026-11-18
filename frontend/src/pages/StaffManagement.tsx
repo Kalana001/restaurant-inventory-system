@@ -383,7 +383,7 @@ export const StaffManagement: React.FC = () => {
 
     // Wage calculation based on daily rate
     const dailyRate = selectedStaff?.default_daily_rate ?? 0;
-    const wagesEarned = (presentDays * dailyRate) + (halfDays * dailyRate * 0.5);
+    const wagesEarned = (presentDays * dailyRate) + (halfDays * dailyRate);
     const balanceDue = Math.max(0, wagesEarned - totalPaid);
 
     return { totalPaid, presentDays, halfDays, absentDays, leaveDays, dailyRate, wagesEarned, balanceDue };
@@ -1065,7 +1065,7 @@ export const StaffManagement: React.FC = () => {
                       <span className="font-bold">LKR {formatLKR(staffStats.dailyRate)} / day</span>
                       {staffStats.halfDays > 0 && (
                         <span className="text-amber-600 ml-1">
-                          · {staffStats.presentDays} full + {staffStats.halfDays} half days
+                          · {staffStats.presentDays} full + {staffStats.halfDays} half days (all full rate)
                         </span>
                       )}
                     </span>
