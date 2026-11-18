@@ -10,19 +10,19 @@ if (!supabaseUrl || !supabaseAnonKey) {
 const customSessionStorage = {
   getItem: (key: string) => {
     try {
-      return window.sessionStorage.getItem(key);
+      return window.localStorage.getItem(key);
     } catch (e) {
       return null;
     }
   },
   setItem: (key: string, value: string) => {
     try {
-      window.sessionStorage.setItem(key, value);
+      window.localStorage.setItem(key, value);
     } catch (e) {}
   },
   removeItem: (key: string) => {
     try {
-      window.sessionStorage.removeItem(key);
+      window.localStorage.removeItem(key);
     } catch (e) {}
   }
 };
