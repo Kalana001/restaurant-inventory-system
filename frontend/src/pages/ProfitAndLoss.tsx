@@ -50,6 +50,7 @@ export interface DailyPnLRecord {
   expenseDailyPurchases: number;
   expenseTransport: number;
   expenseGeneral: number;
+  expenseFoodPersonal?: number;
   expensePersonal?: number;
   expenseBankCharges: number;
   expenseSalary: number;
@@ -97,6 +98,7 @@ export const ProfitAndLoss: React.FC = () => {
   const [expenseDailyPurchases, setExpenseDailyPurchases] = useState<number | ''>('');
   const [expenseTransport, setExpenseTransport] = useState<number | ''>('');
   const [expenseGeneral, setExpenseGeneral] = useState<number | ''>('');
+  const [expenseFoodPersonal, setExpenseFoodPersonal] = useState<number | ''>('');
   const [expenseBankCharges, setExpenseBankCharges] = useState<number | ''>('');
   const [expenseSalary, setExpenseSalary] = useState<number | ''>('');
   const [expenseEpfEtf, setExpenseEpfEtf] = useState<number | ''>('');
@@ -123,6 +125,7 @@ export const ProfitAndLoss: React.FC = () => {
       (Number(expenseDailyPurchases) || 0) +
       (Number(expenseTransport) || 0) +
       (Number(expenseGeneral) || 0) +
+      (Number(expenseFoodPersonal) || 0) +
       (Number(expenseBankCharges) || 0) +
       (Number(expenseSalary) || 0) +
       (Number(expenseEpfEtf) || 0)
@@ -132,6 +135,7 @@ export const ProfitAndLoss: React.FC = () => {
     expenseDailyPurchases,
     expenseTransport,
     expenseGeneral,
+    expenseFoodPersonal,
     expenseBankCharges,
     expenseSalary,
     expenseEpfEtf
@@ -290,6 +294,7 @@ export const ProfitAndLoss: React.FC = () => {
         setExpenseDailyPurchases(parsedData.expenseDailyPurchases ?? (sysPurchases > 0 ? sysPurchases : ''));
         setExpenseTransport(parsedData.expenseTransport ?? (sysTransport > 0 ? sysTransport : ''));
         setExpenseGeneral(parsedData.expenseGeneral ?? (sysGeneralExp > 0 ? sysGeneralExp : ''));
+        setExpenseFoodPersonal(parsedData.expenseFoodPersonal ?? parsedData.expensePersonal ?? '');
         setExpenseBankCharges(parsedData.expenseBankCharges ?? '');
         setExpenseSalary(parsedData.expenseSalary ?? (sysStaffSalary > 0 ? sysStaffSalary : ''));
         setExpenseEpfEtf(parsedData.expenseEpfEtf ?? '');
@@ -307,6 +312,7 @@ export const ProfitAndLoss: React.FC = () => {
         setExpenseDailyPurchases(sysPurchases > 0 ? sysPurchases : '');
         setExpenseTransport(sysTransport > 0 ? sysTransport : '');
         setExpenseGeneral(sysGeneralExp > 0 ? sysGeneralExp : '');
+        setExpenseFoodPersonal('');
         setExpenseBankCharges('');
         setExpenseSalary(sysStaffSalary > 0 ? sysStaffSalary : '');
         setExpenseEpfEtf('');
@@ -377,7 +383,8 @@ export const ProfitAndLoss: React.FC = () => {
             expenseDailyPurchases: Number(p.expenseDailyPurchases) || 0,
             expenseTransport: Number(p.expenseTransport) || 0,
             expenseGeneral: Number(p.expenseGeneral) || 0,
-            expensePersonal: Number(p.expensePersonal) || 0,
+            expenseFoodPersonal: Number(p.expenseFoodPersonal ?? p.expensePersonal) || 0,
+            expensePersonal: Number(p.expenseFoodPersonal ?? p.expensePersonal) || 0,
             expenseBankCharges: Number(p.expenseBankCharges) || 0,
             expenseSalary: Number(p.expenseSalary) || 0,
             expenseEpfEtf: Number(p.expenseEpfEtf) || 0,
@@ -423,7 +430,8 @@ export const ProfitAndLoss: React.FC = () => {
         expenseDailyPurchases: Number(expenseDailyPurchases) || 0,
         expenseTransport: Number(expenseTransport) || 0,
         expenseGeneral: Number(expenseGeneral) || 0,
-        expensePersonal: 0,
+        expenseFoodPersonal: Number(expenseFoodPersonal) || 0,
+        expensePersonal: Number(expenseFoodPersonal) || 0,
         expenseBankCharges: Number(expenseBankCharges) || 0,
         expenseSalary: Number(expenseSalary) || 0,
         expenseEpfEtf: Number(expenseEpfEtf) || 0,
@@ -526,7 +534,8 @@ export const ProfitAndLoss: React.FC = () => {
     const purchases = records.reduce((s, r) => s + r.expenseDailyPurchases, 0);
     const transport = records.reduce((s, r) => s + r.expenseTransport, 0);
     const general = records.reduce((s, r) => s + r.expenseGeneral, 0);
-    const personal = records.reduce((s, r) => s + (r.expensePersonal || 0), 0);
+    const foodPersonal = records.reduce((s, r) => s + (r.expenseFoodPersonal || r.expensePersonal || 0), 0);
+    const personal = foodPersonal;
     const salary = records.reduce((s, r) => s + r.expenseSalary, 0);
     const epfEtf = records.reduce((s, r) => s + r.expenseEpfEtf, 0);
     const bankCharges = records.reduce((s, r) => s + r.expenseBankCharges, 0);
@@ -1032,7 +1041,28 @@ export const ProfitAndLoss: React.FC = () => {
                   <span className="text-[11px] text-slate-400">Kitchen supplies, restaurant repairs, consumables (Excludes JAT)</span>
                 </div>
 
-                {/* 5. Labor & Overheads Grid: Bank charges, Salary, EPF/ETF */}
+                {/* 5. Food Expense Personal (Optional) */}
+                <div className="border-b border-slate-100 pb-3">
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-xs font-bold text-slate-700 flex items-center gap-2">
+                      <span>🍲 Food Expense (Personal)</span>
+                      <span className="text-[10px] font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded-full border border-purple-200">
+                        Optional
+                      </span>
+                    </label>
+                  </div>
+                  <input
+                    type="number"
+                    step="0.01"
+                    placeholder="0.00"
+                    value={expenseFoodPersonal}
+                    onChange={e => setExpenseFoodPersonal(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-rose-500/20 outline-none"
+                  />
+                  <span className="text-[11px] text-slate-400">Personal / owner staff food consumption or food drawing for the day</span>
+                </div>
+
+                {/* 6. Labor & Overheads Grid: Bank charges, Salary, EPF/ETF */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div>
                     <label className="block text-[11px] font-bold text-slate-700 mb-1">
