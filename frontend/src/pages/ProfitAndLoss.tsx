@@ -40,6 +40,7 @@ export interface DailyPnLRecord {
   date: string;
   // Income
   incomeCash: number;
+  incomeCardGross: number;
   incomeCard: number;
   incomePickme: number;
   incomeSpecial: number;
@@ -89,6 +90,7 @@ export const ProfitAndLoss: React.FC = () => {
   // Current Form State for the selected day
   const [recordId, setRecordId] = useState<string | null>(null);
   const [incomeCash, setIncomeCash] = useState<number | ''>('');
+  const [incomeCardGross, setIncomeCardGross] = useState<number | ''>('');
   const [incomeCard, setIncomeCard] = useState<number | ''>('');
   const [incomePickme, setIncomePickme] = useState<number | ''>('');
   const [incomeSpecial, setIncomeSpecial] = useState<number | ''>('');
@@ -109,15 +111,22 @@ export const ProfitAndLoss: React.FC = () => {
   const [monthlySalesMap, setMonthlySalesMap] = useState<Record<string, { restAmount: number; pickmeAmount: number }>>({});
   const [monthlyLoading, setMonthlyLoading] = useState<boolean>(false);
 
+  // Net card income = gross card amount minus bank fee (auto-deducted at source)
+  const netCardIncome = useMemo(() => {
+    const gross = Number(incomeCardGross) || 0;
+    const fee = Number(expenseBankCharges) || 0;
+    return Math.max(0, gross - fee);
+  }, [incomeCardGross, expenseBankCharges]);
+
   // Calculated Real-time Totals
   const totalIncome = useMemo(() => {
     return (
       (Number(incomeCash) || 0) +
-      (Number(incomeCard) || 0) +
+      netCardIncome +
       (Number(incomePickme) || 0) +
       (Number(incomeSpecial) || 0)
     );
-  }, [incomeCash, incomeCard, incomePickme, incomeSpecial]);
+  }, [incomeCash, netCardIncome, incomePickme, incomeSpecial]);
 
   const totalExpenses = useMemo(() => {
     return (
@@ -126,7 +135,9 @@ export const ProfitAndLoss: React.FC = () => {
       (Number(expenseTransport) || 0) +
       (Number(expenseGeneral) || 0) +
       (Number(expenseFoodPersonal) || 0) +
-      (Number(expenseBankCharges) || 0) +
+      // Note: expenseBankCharges is NOT included here — it is already deducted
+      // at source from netCardIncome (totalIncome = gross card - bank fee).
+      // Adding it here again would double-count the deduction.
       (Number(expenseSalary) || 0) +
       (Number(expenseEpfEtf) || 0)
     );
@@ -136,7 +147,6 @@ export const ProfitAndLoss: React.FC = () => {
     expenseTransport,
     expenseGeneral,
     expenseFoodPersonal,
-    expenseBankCharges,
     expenseSalary,
     expenseEpfEtf
   ]);
@@ -158,13 +168,16 @@ export const ProfitAndLoss: React.FC = () => {
     });
   };
 
-  // Auto-calculate suggested bank charge when card sales change (default ~2.5% if blank)
-  const handleCardSalesChange = (val: number | '') => {
-    setIncomeCard(val);
-    if (val !== '' && Number(val) > 0 && expenseBankCharges === '') {
-      const suggested = Math.round(Number(val) * 0.025);
-      setExpenseBankCharges(suggested);
+  // Handle gross card amount input: auto-calculate 2.5% bank fee and derive net card income
+  const handleCardSalesChange = (grossVal: number | '') => {
+    setIncomeCardGross(grossVal);
+    if (grossVal !== '' && Number(grossVal) > 0) {
+      const fee = Math.round(Number(grossVal) * 0.025 * 100) / 100;
+      setExpenseBankCharges(fee);
+    } else if (grossVal === '') {
+      setExpenseBankCharges('');
     }
+    // incomeCard (net) is derived via netCardIncome memo — no need to set it here
   };
 
   // 1. Fetch system records & auto-aggregations for selectedDate
@@ -285,7 +298,8 @@ export const ProfitAndLoss: React.FC = () => {
         }
 
         setIncomeCash(parsedData.incomeCash ?? '');
-        setIncomeCard(parsedData.incomeCard ?? '');
+        // Restore gross card amount; fallback to saved net incomeCard for old records
+        setIncomeCardGross(parsedData.incomeCardGross ?? parsedData.incomeCard ?? '');
         setIncomePickme(parsedData.incomePickme ?? '');
         setIncomeSpecial(parsedData.incomeSpecial ?? '');
         setIncomeSpecialNote(parsedData.incomeSpecialNote || '');
@@ -303,7 +317,7 @@ export const ProfitAndLoss: React.FC = () => {
         // No saved record yet: Default auto-fetched system values into the inputs
         setRecordId(null);
         setIncomeCash('');
-        setIncomeCard('');
+        setIncomeCardGross('');
         setIncomePickme('');
         setIncomeSpecial('');
         setIncomeSpecialNote('');
@@ -374,6 +388,7 @@ export const ProfitAndLoss: React.FC = () => {
             id: row.id,
             date: row.date,
             incomeCash: Number(p.incomeCash) || 0,
+            incomeCardGross: Number(p.incomeCardGross ?? p.incomeCard) || 0,
             incomeCard: Number(p.incomeCard) || 0,
             incomePickme: Number(p.incomePickme) || 0,
             incomeSpecial: Number(p.incomeSpecial) || 0,
@@ -420,7 +435,8 @@ export const ProfitAndLoss: React.FC = () => {
     try {
       const summaryPayload = {
         incomeCash: Number(incomeCash) || 0,
-        incomeCard: Number(incomeCard) || 0,
+        incomeCardGross: Number(incomeCardGross) || 0,
+        incomeCard: netCardIncome,   // stored as Net (gross - bank fee)
         incomePickme: Number(incomePickme) || 0,
         incomeSpecial: Number(incomeSpecial) || 0,
         incomeSpecialNote,
@@ -829,17 +845,35 @@ export const ProfitAndLoss: React.FC = () => {
                 {/* Card Sales */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    💳 Card Payments / POS (LKR)
+                    💳 Card Payments / POS — Full Gross Amount (LKR)
                   </label>
                   <input
                     type="number"
                     step="0.01"
                     placeholder="0.00"
-                    value={incomeCard}
+                    value={incomeCardGross}
                     onChange={e => handleCardSalesChange(e.target.value === '' ? '' : Number(e.target.value))}
                     className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
                   />
-                  <span className="text-[11px] text-slate-400">Visa / Mastercard / Credit card settlements</span>
+                  <span className="text-[11px] text-slate-400">Enter full POS terminal amount — bank fee is auto-deducted below</span>
+
+                  {/* Live Card Income Breakdown */}
+                  {Number(incomeCardGross) > 0 && (
+                    <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3.5 py-2.5 space-y-1">
+                      <div className="flex justify-between text-[11px] text-slate-600">
+                        <span>Gross Card Amount</span>
+                        <span className="font-semibold">LKR {formatCurrency(Number(incomeCardGross))}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px] text-rose-600">
+                        <span>🏦 Bank Service Fee (2.5%) <span className="text-slate-400 font-normal">— auto-synced to Expenses</span></span>
+                        <span className="font-semibold">− LKR {formatCurrency(Number(expenseBankCharges) || 0)}</span>
+                      </div>
+                      <div className="flex justify-between text-[12px] text-emerald-700 border-t border-blue-200 pt-1 mt-0.5">
+                        <span className="font-bold">✅ Final Card Income (Net)</span>
+                        <span className="font-extrabold">LKR {formatCurrency(netCardIncome)}</span>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 {/* PickMe Food */}
@@ -1065,18 +1099,23 @@ export const ProfitAndLoss: React.FC = () => {
                 {/* 6. Labor & Overheads Grid: Bank charges, Salary, EPF/ETF */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   <div>
-                    <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                      🏦 Bank Card Fee
-                    </label>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <label className="text-[11px] font-bold text-slate-700">🏦 Bank Card Fee</label>
+                      {Number(incomeCardGross) > 0 && (
+                        <span className="text-[9px] font-semibold text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded-full border border-blue-200">
+                          ⚡ Auto 2.5%
+                        </span>
+                      )}
+                    </div>
                     <input
                       type="number"
                       step="0.01"
                       placeholder="0.00"
                       value={expenseBankCharges}
                       onChange={e => setExpenseBankCharges(e.target.value === '' ? '' : Number(e.target.value))}
-                      className="w-full px-3 py-1.5 border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-rose-500/20 outline-none"
+                      className="w-full px-3 py-1.5 border border-blue-200 rounded-lg text-xs font-semibold text-slate-800 focus:ring-2 focus:ring-blue-500/20 outline-none bg-blue-50/40"
                     />
-                    <span className="text-[10px] text-slate-400">POS merchant rate</span>
+                    <span className="text-[10px] text-slate-400">Edit if actual bank slip differs — Final Card Income updates live</span>
                   </div>
 
                   <div>
