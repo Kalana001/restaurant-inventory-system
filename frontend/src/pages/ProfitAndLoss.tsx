@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -582,6 +582,7 @@ export const ProfitAndLoss: React.FC = () => {
       purchases,
       transport,
       general,
+      foodPersonal,
       personal,
       salary,
       epfEtf,
@@ -1321,6 +1322,7 @@ export const ProfitAndLoss: React.FC = () => {
                     <th className="px-4 py-3 text-right">Card</th>
                     <th className="px-4 py-3 text-right">PickMe</th>
                     <th className="px-4 py-3 text-right">Total Revenue</th>
+                    <th className="px-4 py-3 text-right text-purple-800">🍲 Food Expense (Personal)</th>
                     <th className="px-4 py-3 text-right">Kitchen & Expenses</th>
                     <th className="px-4 py-3 text-right">Operating Profit</th>
                     <th className="px-4 py-3 text-right">Total Difference</th>
@@ -1330,14 +1332,14 @@ export const ProfitAndLoss: React.FC = () => {
                 <tbody className="divide-y divide-slate-100">
                   {monthlyLoading ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-12 text-slate-400">
+                      <td colSpan={10} className="text-center py-12 text-slate-400">
                         <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-2" />
                         Loading monthly numbers...
                       </td>
                     </tr>
                   ) : monthDaysList.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-8 text-slate-400">
+                      <td colSpan={10} className="text-center py-8 text-slate-400">
                         No calendar days found.
                       </td>
                     </tr>
@@ -1381,6 +1383,12 @@ export const ProfitAndLoss: React.FC = () => {
 
                           <td className="px-4 py-3 text-right font-extrabold text-emerald-700">
                             {rec ? `LKR ${formatCurrency(rec.totalIncome)}` : '—'}
+                          </td>
+
+                          <td className="px-4 py-3 text-right text-purple-700 font-semibold">
+                            {rec && (rec.expenseFoodPersonal || rec.expensePersonal)
+                              ? `LKR ${formatCurrency(rec.expenseFoodPersonal || rec.expensePersonal || 0)}`
+                              : <span className="text-slate-300">—</span>}
                           </td>
 
                           <td className="px-4 py-3 text-right font-extrabold text-rose-600">
@@ -1496,6 +1504,16 @@ export const ProfitAndLoss: React.FC = () => {
                           <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wide">Revenue</span>
                           <span className="text-xs font-extrabold text-emerald-700">
                             LKR {formatCurrency(monthlyAggregates.totalRev)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Food Expense (Personal) Total */}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-[9px] font-bold text-purple-500 uppercase tracking-wide">Food (Personal)</span>
+                          <span className="text-xs font-extrabold text-purple-700">
+                            LKR {formatCurrency(monthlyAggregates.foodPersonal || monthlyAggregates.personal || 0)}
                           </span>
                         </div>
                       </td>
