@@ -24,7 +24,8 @@ import {
   CreditCard,
   Banknote,
   RefreshCw,
-  Layers
+  Layers,
+  Building2
 } from 'lucide-react';
 
 interface BulkExpenseRow {
@@ -34,7 +35,7 @@ interface BulkExpenseRow {
 }
 
 interface PersonalExpenseDesc {
-  person_type: 'HOME' | 'OVIN';
+  person_type: 'HOME' | 'OVIN' | 'HNB_OVIN' | 'BOC_OVIN';
   reason?: string;
   is_settled: boolean;
   settled_date?: string | null;
@@ -42,6 +43,26 @@ interface PersonalExpenseDesc {
   cheque_realize_date?: string | null;
   settle_notes?: string;
 }
+
+type PersonalExpensePersonType = 'HOME' | 'OVIN' | 'HNB_OVIN' | 'BOC_OVIN';
+
+const getExpenseType = (type: PersonalExpensePersonType) => {
+  switch (type) {
+    case 'HOME': return 'PERSONAL_HOME';
+    case 'HNB_OVIN': return 'PERSONAL_HNB_OVIN';
+    case 'BOC_OVIN': return 'PERSONAL_BOC_OVIN';
+    case 'OVIN': return 'PERSONAL_OVIN';
+  }
+};
+
+const getTypeLabel = (type: PersonalExpensePersonType) => {
+  switch (type) {
+    case 'HOME': return 'Home';
+    case 'HNB_OVIN': return 'HNB Ovin';
+    case 'BOC_OVIN': return 'BOC Ovin';
+    case 'OVIN': return 'Ovin';
+  }
+};
 
 interface PersonalExpenseRecord {
   id: string;
@@ -75,10 +96,10 @@ export const PersonalExpenses: React.FC = () => {
   const [pnlDaysCount, setPnlDaysCount] = useState<number>(0);
 
   // Table Filter & Search
-  const [activeTab, setActiveTab] = useState<'ALL' | 'HOME' | 'OVIN_PENDING' | 'OVIN_SETTLED'>('ALL');
+  const [activeTab, setActiveTab] = useState<'ALL' | 'HOME' | 'ALL_PENDING' | 'OVIN_PENDING' | 'HNB_PENDING' | 'BOC_PENDING' | 'ALL_SETTLED'>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
-  // Multi-select for Ovin Settlement
+  // Multi-select for Drawing Settlement
   const [selectedOvinIds, setSelectedOvinIds] = useState<string[]>([]);
 
   // Modals State
@@ -94,7 +115,7 @@ export const PersonalExpenses: React.FC = () => {
 
   // Add / Edit Form State
   const [entryMode, setEntryMode] = useState<'SINGLE' | 'BULK'>('SINGLE');
-  const [formType, setFormType] = useState<'HOME' | 'OVIN'>('HOME');
+  const [formType, setFormType] = useState<PersonalExpensePersonType>('HOME');
   const [formDate, setFormDate] = useState<string>(format(now, 'yyyy-MM-dd'));
   const [formAmount, setFormAmount] = useState<number | ''>('');
   const [formReason, setFormReason] = useState<string>('');
@@ -153,9 +174,19 @@ export const PersonalExpenses: React.FC = () => {
   const parseDescription = (descStr: string, expType: string): PersonalExpenseDesc => {
     try {
       const parsed = JSON.parse(descStr || '{}');
-      const isOvin = expType === 'PERSONAL_OVIN' || parsed.person_type === 'OVIN';
+      let personType: PersonalExpensePersonType = 'HOME';
+      if (expType === 'PERSONAL_HNB_OVIN' || parsed.person_type === 'HNB_OVIN') {
+        personType = 'HNB_OVIN';
+      } else if (expType === 'PERSONAL_BOC_OVIN' || parsed.person_type === 'BOC_OVIN') {
+        personType = 'BOC_OVIN';
+      } else if (expType === 'PERSONAL_OVIN' || parsed.person_type === 'OVIN') {
+        personType = 'OVIN';
+      } else if (parsed.person_type === 'HOME' || expType === 'PERSONAL_HOME') {
+        personType = 'HOME';
+      }
+
       return {
-        person_type: isOvin ? 'OVIN' : 'HOME',
+        person_type: personType,
         reason: parsed.reason || (typeof parsed === 'string' ? parsed : ''),
         is_settled: Boolean(parsed.is_settled),
         settled_date: parsed.settled_date || null,
@@ -164,9 +195,13 @@ export const PersonalExpenses: React.FC = () => {
         settle_notes: parsed.settle_notes || ''
       };
     } catch {
-      const isOvin = expType === 'PERSONAL_OVIN';
+      let personType: PersonalExpensePersonType = 'HOME';
+      if (expType === 'PERSONAL_HNB_OVIN') personType = 'HNB_OVIN';
+      else if (expType === 'PERSONAL_BOC_OVIN') personType = 'BOC_OVIN';
+      else if (expType === 'PERSONAL_OVIN') personType = 'OVIN';
+
       return {
-        person_type: isOvin ? 'OVIN' : 'HOME',
+        person_type: personType,
         reason: descStr || '',
         is_settled: false,
         settled_date: null,
@@ -256,48 +291,96 @@ export const PersonalExpenses: React.FC = () => {
   }, [notification]);
 
   // Derived KPI Calculations for the selected range
-  const { totalHome, totalOvinPending, countOvinPending, totalOvinSettled, countOvinSettled, totalTrueProfit } = useMemo(() => {
+  const { 
+    totalHome, 
+    totalPending, 
+    countPending, 
+    totalSettled, 
+    countSettled, 
+    totalTrueProfit,
+    ovinPendingSum, ovinPendingCnt,
+    hnbPendingSum, hnbPendingCnt,
+    bocPendingSum, bocPendingCnt,
+    ovinSettledSum,
+    hnbSettledSum,
+    bocSettledSum
+  } = useMemo(() => {
     let homeSum = 0;
-    let ovinPendingSum = 0;
-    let ovinPendingCnt = 0;
-    let ovinSettledSum = 0;
-    let ovinSettledCnt = 0;
+    let ovinP = 0, ovinPCnt = 0, ovinS = 0, ovinSCnt = 0;
+    let hnbP = 0, hnbPCnt = 0, hnbS = 0, hnbSCnt = 0;
+    let bocP = 0, bocPCnt = 0, bocS = 0, bocSCnt = 0;
 
     expenses.forEach(e => {
       const amount = Number(e.total_amount) || 0;
-      if (e.parsedDesc.person_type === 'HOME') {
+      const type = e.parsedDesc.person_type;
+      const isSettled = Boolean(e.parsedDesc.is_settled || e.status === 'PAID');
+
+      if (type === 'HOME') {
         homeSum += amount;
-      } else if (e.parsedDesc.person_type === 'OVIN') {
-        if (e.parsedDesc.is_settled || e.status === 'PAID') {
-          ovinSettledSum += amount;
-          ovinSettledCnt++;
+      } else if (type === 'OVIN') {
+        if (isSettled) {
+          ovinS += amount;
+          ovinSCnt++;
         } else {
-          ovinPendingSum += amount;
-          ovinPendingCnt++;
+          ovinP += amount;
+          ovinPCnt++;
+        }
+      } else if (type === 'HNB_OVIN') {
+        if (isSettled) {
+          hnbS += amount;
+          hnbSCnt++;
+        } else {
+          hnbP += amount;
+          hnbPCnt++;
+        }
+      } else if (type === 'BOC_OVIN') {
+        if (isSettled) {
+          bocS += amount;
+          bocSCnt++;
+        } else {
+          bocP += amount;
+          bocPCnt++;
         }
       }
     });
 
-    // True Profit Formula: Operating Profit - Home Expenses + Settled Ovin Expenses
-    const trueProfit = operatingProfit - homeSum + ovinSettledSum;
+    const pendingTotal = ovinP + hnbP + bocP;
+    const pendingCount = ovinPCnt + hnbPCnt + bocPCnt;
+    const settledTotal = ovinS + hnbS + bocS;
+    const settledCount = ovinSCnt + hnbSCnt + bocSCnt;
+
+    // True Profit Formula: Operating Profit - Home Expenses + All Settled Reimbursements
+    const trueProfit = operatingProfit - homeSum + settledTotal;
 
     return {
       totalHome: homeSum,
-      totalOvinPending: ovinPendingSum,
-      countOvinPending: ovinPendingCnt,
-      totalOvinSettled: ovinSettledSum,
-      countOvinSettled: ovinSettledCnt,
-      totalTrueProfit: trueProfit
+      totalPending: pendingTotal,
+      countPending: pendingCount,
+      totalSettled: settledTotal,
+      countSettled: settledCount,
+      totalTrueProfit: trueProfit,
+      ovinPendingSum: ovinP, ovinPendingCnt: ovinPCnt,
+      hnbPendingSum: hnbP, hnbPendingCnt: hnbPCnt,
+      bocPendingSum: bocP, bocPendingCnt: bocPCnt,
+      ovinSettledSum: ovinS,
+      hnbSettledSum: hnbS,
+      bocSettledSum: bocS
     };
   }, [expenses, operatingProfit]);
 
   // Filtered table records
   const filteredExpenses = useMemo(() => {
     return expenses.filter(item => {
+      const type = item.parsedDesc.person_type;
+      const isSettled = type !== 'HOME' && Boolean(item.parsedDesc.is_settled || item.status === 'PAID');
+
       // Tab filter
-      if (activeTab === 'HOME' && item.parsedDesc.person_type !== 'HOME') return false;
-      if (activeTab === 'OVIN_PENDING' && (item.parsedDesc.person_type !== 'OVIN' || item.parsedDesc.is_settled)) return false;
-      if (activeTab === 'OVIN_SETTLED' && (item.parsedDesc.person_type !== 'OVIN' || !item.parsedDesc.is_settled)) return false;
+      if (activeTab === 'HOME' && type !== 'HOME') return false;
+      if (activeTab === 'ALL_PENDING' && (type === 'HOME' || isSettled)) return false;
+      if (activeTab === 'OVIN_PENDING' && (type !== 'OVIN' || isSettled)) return false;
+      if (activeTab === 'HNB_PENDING' && (type !== 'HNB_OVIN' || isSettled)) return false;
+      if (activeTab === 'BOC_PENDING' && (type !== 'BOC_OVIN' || isSettled)) return false;
+      if (activeTab === 'ALL_SETTLED' && (type === 'HOME' || !isSettled)) return false;
 
       // Search filter
       if (searchQuery.trim()) {
@@ -306,16 +389,17 @@ export const PersonalExpenses: React.FC = () => {
         const notesMatch = (item.parsedDesc.settle_notes || '').toLowerCase().includes(q);
         const amountMatch = item.total_amount.toString().includes(q);
         const dateMatch = item.date.includes(q);
-        return reasonMatch || notesMatch || amountMatch || dateMatch;
+        const typeMatch = getTypeLabel(type).toLowerCase().includes(q);
+        return reasonMatch || notesMatch || amountMatch || dateMatch || typeMatch;
       }
 
       return true;
     });
   }, [expenses, activeTab, searchQuery]);
 
-  // Pending Ovin items available for selection in the currently filtered view
+  // Pending settlable items available for selection in the currently filtered view
   const pendingOvinInView = useMemo(() => {
-    return filteredExpenses.filter(e => e.parsedDesc.person_type === 'OVIN' && !e.parsedDesc.is_settled);
+    return filteredExpenses.filter(e => e.parsedDesc.person_type !== 'HOME' && !e.parsedDesc.is_settled);
   }, [filteredExpenses]);
 
   // Total amount of currently selected Ovin items
@@ -411,7 +495,7 @@ export const PersonalExpenses: React.FC = () => {
         const { error } = await supabase.from('expenses').insert({
           date: formDate,
           category: 'PERSONAL',
-          expense_type: formType === 'HOME' ? 'PERSONAL_HOME' : 'PERSONAL_OVIN',
+          expense_type: getExpenseType(formType),
           description: JSON.stringify(descriptionPayload),
           total_amount: amountNum,
           status: 'UNPAID',
@@ -421,7 +505,7 @@ export const PersonalExpenses: React.FC = () => {
         if (error) throw error;
 
         setAddModalOpen(false);
-        setNotification({ type: 'success', message: `${formType === 'HOME' ? 'Home' : 'Ovin'} expense added successfully.` });
+        setNotification({ type: 'success', message: `${getTypeLabel(formType)} expense added successfully.` });
         fetchData();
       } catch (err: any) {
         setModalError(err.message || 'Failed to save expense');
@@ -452,7 +536,7 @@ export const PersonalExpenses: React.FC = () => {
           return {
             date: formDate,
             category: 'PERSONAL',
-            expense_type: formType === 'HOME' ? 'PERSONAL_HOME' : 'PERSONAL_OVIN',
+            expense_type: getExpenseType(formType),
             description: JSON.stringify(desc),
             total_amount: Number(row.amount),
             status: 'UNPAID',
@@ -466,7 +550,7 @@ export const PersonalExpenses: React.FC = () => {
         setAddModalOpen(false);
         setNotification({
           type: 'success',
-          message: `Successfully recorded ${insertPayloads.length} ${formType === 'HOME' ? 'Home' : 'Ovin'} expense(s).`
+          message: `Successfully recorded ${insertPayloads.length} ${getTypeLabel(formType)} expense(s).`
         });
         fetchData();
       } catch (err: any) {
@@ -499,7 +583,7 @@ export const PersonalExpenses: React.FC = () => {
 
       const { error } = await supabase.from('expenses').update({
         date: formDate,
-        expense_type: formType === 'HOME' ? 'PERSONAL_HOME' : 'PERSONAL_OVIN',
+        expense_type: getExpenseType(formType),
         description: JSON.stringify(updatedDesc),
         total_amount: amountNum
       }).eq('id', editingExpense.id);
@@ -745,7 +829,7 @@ export const PersonalExpenses: React.FC = () => {
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-purple-700 uppercase tracking-wider flex items-center gap-1.5">
               <Home size={16} className="text-purple-600" />
-              Home Expenses
+              Home Drawings
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700 border border-purple-200">
               Personal Draw
@@ -759,42 +843,58 @@ export const PersonalExpenses: React.FC = () => {
           </p>
         </div>
 
-        {/* Card 2: Pending Ovin Expenses */}
+        {/* Card 2: Pending Drawings (Ovin, HNB, BOC) */}
         <div className="bg-white p-5 rounded-2xl border border-amber-200/80 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-amber-700 uppercase tracking-wider flex items-center gap-1.5">
               <Clock size={16} className="text-amber-600" />
-              Pending Ovin
+              Pending Drawings
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-              {countOvinPending} pending
+              {countPending} pending
             </span>
           </div>
           <p className="text-2xl font-extrabold text-amber-600 mt-2">
-            LKR {formatCurrency(totalOvinPending)}
+            LKR {formatCurrency(totalPending)}
           </p>
-          <p className="text-xs text-slate-400 mt-1">
-            Not yet settled / received
-          </p>
+          <div className="mt-2 pt-2 border-t border-slate-100 flex flex-wrap gap-1.5 text-[10px]">
+            <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold" title="Ovin Pending">
+              Ovin: {formatCurrency(ovinPendingSum)}
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 font-semibold" title="HNB Ovin Pending">
+              HNB: {formatCurrency(hnbPendingSum)}
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 font-semibold" title="BOC Ovin Pending">
+              BOC: {formatCurrency(bocPendingSum)}
+            </span>
+          </div>
         </div>
 
-        {/* Card 3: Settled Ovin Expenses */}
+        {/* Card 3: Settled Drawings */}
         <div className="bg-white p-5 rounded-2xl border border-emerald-200/80 shadow-sm hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider flex items-center gap-1.5">
               <CheckCircle2 size={16} className="text-emerald-600" />
-              Settled Ovin
+              Settled Drawings
             </span>
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-              {countOvinSettled} received
+              {countSettled} received
             </span>
           </div>
           <p className="text-2xl font-extrabold text-emerald-700 mt-2">
-            LKR {formatCurrency(totalOvinSettled)}
+            LKR {formatCurrency(totalSettled)}
           </p>
-          <p className="text-xs text-slate-400 mt-1">
-            Added back to True Profit
-          </p>
+          <div className="mt-2 pt-2 border-t border-slate-100 flex flex-wrap gap-1.5 text-[10px]">
+            <span className="px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 font-semibold" title="Ovin Settled">
+              Ovin: {formatCurrency(ovinSettledSum)}
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-teal-50 text-teal-700 font-semibold" title="HNB Ovin Settled">
+              HNB: {formatCurrency(hnbSettledSum)}
+            </span>
+            <span className="px-1.5 py-0.5 rounded bg-amber-50 text-amber-800 font-semibold" title="BOC Ovin Settled">
+              BOC: {formatCurrency(bocSettledSum)}
+            </span>
+          </div>
         </div>
 
         {/* Card 4: Total True Profit */}
@@ -819,7 +919,7 @@ export const PersonalExpenses: React.FC = () => {
             <span>•</span>
             <span>Home: -{formatCurrency(totalHome)}</span>
             <span>•</span>
-            <span>Ovin Settle: +{formatCurrency(totalOvinSettled)}</span>
+            <span>Settled: +{formatCurrency(totalSettled)}</span>
           </div>
         </div>
       </div>
@@ -833,7 +933,7 @@ export const PersonalExpenses: React.FC = () => {
             </div>
             <div>
               <p className="text-sm font-bold">
-                {selectedOvinIds.length} Ovin Expense{selectedOvinIds.length > 1 ? 's' : ''} Selected
+                {selectedOvinIds.length} Drawing Expense{selectedOvinIds.length > 1 ? 's' : ''} Selected
               </p>
               <p className="text-xs text-slate-300">
                 Total Settlement: <span className="font-extrabold text-amber-400">LKR {formatCurrency(selectedTotalAmount)}</span>
@@ -867,7 +967,7 @@ export const PersonalExpenses: React.FC = () => {
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1 md:pb-0">
             <button
               onClick={() => setActiveTab('ALL')}
-              className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
                 activeTab === 'ALL'
                   ? 'bg-purple-600 text-white shadow-sm'
                   : 'text-slate-600 hover:bg-slate-100'
@@ -877,7 +977,7 @@ export const PersonalExpenses: React.FC = () => {
             </button>
             <button
               onClick={() => setActiveTab('HOME')}
-              className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
                 activeTab === 'HOME'
                   ? 'bg-purple-600 text-white shadow-sm'
                   : 'text-slate-600 hover:bg-slate-100'
@@ -886,24 +986,54 @@ export const PersonalExpenses: React.FC = () => {
               Home ({expenses.filter(e => e.parsedDesc.person_type === 'HOME').length})
             </button>
             <button
-              onClick={() => setActiveTab('OVIN_PENDING')}
-              className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
-                activeTab === 'OVIN_PENDING'
+              onClick={() => setActiveTab('ALL_PENDING')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                activeTab === 'ALL_PENDING'
                   ? 'bg-amber-500 text-white shadow-sm'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              Ovin Pending ({countOvinPending})
+              All Pending ({countPending})
             </button>
             <button
-              onClick={() => setActiveTab('OVIN_SETTLED')}
-              className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all ${
-                activeTab === 'OVIN_SETTLED'
+              onClick={() => setActiveTab('OVIN_PENDING')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                activeTab === 'OVIN_PENDING'
+                  ? 'bg-indigo-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              Ovin ({ovinPendingCnt})
+            </button>
+            <button
+              onClick={() => setActiveTab('HNB_PENDING')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                activeTab === 'HNB_PENDING'
+                  ? 'bg-teal-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              HNB Ovin ({hnbPendingCnt})
+            </button>
+            <button
+              onClick={() => setActiveTab('BOC_PENDING')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                activeTab === 'BOC_PENDING'
+                  ? 'bg-amber-600 text-white shadow-sm'
+                  : 'text-slate-600 hover:bg-slate-100'
+              }`}
+            >
+              BOC Ovin ({bocPendingCnt})
+            </button>
+            <button
+              onClick={() => setActiveTab('ALL_SETTLED')}
+              className={`px-3 py-1.5 text-xs font-bold rounded-xl transition-all ${
+                activeTab === 'ALL_SETTLED'
                   ? 'bg-emerald-600 text-white shadow-sm'
                   : 'text-slate-600 hover:bg-slate-100'
               }`}
             >
-              Ovin Settled ({countOvinSettled})
+              Settled ({countSettled})
             </button>
           </div>
 
@@ -968,9 +1098,10 @@ export const PersonalExpenses: React.FC = () => {
                 </tr>
               ) : (
                 filteredExpenses.map(item => {
-                  const isHome = item.parsedDesc.person_type === 'HOME';
-                  const isOvin = item.parsedDesc.person_type === 'OVIN';
-                  const isSettled = isOvin && (item.parsedDesc.is_settled || item.status === 'PAID');
+                  const personType = item.parsedDesc.person_type;
+                  const isHome = personType === 'HOME';
+                  const isSettlable = !isHome;
+                  const isSettled = isSettlable && (item.parsedDesc.is_settled || item.status === 'PAID');
                   const isSelected = selectedOvinIds.includes(item.id);
 
                   return (
@@ -982,7 +1113,7 @@ export const PersonalExpenses: React.FC = () => {
                     >
                       {/* Checkbox column */}
                       <td className="px-4 py-3.5 text-center">
-                        {isOvin && !isSettled ? (
+                        {isSettlable && !isSettled ? (
                           <button
                             type="button"
                             onClick={() => toggleSelectExpense(item.id)}
@@ -1006,13 +1137,24 @@ export const PersonalExpenses: React.FC = () => {
 
                       {/* Category Type Badge */}
                       <td className="px-4 py-3.5 whitespace-nowrap">
-                        {isHome ? (
+                        {personType === 'HOME' && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-purple-50 text-purple-700 border border-purple-200">
                             <Home size={12} /> Home
                           </span>
-                        ) : (
+                        )}
+                        {personType === 'OVIN' && (
                           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-indigo-50 text-indigo-700 border border-indigo-200">
                             <User size={12} /> Ovin
+                          </span>
+                        )}
+                        {personType === 'HNB_OVIN' && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-teal-50 text-teal-700 border border-teal-200">
+                            <Building2 size={12} /> HNB Ovin
+                          </span>
+                        )}
+                        {personType === 'BOC_OVIN' && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                            <CreditCard size={12} /> BOC Ovin
                           </span>
                         )}
                       </td>
@@ -1062,7 +1204,7 @@ export const PersonalExpenses: React.FC = () => {
                       {/* Action Buttons */}
                       <td className="px-4 py-3.5 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-1.5">
-                          {isOvin && !isSettled && (
+                          {isSettlable && !isSettled && (
                             <button
                               onClick={() => openSettleModal(item.id)}
                               className="px-2.5 py-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 rounded-lg transition-colors flex items-center gap-1"
@@ -1071,7 +1213,7 @@ export const PersonalExpenses: React.FC = () => {
                               <Check size={12} /> Settle
                             </button>
                           )}
-                          {isOvin && isSettled && (
+                          {isSettlable && isSettled && (
                             <button
                               onClick={() => handleUnsettleExpense(item)}
                               disabled={actionLoading}
@@ -1165,36 +1307,60 @@ export const PersonalExpenses: React.FC = () => {
               )}
 
               {/* Shared Settings: Type Toggle and Date */}
-              <div className={`grid ${entryMode === 'BULK' ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'} gap-3`}>
-                {/* Type Toggle: Home vs Ovin */}
+              <div className="space-y-3">
+                {/* Type Toggle: 4 types */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
                     Expense Type
                   </label>
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     <button
                       type="button"
                       onClick={() => setFormType('HOME')}
-                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                      className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                         formType === 'HOME'
                           ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                       }`}
                     >
-                      <Home size={15} />
+                      <Home size={14} />
                       <span>Home</span>
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormType('OVIN')}
-                      className={`py-2 px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                      className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                         formType === 'OVIN'
                           ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                           : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                       }`}
                     >
-                      <User size={15} />
+                      <User size={14} />
                       <span>Ovin</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormType('HNB_OVIN')}
+                      className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                        formType === 'HNB_OVIN'
+                          ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <Building2 size={14} />
+                      <span>HNB Ovin</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormType('BOC_OVIN')}
+                      className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                        formType === 'BOC_OVIN'
+                          ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                          : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                      }`}
+                    >
+                      <CreditCard size={14} />
+                      <span>BOC Ovin</span>
                     </button>
                   </div>
                 </div>
@@ -1217,7 +1383,7 @@ export const PersonalExpenses: React.FC = () => {
               <p className="text-[11px] text-slate-400">
                 {formType === 'HOME'
                   ? 'Home drawing (deducted directly from True Profit).'
-                  : 'Ovin drawing (can be selected & settled later when received).'}
+                  : `${getTypeLabel(formType)} drawing (can be selected & settled later when received).`}
               </p>
 
               {/* SINGLE MODE FIELDS */}
@@ -1370,7 +1536,7 @@ export const PersonalExpenses: React.FC = () => {
       {/* ----------------- EDIT MODAL ----------------- */}
       {editModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl max-w-md w-full border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95">
+          <div className="bg-white rounded-2xl max-w-lg w-full border border-slate-200 shadow-2xl overflow-hidden animate-in zoom-in-95">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-purple-50/50">
               <div className="flex items-center gap-2">
                 <Pencil size={18} className="text-purple-600" />
@@ -1392,35 +1558,59 @@ export const PersonalExpenses: React.FC = () => {
                 </div>
               )}
 
-              {/* Type Toggle: Home vs Ovin */}
+              {/* Type Toggle: 4 types */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">
                   Expense Type
                 </label>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <button
                     type="button"
                     onClick={() => setFormType('HOME')}
-                    className={`py-2.5 px-4 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                       formType === 'HOME'
                         ? 'bg-purple-600 text-white border-purple-600 shadow-sm'
                         : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
-                    <Home size={16} />
+                    <Home size={14} />
                     <span>Home</span>
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormType('OVIN')}
-                    className={`py-2.5 px-4 rounded-xl border text-xs font-bold flex items-center justify-center gap-2 transition-all ${
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
                       formType === 'OVIN'
                         ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
                         : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
                     }`}
                   >
-                    <User size={16} />
+                    <User size={14} />
                     <span>Ovin</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormType('HNB_OVIN')}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                      formType === 'HNB_OVIN'
+                        ? 'bg-teal-600 text-white border-teal-600 shadow-sm'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <Building2 size={14} />
+                    <span>HNB Ovin</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormType('BOC_OVIN')}
+                    className={`py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition-all ${
+                      formType === 'BOC_OVIN'
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                        : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    <CreditCard size={14} />
+                    <span>BOC Ovin</span>
                   </button>
                 </div>
               </div>
@@ -1499,7 +1689,7 @@ export const PersonalExpenses: React.FC = () => {
               <div className="flex items-center gap-2">
                 <CheckCircle2 size={18} className="text-emerald-700" />
                 <h3 className="font-bold text-base text-emerald-950">
-                  Settle Ovin Expense{selectedOvinIds.length > 1 ? 's' : ''}
+                  Settle Drawing Expense{selectedOvinIds.length > 1 ? 's' : ''}
                 </h3>
               </div>
               <button
