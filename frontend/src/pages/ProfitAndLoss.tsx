@@ -1451,6 +1451,80 @@ export const ProfitAndLoss: React.FC = () => {
                     })
                   )}
                 </tbody>
+
+                {/* Monthly Totals Footer */}
+                {!monthlyLoading && Object.keys(monthlyRecords).length > 0 && (
+                  <tfoot className="border-t-2 border-slate-300 bg-slate-50">
+                    <tr>
+                      <td className="px-4 py-3 text-xs font-extrabold text-slate-700 uppercase tracking-wide">
+                        Monthly Total
+                      </td>
+
+                      {/* Cash Total */}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Cash</span>
+                          <span className="text-xs font-extrabold text-slate-800">
+                            LKR {formatCurrency(monthlyAggregates.cash)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Card Total */}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Card</span>
+                          <span className="text-xs font-extrabold text-slate-800">
+                            LKR {formatCurrency(monthlyAggregates.card)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* PickMe Total */}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">PickMe</span>
+                          <span className="text-xs font-extrabold text-slate-800">
+                            LKR {formatCurrency(monthlyAggregates.pickme)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Total Revenue */}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-[9px] font-bold text-emerald-500 uppercase tracking-wide">Revenue</span>
+                          <span className="text-xs font-extrabold text-emerald-700">
+                            LKR {formatCurrency(monthlyAggregates.totalRev)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Total Expenses */}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-[9px] font-bold text-rose-400 uppercase tracking-wide">Expenses</span>
+                          <span className="text-xs font-extrabold text-rose-600">
+                            LKR {formatCurrency(monthlyAggregates.totalExp)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Net Profit */}
+                      <td className="px-4 py-3 text-right">
+                        <div className="flex flex-col items-end gap-0.5">
+                          <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wide">Net Profit</span>
+                          <span className={`text-xs font-extrabold ${monthlyAggregates.net >= 0 ? 'text-emerald-700' : 'text-rose-600'}`}>
+                            {monthlyAggregates.net < 0 ? '-' : ''}LKR {formatCurrency(Math.abs(monthlyAggregates.net))}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Blank for Difference & Status columns */}
+                      <td colSpan={2} />
+                    </tr>
+                  </tfoot>
+                )}
               </table>
             </div>
           </div>
