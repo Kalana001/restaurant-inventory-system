@@ -202,19 +202,17 @@ export const StaffManagement: React.FC = () => {
     setErrorMsg(null);
     try {
       const activeStaff = staffList.filter(s => s.is_active);
-      const rows = activeStaff
-        .filter(s => dailyAttendance[s.id])
-        .map(s => ({
-          staff_id: s.id,
-          date: selectedDate,
-          status: dailyAttendance[s.id],
-          notes: null
-        }));
-
-      if (rows.length === 0) {
-        notifySuccess('No attendance to save.');
+      if (activeStaff.length === 0) {
+        notifySuccess('No active staff members found to save.');
         return;
       }
+
+      const rows = activeStaff.map(s => ({
+        staff_id: s.id,
+        date: selectedDate,
+        status: dailyAttendance[s.id] || 'PRESENT',
+        notes: null
+      }));
 
       const { error } = await supabase
         .from('staff_attendance')
@@ -222,6 +220,7 @@ export const StaffManagement: React.FC = () => {
 
       if (error) throw error;
       notifySuccess(`Attendance saved for ${rows.length} staff members.`);
+      fetchAttendanceForDate(selectedDate);
     } catch (err: any) {
       console.error('Error saving attendance:', err);
       setErrorMsg(err.message || 'Failed to save attendance');
@@ -467,7 +466,7 @@ export const StaffManagement: React.FC = () => {
           <div>
             <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Present Today</span>
             <p className="text-2xl font-extrabold text-emerald-700 mt-1">
-              {Object.values(dailyAttendance).filter(st => st === 'PRESENT').length} Workers
+              {staffList.filter(s => s.is_active && (dailyAttendance[s.id] || 'PRESENT') === 'PRESENT').length} Workers
             </p>
           </div>
           <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
