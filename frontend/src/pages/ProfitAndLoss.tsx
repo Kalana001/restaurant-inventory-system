@@ -845,19 +845,35 @@ export const ProfitAndLoss: React.FC = () => {
                 {/* Card Sales */}
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">
-                    💳 Card Payments / POS — Full Gross Amount (LKR)
+                    💳 Card Payments / POS (LKR)
                   </label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    placeholder="0.00"
-                    value={incomeCardGross}
-                    onChange={e => handleCardSalesChange(e.target.value === '' ? '' : Number(e.target.value))}
-                    className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
-                  />
-                  <span className="text-[11px] text-slate-400">Enter full POS terminal amount — bank fee is auto-deducted below</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    {/* Left — Gross input */}
+                    <div>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="0.00"
+                        value={incomeCardGross}
+                        onChange={e => handleCardSalesChange(e.target.value === '' ? '' : Number(e.target.value))}
+                        className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-sm font-semibold text-slate-800 focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none"
+                      />
+                      <span className="text-[11px] text-slate-400">Full POS amount</span>
+                    </div>
+                    {/* Right — Net (read-only) */}
+                    <div>
+                      <input
+                        type="text"
+                        readOnly
+                        value={Number(incomeCardGross) > 0 ? formatCurrency(netCardIncome) : ''}
+                        placeholder="Net after fee"
+                        className="w-full px-3.5 py-2.5 border border-emerald-200 rounded-xl text-sm font-semibold text-emerald-700 bg-emerald-50 outline-none cursor-default"
+                      />
+                      <span className="text-[11px] text-slate-400">After bank fee (2.5%)</span>
+                    </div>
+                  </div>
 
-                  {/* Live Card Income Breakdown */}
+                  {/* Live breakdown row — only when a value is entered */}
                   {Number(incomeCardGross) > 0 && (
                     <div className="mt-2 rounded-xl border border-blue-100 bg-blue-50 px-3.5 py-2.5 space-y-1">
                       <div className="flex justify-between text-[11px] text-slate-600">
