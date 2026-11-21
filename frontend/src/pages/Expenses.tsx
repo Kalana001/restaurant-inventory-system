@@ -66,6 +66,9 @@ export const Expenses: React.FC = () => {
     try {
       let query = supabase.from('expenses').select('*, profiles:created_by(username)', { count: 'exact' });
       
+      // Strictly exclude daily P&L summary records (P&L calculations are managed in Daily P&L page)
+      query = query.neq('expense_type', 'DAILY_PNL_SUMMARY');
+
       if (filterCategory !== 'ALL') {
         query = query.eq('category', filterCategory);
       } else {
