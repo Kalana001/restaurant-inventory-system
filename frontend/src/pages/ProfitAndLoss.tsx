@@ -32,7 +32,8 @@ import {
   ArrowUpRight,
   ArrowDownRight,
   Edit3,
-  RotateCcw
+  RotateCcw,
+  AlertTriangle
 } from 'lucide-react';
 
 export interface DailyPnLRecord {
@@ -109,6 +110,14 @@ export const ProfitAndLoss: React.FC = () => {
   // Monthly state
   const [monthlyRecords, setMonthlyRecords] = useState<Record<string, DailyPnLRecord>>({});
   const [monthlySalesMap, setMonthlySalesMap] = useState<Record<string, { restAmount: number; pickmeAmount: number }>>({});
+  const [monthlySystemCostsMap, setMonthlySystemCostsMap] = useState<Record<string, {
+    stockOut: number;
+    purchases: number;
+    transport: number;
+    general: number;
+    salary: number;
+    totalSystemCost: number;
+  }>>({});
   const [monthlyLoading, setMonthlyLoading] = useState<boolean>(false);
 
   // Net card income = gross card amount minus bank fee (auto-deducted at source)
@@ -167,6 +176,34 @@ export const ProfitAndLoss: React.FC = () => {
       maximumFractionDigits: 2
     });
   };
+
+  // Detect if live system costs have changed compared to saved day-close
+  const dailySystemMismatch = useMemo(() => {
+    if (!recordId) return null;
+    const currentStockOut = Number(expenseStockOut) || 0;
+    const currentPurchases = Number(expenseDailyPurchases) || 0;
+    const currentTransport = Number(expenseTransport) || 0;
+    const currentGeneral = Number(expenseGeneral) || 0;
+    const currentSalary = Number(expenseSalary) || 0;
+
+    const diffStock = Math.round((autoSystemCost.stockOut - currentStockOut) * 100) / 100;
+    const diffPurch = Math.round((autoSystemCost.dailyPurchases - currentPurchases) * 100) / 100;
+    const diffTrans = Math.round((autoSystemCost.transport - currentTransport) * 100) / 100;
+    const diffGen = Math.round((autoSystemCost.generalExpenses - currentGeneral) * 100) / 100;
+    const diffSal = Math.round((autoSystemCost.staffSalary - currentSalary) * 100) / 100;
+
+    const totalDiff = Math.round((diffStock + diffPurch + diffTrans + diffGen + diffSal) * 100) / 100;
+    if (Math.abs(totalDiff) < 1) return null;
+
+    return {
+      diffStock,
+      diffPurch,
+      diffTrans,
+      diffGen,
+      diffSal,
+      totalDiff
+    };
+  }, [recordId, expenseStockOut, expenseDailyPurchases, expenseTransport, expenseGeneral, expenseSalary, autoSystemCost]);
 
   // Handle gross card amount input: auto-calculate 2.5% bank fee and derive net card income
   const handleCardSalesChange = (grossVal: number | '') => {
@@ -351,8 +388,18 @@ export const ProfitAndLoss: React.FC = () => {
       const monthDate = parseISO(`${monthStr}-01`);
       const start = format(startOfMonth(monthDate), 'yyyy-MM-dd');
       const end = format(endOfMonth(monthDate), 'yyyy-MM-dd');
+      const monthStart = `${start}T00:00:00.000Z`;
+      const monthEnd = `${end}T23:59:59.999Z`;
 
-      const [pnlRes, salesRes] = await Promise.all([
+      const [
+        pnlRes,
+        salesRes,
+        reasonsRes,
+        purchasesRes,
+        transportRes,
+        genExpRes,
+        salariesRes
+      ] = await Promise.all([
         supabase
           .from('expenses')
           .select('*')
@@ -362,6 +409,34 @@ export const ProfitAndLoss: React.FC = () => {
         supabase
           .from('daily_menu_sales')
           .select('date, sales_channel, total_amount')
+          .gte('date', start)
+          .lte('date', end),
+        supabase
+          .from('movement_reasons')
+          .select('id, name')
+          .in('name', ['Kitchen Usage', 'Missed Kitchen Usage']),
+        supabase
+          .from('daily_purchases')
+          .select('date, total_cost')
+          .eq('department', 'KITCHEN')
+          .gte('date', start)
+          .lte('date', end),
+        supabase
+          .from('transportation_costs')
+          .select('date, cost')
+          .eq('department', 'KITCHEN')
+          .gte('date', start)
+          .lte('date', end),
+        supabase
+          .from('expenses')
+          .select('date, total_amount')
+          .eq('category', 'RESTAURANT')
+          .neq('expense_type', 'DAILY_PNL_SUMMARY')
+          .gte('date', start)
+          .lte('date', end),
+        supabase
+          .from('staff_salaries')
+          .select('date, amount')
           .gte('date', start)
           .lte('date', end)
       ]);
@@ -379,6 +454,71 @@ export const ProfitAndLoss: React.FC = () => {
         }
       });
       setMonthlySalesMap(sMap);
+
+      // Fetch kitchen stock out movements for the month
+      const kReasonIds = (reasonsRes.data || []).map(r => r.id);
+      let movementsData: any[] = [];
+      if (kReasonIds.length > 0) {
+        const { data: mvData } = await supabase
+          .from('stock_movements')
+          .select('created_at, quantity, cost_price')
+          .eq('type', 'STOCK_OUT')
+          .in('reason_id', kReasonIds)
+          .gte('created_at', monthStart)
+          .lte('created_at', monthEnd);
+        movementsData = mvData || [];
+      }
+
+      // Build daily live system costs map
+      const costMap: Record<string, {
+        stockOut: number;
+        purchases: number;
+        transport: number;
+        general: number;
+        salary: number;
+        totalSystemCost: number;
+      }> = {};
+
+      const ensureDay = (d: string) => {
+        if (!costMap[d]) {
+          costMap[d] = { stockOut: 0, purchases: 0, transport: 0, general: 0, salary: 0, totalSystemCost: 0 };
+        }
+      };
+
+      (purchasesRes.data || []).forEach(r => {
+        ensureDay(r.date);
+        costMap[r.date].purchases += Number(r.total_cost || 0);
+      });
+      (transportRes.data || []).forEach(r => {
+        ensureDay(r.date);
+        costMap[r.date].transport += Number(r.cost || 0);
+      });
+      (genExpRes.data || []).forEach(r => {
+        ensureDay(r.date);
+        costMap[r.date].general += Number(r.total_amount || 0);
+      });
+      (salariesRes.data || []).forEach(r => {
+        ensureDay(r.date);
+        costMap[r.date].salary += Number(r.amount || 0);
+      });
+      movementsData.forEach(m => {
+        const d = m.created_at.slice(0, 10);
+        ensureDay(d);
+        costMap[d].stockOut += (Number(m.quantity || 0) * Number(m.cost_price || 0));
+      });
+
+      // Round all values
+      Object.keys(costMap).forEach(d => {
+        const c = costMap[d];
+        c.stockOut = Math.round(c.stockOut * 100) / 100;
+        c.purchases = Math.round(c.purchases * 100) / 100;
+        c.transport = Math.round(c.transport * 100) / 100;
+        c.general = Math.round(c.general * 100) / 100;
+        c.salary = Math.round(c.salary * 100) / 100;
+        c.totalSystemCost = Math.round((c.stockOut + c.purchases + c.transport + c.general + c.salary) * 100) / 100;
+      });
+
+      setMonthlySystemCostsMap(costMap);
 
       const map: Record<string, DailyPnLRecord> = {};
       (pnlRes.data || []).forEach(row => {
@@ -603,6 +743,37 @@ export const ProfitAndLoss: React.FC = () => {
     }
   }, [selectedMonth]);
 
+  // Identify all days in the month where saved expenses != live system expenses
+  const monthlyExpenseMismatches = useMemo(() => {
+    const map: Record<string, {
+      savedSysCost: number;
+      liveSysCost: number;
+      diff: number;
+    }> = {};
+
+    Object.keys(monthlyRecords).forEach(dateKey => {
+      const rec = monthlyRecords[dateKey];
+      if (!rec) return;
+      const sysCost = monthlySystemCostsMap[dateKey];
+      const savedSysCost = (Number(rec.expenseStockOut) || 0) +
+                           (Number(rec.expenseDailyPurchases) || 0) +
+                           (Number(rec.expenseTransport) || 0) +
+                           (Number(rec.expenseGeneral) || 0) +
+                           (Number(rec.expenseSalary) || 0);
+      const liveSysCost = sysCost ? sysCost.totalSystemCost : 0;
+      const diff = Math.round((liveSysCost - savedSysCost) * 100) / 100;
+      if (Math.abs(diff) >= 1) {
+        map[dateKey] = {
+          savedSysCost,
+          liveSysCost,
+          diff
+        };
+      }
+    });
+
+    return map;
+  }, [monthlyRecords, monthlySystemCostsMap]);
+
   return (
     <div className="space-y-6 pb-20">
       {/* Page Header */}
@@ -741,6 +912,36 @@ export const ProfitAndLoss: React.FC = () => {
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-100 hover:bg-amber-200 text-amber-900 font-bold transition-colors shrink-0"
               >
                 <RotateCcw size={12} /> Revert Changes
+              </button>
+            </div>
+          )}
+
+          {/* System Expense Discrepancy Notice if new expenses were entered after day close */}
+          {dailySystemMismatch && (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-orange-50 border border-orange-300 rounded-xl text-xs text-orange-950 shadow-sm animate-in fade-in">
+              <div className="flex items-start sm:items-center gap-2.5">
+                <AlertTriangle size={18} className="text-orange-600 shrink-0 mt-0.5 sm:mt-0" />
+                <div>
+                  <p className="font-bold text-orange-900">
+                    ⚠️ New or Modified System Expenses Detected ({dailySystemMismatch.totalDiff > 0 ? '+' : ''}LKR {formatCurrency(dailySystemMismatch.totalDiff)})
+                  </p>
+                  <p className="text-[11px] text-orange-800 mt-0.5">
+                    Transactions were recorded in kitchen stock out, transport, purchases, or general expenses after this day was saved.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setExpenseStockOut(autoSystemCost.stockOut);
+                  setExpenseDailyPurchases(autoSystemCost.dailyPurchases);
+                  setExpenseTransport(autoSystemCost.transport);
+                  setExpenseGeneral(autoSystemCost.generalExpenses);
+                  setExpenseSalary(autoSystemCost.staffSalary);
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-orange-600 hover:bg-orange-700 text-white font-bold transition-all shadow-sm shrink-0 whitespace-nowrap active:scale-95"
+              >
+                <RefreshCw size={13} /> Sync to Latest System Costs
               </button>
             </div>
           )}
@@ -1304,6 +1505,25 @@ export const ProfitAndLoss: React.FC = () => {
             </div>
           </div>
 
+          {/* Monthly Unapplied Expenses Notice */}
+          {Object.keys(monthlyExpenseMismatches).length > 0 && (
+            <div className="bg-amber-50 border border-amber-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-amber-950 shadow-sm animate-in fade-in">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center shrink-0 text-amber-700">
+                  <AlertTriangle size={20} />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-amber-900">
+                    ⚠️ {Object.keys(monthlyExpenseMismatches).length} closed {Object.keys(monthlyExpenseMismatches).length === 1 ? 'day has' : 'days have'} unapplied system expenses
+                  </h4>
+                  <p className="text-[11px] text-amber-800 mt-0.5">
+                    Late transactions were recorded in kitchen stock out, transport, purchases, or general expenses after those days were saved. Days with discrepancies are marked below with an amber badge.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Monthly Day-by-Day Table */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
@@ -1348,6 +1568,7 @@ export const ProfitAndLoss: React.FC = () => {
                       const dateKey = format(d, 'yyyy-MM-dd');
                       const rec = monthlyRecords[dateKey];
                       const isToday = dateKey === format(new Date(), 'yyyy-MM-dd');
+                      const expenseMismatch = monthlyExpenseMismatches[dateKey];
 
                       return (
                         <tr
@@ -1357,7 +1578,7 @@ export const ProfitAndLoss: React.FC = () => {
                             setActiveTab('DAILY');
                           }}
                           className={`hover:bg-slate-50/80 cursor-pointer transition-colors ${
-                            isToday ? 'bg-blue-50/30' : ''
+                            isToday ? 'bg-blue-50/30' : expenseMismatch ? 'bg-amber-50/20' : ''
                           }`}
                         >
                           <td className="px-4 py-3 font-bold text-slate-800">
@@ -1392,7 +1613,22 @@ export const ProfitAndLoss: React.FC = () => {
                           </td>
 
                           <td className="px-4 py-3 text-right font-extrabold text-rose-600">
-                            {rec ? `LKR ${formatCurrency(rec.totalExpenses)}` : '—'}
+                            {rec ? (
+                              expenseMismatch ? (
+                                <div className="flex flex-col items-end">
+                                  <span>LKR {formatCurrency(rec.totalExpenses)}</span>
+                                  <span
+                                    className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-800 bg-amber-100/90 border border-amber-300 px-1.5 py-0.5 rounded mt-0.5"
+                                    title={`System costs changed after day was saved:\nSaved System Costs: LKR ${formatCurrency(expenseMismatch.savedSysCost)}\nCurrent Live System Costs: LKR ${formatCurrency(expenseMismatch.liveSysCost)}\nDifference: ${expenseMismatch.diff > 0 ? '+' : ''}LKR ${formatCurrency(expenseMismatch.diff)}\nClick row to open and update.`}
+                                  >
+                                    <AlertTriangle size={10} className="text-amber-700 shrink-0" />
+                                    <span>{expenseMismatch.diff > 0 ? '+' : ''}{formatCurrency(expenseMismatch.diff)} unapplied</span>
+                                  </span>
+                                </div>
+                              ) : (
+                                `LKR ${formatCurrency(rec.totalExpenses)}`
+                              )
+                            ) : '—'}
                           </td>
 
                           <td className="px-4 py-3 text-right font-extrabold">
@@ -1411,7 +1647,7 @@ export const ProfitAndLoss: React.FC = () => {
                               if (!rec) return <span className="text-slate-300 font-normal">—</span>;
                               const sales = monthlySalesMap[dateKey];
                               if (!sales || (sales.restAmount === 0 && sales.pickmeAmount === 0)) {
-                                return <span className="text-slate-400 font-normal text-[11px]">No Qty</span>;
+                                 return <span className="text-slate-400 font-normal text-[11px]">No Qty</span>;
                               }
 
                               const cashCardDiff = (rec.incomeCash + rec.incomeCard) - sales.restAmount;
@@ -1437,9 +1673,18 @@ export const ProfitAndLoss: React.FC = () => {
 
                           <td className="px-4 py-3 text-center">
                             {rec ? (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
-                                <CheckCircle2 size={11} /> Reconciled
-                              </span>
+                              expenseMismatch ? (
+                                <span
+                                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300 shadow-sm"
+                                  title={`Expenses were modified after day was saved (${expenseMismatch.diff > 0 ? '+' : ''}LKR ${formatCurrency(expenseMismatch.diff)}). Click row to review & update.`}
+                                >
+                                  <AlertCircle size={11} className="text-amber-700 shrink-0" /> Needs Re-save
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                  <CheckCircle2 size={11} /> Reconciled
+                                </span>
+                              )
                             ) : (
                               <button
                                 type="button"
