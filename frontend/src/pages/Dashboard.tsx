@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from 'date-fns';
 import { supabase } from '../lib/supabase';
 import { 
@@ -24,6 +25,7 @@ interface Metrics {
 }
 
 export const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
   const [metrics, setMetrics] = useState<Metrics | null>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [jatTotal, setJatTotal] = useState(0);
@@ -36,6 +38,9 @@ export const Dashboard: React.FC = () => {
   const [kitchenDailyWaste, setKitchenDailyWaste] = useState(0);
   const [loading, setLoading] = useState(true);
   const [realTimeInventoryValue, setRealTimeInventoryValue] = useState(0);
+  const [lowStockCount, setLowStockCount] = useState<number>(0);
+  const [trueProfit, setTrueProfit] = useState<number>(0);
+  const [trueProfitBreakdown, setTrueProfitBreakdown] = useState({ opProfit: 0, home: 0, settled: 0 });
 
   // Calendar Tracker State
   const [calendarMonth, setCalendarMonth] = useState<Date>(new Date());
@@ -138,6 +143,31 @@ export const Dashboard: React.FC = () => {
         setRealTimeInventoryValue(trueTotalValue);
       }
 
+      // Fetch Low Stock Count matching Reorder Levels management page
+      const { data: invItems } = await supabase
+        .from('inventory_items')
+        .select(`
+          id, reorder_level, status,
+          batches ( id, available_qty, status )
+        `)
+        .eq('status', 'ACTIVE');
+
+      if (invItems) {
+        let lowCount = 0;
+        invItems.forEach(item => {
+          const rol = Number(item.reorder_level) || 0;
+          if (rol > 0) {
+            const currentStock = (item.batches || [])
+              .filter((b: any) => b.status === 'ACTIVE')
+              .reduce((sum: number, b: any) => sum + (Number(b.available_qty) || 0), 0);
+            if (currentStock <= rol) {
+              lowCount++;
+            }
+          }
+        });
+        setLowStockCount(lowCount);
+      }
+
       // Fetch JAT & Kitchen Stats
       const { data: reasonsData } = await supabase.from('movement_reasons').select('id, name').in('name', ['JAT', 'Kitchen Usage', 'Wastage', 'Damaged', 'Expired']);
       if (reasonsData) {
@@ -149,7 +179,56 @@ export const Dashboard: React.FC = () => {
         const now = new Date();
         const todayStr = format(now, 'yyyy-MM-dd');
         const monthStartStr = format(startOfMonth(now), 'yyyy-MM-dd');
+        const monthEndStr = format(endOfMonth(now), 'yyyy-MM-dd');
         const monthStartIso = startOfMonth(now).toISOString();
+
+        // Fetch True Net Profit for current month matching Personal Expenses page
+        const [{ data: pnlSummaryData }, { data: personalExpensesData }] = await Promise.all([
+          supabase
+            .from('expenses')
+            .select('description')
+            .eq('expense_type', 'DAILY_PNL_SUMMARY')
+            .gte('date', monthStartStr)
+            .lte('date', monthEndStr),
+          supabase
+            .from('expenses')
+            .select('total_amount, expense_type, description, status')
+            .in('expense_type', ['PERSONAL_HOME', 'PERSONAL_OVIN'])
+            .gte('date', monthStartStr)
+            .lte('date', monthEndStr)
+        ]);
+
+        let totalOpProfit = 0;
+        (pnlSummaryData || []).forEach(row => {
+          try {
+            const p = JSON.parse(row.description || '{}');
+            totalOpProfit += (Number(p.netProfit || 0) + (Number(p.expensePersonal) || 0));
+          } catch (e) {}
+        });
+
+        let totalHome = 0;
+        let totalSettled = 0;
+        (personalExpensesData || []).forEach(row => {
+          const amt = Number(row.total_amount) || 0;
+          let desc: any = {};
+          try { desc = JSON.parse(row.description || '{}'); } catch (e) {}
+          const pType = desc.person_type || (row.expense_type === 'PERSONAL_HOME' ? 'HOME' : 'OVIN');
+          const isSettled = Boolean(desc.is_settled || row.status === 'PAID');
+
+          if (pType === 'HOME') {
+            totalHome += amt;
+          } else {
+            if (isSettled) totalSettled += amt;
+          }
+        });
+
+        const calculatedTrueProfit = totalOpProfit - totalHome + totalSettled;
+        setTrueProfit(calculatedTrueProfit);
+        setTrueProfitBreakdown({
+          opProfit: totalOpProfit,
+          home: totalHome,
+          settled: totalSettled
+        });
 
         // 1. Fetch JAT movements (auto-paginate so all rows are fetched without 1,000 limit cutoff)
         let totalJat = 0;
@@ -315,9 +394,15 @@ export const Dashboard: React.FC = () => {
     },
     {
       title: 'Low Stock Alerts',
-      value: metrics?.low_stock_items || 0,
+      value: lowStockCount,
+      subtitle: (
+        <span className="text-[11px] text-amber-700 font-medium flex items-center gap-1 pt-0.5">
+          Items below reorder level (Click to view)
+        </span>
+      ),
       icon: <AlertTriangle size={24} className="text-amber-500" />,
       bg: 'bg-amber-50 border-amber-100',
+      onClick: () => navigate('/reorder-levels?filter=NEEDS_REORDER'),
     },
     {
       title: 'Out of Stock Items',
@@ -326,10 +411,20 @@ export const Dashboard: React.FC = () => {
       bg: 'bg-rose-50 border-rose-100',
     },
     {
-      title: 'Expiring Soon (30 Days)',
-      value: metrics?.expiring_items_30_days || 0,
-      icon: <CalendarDays size={24} className="text-orange-500" />,
-      bg: 'bg-orange-50 border-orange-100',
+      title: 'True Net Profit (Month)',
+      value: `LKR ${Number(trueProfit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+      subtitle: (
+        <div className="text-[11px] text-slate-500 font-medium flex flex-wrap items-center gap-1.5 pt-0.5">
+          <span>Op: LKR {Number(trueProfitBreakdown.opProfit).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span>•</span>
+          <span className="text-purple-600 font-semibold">Home: -{Number(trueProfitBreakdown.home).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span>•</span>
+          <span className="text-emerald-600 font-semibold">Settled: +{Number(trueProfitBreakdown.settled).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+        </div>
+      ),
+      icon: <TrendingUp size={24} className={trueProfit >= 0 ? "text-emerald-600" : "text-rose-600"} />,
+      bg: trueProfit >= 0 ? 'bg-emerald-50 border-emerald-100' : 'bg-rose-50 border-rose-100',
+      onClick: () => navigate('/personal-expenses'),
     },
     {
       title: 'Supplier Balance Outstanding',
@@ -392,18 +487,30 @@ export const Dashboard: React.FC = () => {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {statCards.map((card, idx) => (
-          <div key={idx} className={`p-6 rounded-2xl border flex items-center justify-between shadow-sm card-shadow bg-white ${card.bg}`}>
-            <div className="space-y-1.5">
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{card.title}</p>
-              <h3 className="text-xl font-extrabold text-slate-800">{card.value}</h3>
-              {(card as any).subtitle}
+        {statCards.map((card, idx) => {
+          const isClickable = Boolean((card as any).onClick);
+          const isProfitCard = card.title.includes('True Net Profit');
+          return (
+            <div 
+              key={idx} 
+              onClick={(card as any).onClick}
+              className={`p-6 rounded-2xl border flex items-center justify-between shadow-sm card-shadow bg-white ${card.bg} ${
+                isClickable ? 'cursor-pointer hover:shadow-md transition-all active:scale-[0.99] hover:border-slate-300' : ''
+              }`}
+            >
+              <div className="space-y-1.5">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{card.title}</p>
+                <h3 className={`text-xl font-extrabold ${isProfitCard ? (trueProfit >= 0 ? 'text-emerald-700' : 'text-rose-700') : 'text-slate-800'}`}>
+                  {card.value}
+                </h3>
+                {(card as any).subtitle}
+              </div>
+              <div className="p-3 bg-white rounded-xl shadow-sm border border-slate-50 shrink-0 self-start mt-1">
+                {card.icon}
+              </div>
             </div>
-            <div className="p-3 bg-white rounded-xl shadow-sm border border-slate-50 shrink-0 self-start mt-1">
-              {card.icon}
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Daily Stock-Out Tracker Calendar (Kitchen & JAT) */}
