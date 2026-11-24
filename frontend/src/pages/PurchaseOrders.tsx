@@ -409,10 +409,19 @@ export const PurchaseOrders: React.FC = () => {
     finally { setDetailLoading(false); }
   };
 
+  // Helper to get PO order date (fallback from created_at or today)
+  const getPoDate = (po: any) => {
+    if (!po) return format(new Date(), 'yyyy-MM-dd');
+    if (po.order_date) return po.order_date;
+    if (po.created_at) return po.created_at.slice(0, 10);
+    return format(new Date(), 'yyyy-MM-dd');
+  };
+
   // ── Open GRN Modal ────────────────────────────────────────────
   const openGrnModal = async (po: any) => {
     setGrnPo(po);
-    setGrnReceivedDate(po.order_date || format(new Date(), 'yyyy-MM-dd'));
+    const targetDate = getPoDate(po);
+    setGrnReceivedDate(targetDate);
     setGrnInvoiceNumber('');
     setGrnRemarks('');
     setGrnError(null);
@@ -479,8 +488,9 @@ export const PurchaseOrders: React.FC = () => {
     setPayPo(po);
     setPayAmount(Number(po.total_amount) - Number(po.paid_amount || 0));
     setPayMethod('Cash');
-    setPayDate(format(new Date(), 'yyyy-MM-dd'));
-    setChequeDate(format(new Date(), 'yyyy-MM-dd'));
+    const targetDate = getPoDate(po);
+    setPayDate(targetDate);
+    setChequeDate(targetDate);
     setPayError(null);
     setPayModalOpen(true);
   };
@@ -1051,13 +1061,13 @@ export const PurchaseOrders: React.FC = () => {
                 <div>
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-bold text-slate-500 uppercase">Received Date <span className="text-rose-500">*</span></label>
-                    {grnPo?.order_date && (
+                    {grnPo && (
                       <div className="flex items-center gap-1">
                         <button
                           type="button"
-                          onClick={() => setGrnReceivedDate(grnPo.order_date)}
+                          onClick={() => setGrnReceivedDate(getPoDate(grnPo))}
                           className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors ${
-                            grnReceivedDate === grnPo.order_date
+                            grnReceivedDate === getPoDate(grnPo)
                               ? 'bg-primary text-white'
                               : 'text-slate-500 hover:bg-slate-100'
                           }`}
@@ -1500,7 +1510,37 @@ export const PurchaseOrders: React.FC = () => {
                 <input type="number" step="0.001" value={payAmount} onChange={e => setPayAmount(Number(e.target.value))} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
               </div>
               <div>
-                <label className="text-xs font-bold text-slate-500 uppercase">Payment Date</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-500 uppercase">Payment Date</label>
+                  {payPo && (
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setPayDate(getPoDate(payPo))}
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors ${
+                          payDate === getPoDate(payPo)
+                            ? 'bg-primary text-white'
+                            : 'text-slate-500 hover:bg-slate-100'
+                        }`}
+                        title="Default to PO Order Date"
+                      >
+                        PO Date
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPayDate(format(new Date(), 'yyyy-MM-dd'))}
+                        className={`text-[10px] font-bold px-1.5 py-0.5 rounded transition-colors ${
+                          payDate === format(new Date(), 'yyyy-MM-dd')
+                            ? 'bg-primary text-white'
+                            : 'text-slate-500 hover:bg-slate-100'
+                        }`}
+                        title="Set to Today's Date"
+                      >
+                        Today
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <input type="date" value={payDate} onChange={e => setPayDate(e.target.value)} className="w-full mt-1 px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-primary outline-none" />
               </div>
               <div>
