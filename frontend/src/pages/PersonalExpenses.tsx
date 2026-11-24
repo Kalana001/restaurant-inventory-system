@@ -229,7 +229,7 @@ export const PersonalExpenses: React.FC = () => {
       const { data: expData, error: expErr } = await supabase
         .from('expenses')
         .select('*, profiles:created_by(username)')
-        .in('expense_type', ['PERSONAL_HOME', 'PERSONAL_OVIN'])
+        .in('expense_type', ['PERSONAL_HOME', 'PERSONAL_OVIN', 'PERSONAL_HNB_OVIN', 'PERSONAL_BOC_OVIN'])
         .gte('date', startDate)
         .lte('date', endDate)
         .order('date', { ascending: false });

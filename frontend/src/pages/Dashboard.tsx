@@ -193,7 +193,7 @@ export const Dashboard: React.FC = () => {
           supabase
             .from('expenses')
             .select('total_amount, expense_type, description, status')
-            .in('expense_type', ['PERSONAL_HOME', 'PERSONAL_OVIN'])
+            .in('expense_type', ['PERSONAL_HOME', 'PERSONAL_OVIN', 'PERSONAL_HNB_OVIN', 'PERSONAL_BOC_OVIN'])
             .gte('date', monthStartStr)
             .lte('date', monthEndStr)
         ]);
@@ -212,7 +212,11 @@ export const Dashboard: React.FC = () => {
           const amt = Number(row.total_amount) || 0;
           let desc: any = {};
           try { desc = JSON.parse(row.description || '{}'); } catch (e) {}
-          const pType = desc.person_type || (row.expense_type === 'PERSONAL_HOME' ? 'HOME' : 'OVIN');
+          const pType = desc.person_type || (
+            row.expense_type === 'PERSONAL_HOME' ? 'HOME' : 
+            row.expense_type === 'PERSONAL_HNB_OVIN' ? 'HNB_OVIN' : 
+            row.expense_type === 'PERSONAL_BOC_OVIN' ? 'BOC_OVIN' : 'OVIN'
+          );
           const isSettled = Boolean(desc.is_settled || row.status === 'PAID');
 
           if (pType === 'HOME') {
