@@ -50,6 +50,11 @@ export interface OccasionRecord {
   totalCost: number;
   costPerPax: number;
   notes: string;
+  // Menu dishes provided to guests (view only)
+  menuRice?: string;
+  menuDishes?: string;
+  menuDessert?: string;
+  menuExtras?: string;
   items: OccasionItem[];
   createdAt?: string;
   updatedAt?: string;
@@ -68,6 +73,11 @@ export const OccasionCalculator: React.FC = () => {
   const [pax, setPax] = useState<number>(100);
   const [targetPricePerPax, setTargetPricePerPax] = useState<number | ''>(1800);
   const [notes, setNotes] = useState<string>('');
+  // Menu dishes given to guests (view only)
+  const [menuRice, setMenuRice] = useState<string>('');
+  const [menuDishes, setMenuDishes] = useState<string>('');
+  const [menuDessert, setMenuDessert] = useState<string>('');
+  const [menuExtras, setMenuExtras] = useState<string>('');
   const [items, setItems] = useState<OccasionItem[]>([]);
 
   // Item Search & Suggestion State
@@ -114,6 +124,10 @@ export const OccasionCalculator: React.FC = () => {
           setPax(Number(parsed.pax) || 100);
           setTargetPricePerPax(parsed.targetPricePerPax !== undefined ? parsed.targetPricePerPax : 1800);
           setNotes(parsed.notes || '');
+          setMenuRice(parsed.menuRice || '');
+          setMenuDishes(parsed.menuDishes || '');
+          setMenuDessert(parsed.menuDessert || '');
+          setMenuExtras(parsed.menuExtras || '');
           setItems(parsed.items || []);
           setCurrentId(parsed.currentId || null);
           setCurrentMenuItemId(parsed.currentMenuItemId || null);
@@ -126,7 +140,7 @@ export const OccasionCalculator: React.FC = () => {
 
   // Save active draft to localStorage on change
   useEffect(() => {
-    if (items.length > 0 || occasionName) {
+    if (items.length > 0 || occasionName || menuRice || menuDishes || menuDessert) {
       const draftPayload = {
         currentId,
         currentMenuItemId,
@@ -135,11 +149,15 @@ export const OccasionCalculator: React.FC = () => {
         pax,
         targetPricePerPax,
         notes,
+        menuRice,
+        menuDishes,
+        menuDessert,
+        menuExtras,
         items
       };
       localStorage.setItem('occasion_calculator_draft', JSON.stringify(draftPayload));
     }
-  }, [occasionName, eventDate, pax, targetPricePerPax, notes, items, currentId, currentMenuItemId]);
+  }, [occasionName, eventDate, pax, targetPricePerPax, notes, menuRice, menuDishes, menuDessert, menuExtras, items, currentId, currentMenuItemId]);
 
   // Fetch catalogue of inventory items + recent daily purchases
   const fetchCatalogue = async () => {
@@ -318,6 +336,10 @@ export const OccasionCalculator: React.FC = () => {
     setPax(100);
     setTargetPricePerPax(1800);
     setNotes('');
+    setMenuRice('');
+    setMenuDishes('');
+    setMenuDessert('');
+    setMenuExtras('');
     setItems([]);
     localStorage.removeItem('occasion_calculator_draft');
     setNotification({ type: 'success', message: 'Calculator reset for a new occasion.' });
@@ -342,6 +364,10 @@ export const OccasionCalculator: React.FC = () => {
         totalCost,
         costPerPax,
         notes: notes.trim(),
+        menuRice: menuRice.trim(),
+        menuDishes: menuDishes.trim(),
+        menuDessert: menuDessert.trim(),
+        menuExtras: menuExtras.trim(),
         items,
         updatedAt: new Date().toISOString()
       };
@@ -464,6 +490,10 @@ export const OccasionCalculator: React.FC = () => {
     setPax(Number(rec.pax) || 100);
     setTargetPricePerPax(rec.targetPricePerPax !== undefined ? rec.targetPricePerPax : 1800);
     setNotes(rec.notes || '');
+    setMenuRice(rec.menuRice || '');
+    setMenuDishes(rec.menuDishes || '');
+    setMenuDessert(rec.menuDessert || '');
+    setMenuExtras(rec.menuExtras || '');
     setItems(rec.items || []);
     setSavedModalOpen(false);
     setNotification({ type: 'success', message: `Loaded "${rec.occasionName}".` });
@@ -478,6 +508,10 @@ export const OccasionCalculator: React.FC = () => {
     setPax(Number(rec.pax) || 100);
     setTargetPricePerPax(rec.targetPricePerPax !== undefined ? rec.targetPricePerPax : 1800);
     setNotes(rec.notes || '');
+    setMenuRice(rec.menuRice || '');
+    setMenuDishes(rec.menuDishes || '');
+    setMenuDessert(rec.menuDessert || '');
+    setMenuExtras(rec.menuExtras || '');
     setItems((rec.items || []).map(i => ({ ...i, id: `item-${Date.now()}-${Math.random()}` })));
     setSavedModalOpen(false);
     setNotification({ type: 'success', message: `Duplicated "${rec.occasionName}" as a new calculation.` });
@@ -653,15 +687,86 @@ export const OccasionCalculator: React.FC = () => {
 
           <div className="space-y-1.5 md:col-span-2">
             <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">
-              Occasion Notes / Menu Description (Optional)
+              Occasion Notes / General Details (Optional)
             </label>
             <input
               type="text"
               value={notes}
               onChange={e => setNotes(e.target.value)}
-              placeholder="e.g. Lunch Buffet menu with 3 curries, dessert table, welcome drinks"
+              placeholder="e.g. Lunch Buffet menu, customer contact, venue location, hall timing"
               className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 focus:ring-2 focus:ring-slate-300 outline-none"
             />
+          </div>
+        </div>
+
+        {/* VIEW-ONLY: Planned Menu Items Given to Guests */}
+        <div className="pt-4 border-t border-slate-200 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <span className="text-xs font-extrabold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+              <Utensils size={15} className="text-amber-600" />
+              Menu Dishes Provided (View Only Reference)
+            </span>
+            <span className="text-[11px] font-semibold text-slate-400">
+              Specify what dishes, rice & desserts will be given · For quotation and menu view only
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Field 1: What Rice */}
+            <div className="space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-200/80">
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🍚</span> What Rice / Staples?
+              </label>
+              <textarea
+                rows={2}
+                value={menuRice}
+                onChange={e => setMenuRice(e.target.value)}
+                placeholder="e.g. Basmathi Chicken Fried Rice, Steamed Rice, Yellow Rice..."
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none resize-none"
+              />
+            </div>
+
+            {/* Field 2: What Dishes */}
+            <div className="space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-200/80">
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🍗</span> What Dishes & Curries?
+              </label>
+              <textarea
+                rows={2}
+                value={menuDishes}
+                onChange={e => setMenuDishes(e.target.value)}
+                placeholder="e.g. Devilled Chicken, Butter Fish, Dhal Curry, Veg Chop Suey..."
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none resize-none"
+              />
+            </div>
+
+            {/* Field 3: What Dessert */}
+            <div className="space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-200/80">
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🍨</span> What Dessert?
+              </label>
+              <textarea
+                rows={2}
+                value={menuDessert}
+                onChange={e => setMenuDessert(e.target.value)}
+                placeholder="e.g. Watalappan, Caramel Pudding, Fruit Salad with Ice Cream..."
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none resize-none"
+              />
+            </div>
+
+            {/* Field 4: Drinks & Extras */}
+            <div className="space-y-1.5 bg-slate-50/70 p-3 rounded-xl border border-slate-200/80">
+              <label className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🍹</span> Welcome Drinks & Extras
+              </label>
+              <textarea
+                rows={2}
+                value={menuExtras}
+                onChange={e => setMenuExtras(e.target.value)}
+                placeholder="e.g. Welcome Passion Fruit Juice, Fish Cutlets, Salad, Papadam..."
+                className="w-full px-2.5 py-1.5 bg-white border border-slate-200 rounded-lg text-xs font-semibold text-slate-800 placeholder:text-slate-400 focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 outline-none resize-none"
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -1085,6 +1190,30 @@ export const OccasionCalculator: React.FC = () => {
                       </p>
                       {rec.notes && (
                         <p className="text-[11px] text-slate-400 mt-1 italic line-clamp-1">{rec.notes}</p>
+                      )}
+                      {(rec.menuRice || rec.menuDishes || rec.menuDessert || rec.menuExtras) && (
+                        <div className="mt-2 pt-1.5 border-t border-slate-100 flex flex-wrap gap-1.5 text-[10px]">
+                          {rec.menuRice && (
+                            <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                              🍚 <strong>Rice:</strong> {rec.menuRice}
+                            </span>
+                          )}
+                          {rec.menuDishes && (
+                            <span className="px-2 py-0.5 rounded-md bg-orange-50 text-orange-800 border border-orange-200">
+                              🍗 <strong>Dishes:</strong> {rec.menuDishes}
+                            </span>
+                          )}
+                          {rec.menuDessert && (
+                            <span className="px-2 py-0.5 rounded-md bg-pink-50 text-pink-800 border border-pink-200">
+                              🍨 <strong>Dessert:</strong> {rec.menuDessert}
+                            </span>
+                          )}
+                          {rec.menuExtras && (
+                            <span className="px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 border border-teal-200">
+                              🍹 <strong>Extras:</strong> {rec.menuExtras}
+                            </span>
+                          )}
+                        </div>
                       )}
                     </div>
 
