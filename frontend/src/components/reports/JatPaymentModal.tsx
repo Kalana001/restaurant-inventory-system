@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { XCircle, CheckCircle, DollarSign, Clock } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { XCircle, CheckCircle, DollarSign } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, startOfMonth, endOfMonth } from 'date-fns';
 
 interface JatPaymentModalProps {
   onClose: () => void;
@@ -28,102 +28,144 @@ export const JatPaymentModal: React.FC<JatPaymentModalProps> = ({ onClose, onSuc
   const [filterDate, setFilterDate] = useState('');
   const [filterSearch, setFilterSearch] = useState('');
 
-  useEffect(() => {
-    const fetchPending = async () => {
-      setLoading(true);
-      try {
-        const { data: jatReason } = await supabase.from('movement_reasons').select('id').eq('name', 'JAT').single();
-        if (!jatReason) return;
+  const fetchPending = useCallback(async (month: string, date: string) => {
+    setLoading(true);
+    try {
+      const { data: jatReason } = await supabase.from('movement_reasons').select('id').eq('name', 'JAT').single();
+      if (!jatReason) return;
 
-        const [ { data: movements }, { data: settlements }, { data: dailyPurchases }, { data: transCosts }, { data: jatExpenses } ] = await Promise.all([
-          supabase.from('stock_movements').select('quantity, cost_price, created_at, reference_type').eq('type', 'STOCK_OUT').eq('reason_id', jatReason.id),
-          supabase.from('jat_settlements').select('notes').neq('status', 'BOUNCED'),
-          supabase.from('daily_purchases').select('date, total_cost').eq('department', 'JAT'),
-          supabase.from('transportation_costs').select('date, cost').eq('department', 'JAT'),
-          supabase.from('expenses').select('id, date, total_amount, expense_type').eq('category', 'JAT')
-        ]);
+      // Build queries — apply DB-level date filter when month or date is set
+      let movementsQuery = supabase
+        .from('stock_movements')
+        .select('quantity, cost_price, created_at, reference_type')
+        .eq('type', 'STOCK_OUT')
+        .eq('reason_id', jatReason.id);
 
-        if (movements || dailyPurchases || transCosts || jatExpenses) {
-          const allocationsByReceipt: Record<string, number> = {};
-          const isAllocated: Record<string, boolean> = {};
-          settlements?.forEach(s => {
-            try {
-              const parsed = JSON.parse(s.notes);
-              if (parsed && parsed.allocations) {
-                Object.entries(parsed.allocations).forEach(([receipt, amount]) => {
-                  allocationsByReceipt[receipt] = (allocationsByReceipt[receipt] || 0) + Number(amount);
-                  isAllocated[receipt] = true;
-                });
-              }
-            } catch (e) {}
-          });
+      let dpQuery = supabase.from('daily_purchases').select('date, total_cost').eq('department', 'JAT');
+      let tcQuery = supabase.from('transportation_costs').select('date, cost').eq('department', 'JAT');
+      let expQuery = supabase.from('expenses').select('id, date, total_amount, expense_type').eq('category', 'JAT');
 
-          const txMap: Record<string, any> = {};
-          
-          if (movements) {
-            movements.forEach(m => {
-              const receipt = m.reference_type || 'MANUAL';
-              const cost = m.quantity * m.cost_price;
-              if (!txMap[receipt]) {
-                txMap[receipt] = { receipt, date: format(new Date(m.created_at), 'yyyy-MM-dd'), reason: 'JAT', totalCost: 0, paid: 0, remaining: 0 };
-              }
-              txMap[receipt].totalCost += cost;
-            });
-          }
-
-          if (dailyPurchases) {
-            dailyPurchases.forEach(dp => {
-              const receipt = `MKT-${dp.date}-JAT`;
-              const cost = Number(dp.total_cost) || 0;
-              if (!txMap[receipt]) {
-                txMap[receipt] = { receipt, date: dp.date, reason: 'JAT / Vege', totalCost: 0, paid: 0, remaining: 0 };
-              }
-              txMap[receipt].totalCost += cost;
-            });
-          }
-
-          if (transCosts) {
-            transCosts.forEach(tc => {
-              const receipt = `TRN-${tc.date}-JAT`;
-              const cost = Number(tc.cost) || 0;
-              if (!txMap[receipt]) {
-                txMap[receipt] = { receipt, date: tc.date, reason: 'JAT / Trans', totalCost: 0, paid: 0, remaining: 0 };
-              }
-              txMap[receipt].totalCost += cost;
-            });
-          }
-
-          if (jatExpenses) {
-            jatExpenses.forEach(e => {
-              const receipt = `EXP-${e.date}-${e.id.substring(0, 6)}`;
-              const cost = Number(e.total_amount) || 0;
-              if (!txMap[receipt]) {
-                txMap[receipt] = { receipt, date: e.date, reason: 'JAT / Expenses', totalCost: 0, paid: 0, remaining: 0 };
-              }
-              txMap[receipt].totalCost += cost;
-            });
-          }
-
-          Object.values(txMap).forEach(tx => {
-            tx.totalCost = Math.round(tx.totalCost * 100) / 100;
-            tx.paid = Math.round((allocationsByReceipt[tx.receipt] || 0) * 100) / 100;
-            tx.remaining = Math.max(0, Math.round((tx.totalCost - tx.paid) * 100) / 100);
-          });
-
-          setPendingReceipts(Object.values(txMap).filter(t => t.remaining > 0 || (t.totalCost === 0 && !isAllocated[t.receipt])).sort((a, b) => a.date.localeCompare(b.date)));
-        }
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
+      if (date) {
+        const startISO = new Date(date + 'T00:00:00').toISOString();
+        const endISO   = new Date(date + 'T23:59:59.999').toISOString();
+        movementsQuery = movementsQuery.gte('created_at', startISO).lte('created_at', endISO);
+        dpQuery  = dpQuery.gte('date', date).lte('date', date);
+        tcQuery  = tcQuery.gte('date', date).lte('date', date);
+        expQuery = expQuery.gte('date', date).lte('date', date);
+      } else if (month) {
+        const targetDate = new Date(month + '-01');
+        const startISO  = startOfMonth(targetDate).toISOString();
+        const endISO    = endOfMonth(targetDate).toISOString();
+        const startStr  = format(startOfMonth(targetDate), 'yyyy-MM-dd');
+        const endStr    = format(endOfMonth(targetDate), 'yyyy-MM-dd');
+        movementsQuery = movementsQuery.gte('created_at', startISO).lte('created_at', endISO);
+        dpQuery  = dpQuery.gte('date', startStr).lte('date', endStr);
+        tcQuery  = tcQuery.gte('date', startStr).lte('date', endStr);
+        expQuery = expQuery.gte('date', startStr).lte('date', endStr);
       }
-    };
-    fetchPending();
+
+      const [
+        { data: movements },
+        { data: settlements },
+        { data: dailyPurchases },
+        { data: transCosts },
+        { data: jatExpenses }
+      ] = await Promise.all([
+        movementsQuery,
+        supabase.from('jat_settlements').select('notes').neq('status', 'BOUNCED'),
+        dpQuery,
+        tcQuery,
+        expQuery
+      ]);
+
+      if (movements || dailyPurchases || transCosts || jatExpenses) {
+        const allocationsByReceipt: Record<string, number> = {};
+        const isAllocated: Record<string, boolean> = {};
+        settlements?.forEach(s => {
+          try {
+            const parsed = JSON.parse(s.notes);
+            if (parsed && parsed.allocations) {
+              Object.entries(parsed.allocations).forEach(([receipt, amount]) => {
+                allocationsByReceipt[receipt] = (allocationsByReceipt[receipt] || 0) + Number(amount);
+                isAllocated[receipt] = true;
+              });
+            }
+          } catch (e) {}
+        });
+
+        const txMap: Record<string, any> = {};
+
+        if (movements) {
+          movements.forEach(m => {
+            const receipt = m.reference_type || 'MANUAL';
+            const cost = m.quantity * m.cost_price;
+            if (!txMap[receipt]) {
+              txMap[receipt] = { receipt, date: format(new Date(m.created_at), 'yyyy-MM-dd'), reason: 'JAT', totalCost: 0, paid: 0, remaining: 0 };
+            }
+            txMap[receipt].totalCost += cost;
+          });
+        }
+
+        if (dailyPurchases) {
+          dailyPurchases.forEach(dp => {
+            const receipt = `MKT-${dp.date}-JAT`;
+            const cost = Number(dp.total_cost) || 0;
+            if (!txMap[receipt]) {
+              txMap[receipt] = { receipt, date: dp.date, reason: 'JAT / Vege', totalCost: 0, paid: 0, remaining: 0 };
+            }
+            txMap[receipt].totalCost += cost;
+          });
+        }
+
+        if (transCosts) {
+          transCosts.forEach(tc => {
+            const receipt = `TRN-${tc.date}-JAT`;
+            const cost = Number(tc.cost) || 0;
+            if (!txMap[receipt]) {
+              txMap[receipt] = { receipt, date: tc.date, reason: 'JAT / Trans', totalCost: 0, paid: 0, remaining: 0 };
+            }
+            txMap[receipt].totalCost += cost;
+          });
+        }
+
+        if (jatExpenses) {
+          jatExpenses.forEach(e => {
+            const receipt = `EXP-${e.date}-${e.id.substring(0, 6)}`;
+            const cost = Number(e.total_amount) || 0;
+            if (!txMap[receipt]) {
+              txMap[receipt] = { receipt, date: e.date, reason: 'JAT / Expenses', totalCost: 0, paid: 0, remaining: 0 };
+            }
+            txMap[receipt].totalCost += cost;
+          });
+        }
+
+        Object.values(txMap).forEach(tx => {
+          tx.totalCost = Math.round(tx.totalCost * 100) / 100;
+          tx.paid = Math.round((allocationsByReceipt[tx.receipt] || 0) * 100) / 100;
+          tx.remaining = Math.max(0, Math.round((tx.totalCost - tx.paid) * 100) / 100);
+        });
+
+        setPendingReceipts(
+          Object.values(txMap)
+            .filter(t => t.remaining > 0 || (t.totalCost === 0 && !isAllocated[t.receipt]))
+            .sort((a, b) => a.date.localeCompare(b.date))
+        );
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
+  // Re-fetch from DB whenever month or date filter changes
+  useEffect(() => {
+    setSelectedReceipts(new Set());
+    setAllocations({});
+    fetchPending(filterMonth, filterDate);
+  }, [filterMonth, filterDate, fetchPending]);
+
   const filteredReceipts = pendingReceipts.filter(r => {
-    if (filterMonth && !r.date.startsWith(filterMonth)) return false;
-    if (filterDate && r.date !== filterDate) return false;
     if (filterSearch && !r.receipt.toLowerCase().includes(filterSearch.toLowerCase())) return false;
     return true;
   });
