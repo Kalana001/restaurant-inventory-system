@@ -27,6 +27,7 @@ import { StaffManagement } from './pages/StaffManagement';
 import { DailySalesEntry } from './pages/DailySalesEntry';
 import { PersonalExpenses } from './pages/PersonalExpenses';
 import { ReorderLevels } from './pages/ReorderLevels';
+import { OccasionCalculator } from './pages/OccasionCalculator';
 
 function App() {
   return (
@@ -72,6 +73,7 @@ function App() {
               <Route path="/expenses" element={<Expenses />} />
               <Route path="/profit-and-loss" element={<ProfitAndLoss />} />
               <Route path="/personal-expenses" element={<PersonalExpenses />} />
+              <Route path="/occasion-calculator" element={<OccasionCalculator />} />
               <Route path="/daily-sales-entry" element={<DailySalesEntry />} />
               <Route path="/staff" element={<StaffManagement />} />
             </Route>

@@ -23,7 +23,8 @@ import {
   ShoppingBag,
   Truck,
   Wallet,
-  DollarSign
+  DollarSign,
+  Calculator
 } from 'lucide-react';
 
 export const DashboardLayout: React.FC = () => {
@@ -177,6 +178,12 @@ export const DashboardLayout: React.FC = () => {
       label: 'Personal Expenses', 
       path: '/personal-expenses', 
       icon: <UserCheck size={20} className="text-purple-500" />, 
+      permission: null 
+    },
+    { 
+      label: 'Special Occasion', 
+      path: '/occasion-calculator', 
+      icon: <Calculator size={20} className="text-amber-500" />, 
       permission: null 
     },
     { 
