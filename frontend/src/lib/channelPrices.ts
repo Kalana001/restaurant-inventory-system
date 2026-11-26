@@ -21,20 +21,19 @@ export interface CustomMenuItem {
 
 const LOCAL_STORAGE_PRICES_KEY = 'restaurant_menu_channel_prices_v1';
 const LOCAL_STORAGE_CUSTOM_ITEMS_KEY = 'restaurant_custom_menu_items_v1';
-const SETTING_KEY_PRICES = 'MENU_CHANNEL_PRICES';
-const SETTING_KEY_CUSTOM = 'CUSTOM_MENU_ITEMS';
+const SKU_CHANNEL_PRICES = 'CONFIG-CHANNEL-PRICES';
+const SKU_CUSTOM_ITEMS = 'CONFIG-CUSTOM-MENU-ITEMS';
 
 /**
  * Loads channel prices from:
- * 1. Supabase system_settings
- * 2. Supabase recipes (instructions json backup)
- * 3. LocalStorage
- * 4. Default SEED_MENU_ITEMS prices
+ * 1. Supabase recipes (CONFIG-CHANNEL-PRICES)
+ * 2. LocalStorage
+ * 3. Default SEED_MENU_ITEMS
  */
 export async function loadChannelPrices(): Promise<ChannelPriceMap> {
   const merged: ChannelPriceMap = {};
 
-  // 1. Initialize with seed data defaults (restaurant_price = pickme_price = current_price)
+  // 1. Initialize with seed data defaults (restaurant_price = current_price, pickme_price = current_price)
   SEED_MENU_ITEMS.forEach(seed => {
     merged[seed.item_code] = {
       restaurant_price: Number(seed.current_price) || 0,
@@ -63,33 +62,41 @@ export async function loadChannelPrices(): Promise<ChannelPriceMap> {
     console.warn('Could not read channel prices from localStorage:', e);
   }
 
-  // 3. Try to load from Supabase system_settings
+  // 3. Load from Supabase via recipes (sku = CONFIG-CHANNEL-PRICES)
   try {
-    const { data: settingData } = await supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', SETTING_KEY_PRICES)
+    const { data: menuItem } = await supabase
+      .from('menu_items')
+      .select('id')
+      .eq('sku', SKU_CHANNEL_PRICES)
       .maybeSingle();
 
-    if (settingData?.value) {
-      const parsed = typeof settingData.value === 'string' ? JSON.parse(settingData.value) : settingData.value;
-      if (parsed && typeof parsed === 'object') {
-        Object.entries(parsed).forEach(([code, p]: [string, any]) => {
-          if (p && typeof p === 'object') {
-            merged[code] = {
-              restaurant_price: Number(p.restaurant_price) || merged[code]?.restaurant_price || 0,
-              pickme_price: Number(p.pickme_price) || merged[code]?.pickme_price || 0,
-              updated_at: p.updated_at
-            };
-          }
-        });
+    if (menuItem?.id) {
+      const { data: recData } = await supabase
+        .from('recipes')
+        .select('instructions')
+        .eq('menu_item_id', menuItem.id)
+        .maybeSingle();
+
+      if (recData?.instructions) {
+        const parsed = typeof recData.instructions === 'string' ? JSON.parse(recData.instructions) : recData.instructions;
+        if (parsed && typeof parsed === 'object') {
+          Object.entries(parsed).forEach(([code, p]: [string, any]) => {
+            if (p && typeof p === 'object') {
+              merged[code] = {
+                restaurant_price: Number(p.restaurant_price) || merged[code]?.restaurant_price || 0,
+                pickme_price: Number(p.pickme_price) || merged[code]?.pickme_price || 0,
+                updated_at: p.updated_at
+              };
+            }
+          });
+        }
       }
     }
   } catch (err) {
-    console.warn('Could not load channel prices from system_settings:', err);
+    console.warn('Could not load channel prices from database:', err);
   }
 
-  // Also mirror back into localStorage for instant offline access
+  // Mirror back to localStorage
   try {
     localStorage.setItem(LOCAL_STORAGE_PRICES_KEY, JSON.stringify(merged));
   } catch (e) {}
@@ -99,33 +106,84 @@ export async function loadChannelPrices(): Promise<ChannelPriceMap> {
 
 /**
  * Saves updated channel prices to:
- * 1. LocalStorage
- * 2. Supabase system_settings
+ * 1. LocalStorage immediately
+ * 2. Supabase recipes (CONFIG-CHANNEL-PRICES)
  */
 export async function saveChannelPrices(pricesMap: ChannelPriceMap): Promise<boolean> {
   // 1. Save to LocalStorage immediately
   try {
     localStorage.setItem(LOCAL_STORAGE_PRICES_KEY, JSON.stringify(pricesMap));
   } catch (e) {
-    console.warn('Failed to save to localStorage:', e);
+    console.warn('Failed to save channel prices to localStorage:', e);
   }
 
-  // 2. Save to Supabase system_settings
+  // 2. Save to Supabase
   try {
-    const payloadStr = JSON.stringify(pricesMap);
-    const { error } = await supabase
-      .from('system_settings')
-      .upsert({
-        key: SETTING_KEY_PRICES,
-        value: payloadStr,
-        description: 'Stores channel-specific menu prices (Restaurant vs PickMe)',
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'key' });
+    let { data: menuItem } = await supabase
+      .from('menu_items')
+      .select('id')
+      .eq('sku', SKU_CHANNEL_PRICES)
+      .maybeSingle();
 
-    if (error) {
-      console.warn('Could not save to system_settings:', error.message);
-      return false;
+    let menuItemId = menuItem?.id;
+
+    if (!menuItemId) {
+      const { data: newMenu, error: mErr } = await supabase
+        .from('menu_items')
+        .insert({
+          name: 'Channel Menu Prices Config',
+          sku: SKU_CHANNEL_PRICES,
+          selling_price: 0,
+          active: true
+        })
+        .select('id')
+        .single();
+
+      if (mErr) {
+        console.warn('Could not insert config menu_item:', mErr.message);
+        return false;
+      }
+      menuItemId = newMenu.id;
     }
+
+    const payloadStr = JSON.stringify(pricesMap);
+    const { data: existingRec } = await supabase
+      .from('recipes')
+      .select('id')
+      .eq('menu_item_id', menuItemId)
+      .maybeSingle();
+
+    if (existingRec?.id) {
+      const { error: updErr } = await supabase
+        .from('recipes')
+        .update({
+          instructions: payloadStr,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingRec.id);
+
+      if (updErr) {
+        console.warn('Could not update recipe prices:', updErr.message);
+        return false;
+      }
+    } else {
+      const { data: units } = await supabase.from('units').select('id').limit(1);
+      const { error: insErr } = await supabase
+        .from('recipes')
+        .insert({
+          menu_item_id: menuItemId,
+          yield_quantity: 1,
+          yield_unit_id: units?.[0]?.id,
+          instructions: payloadStr,
+          active: true
+        });
+
+      if (insErr) {
+        console.warn('Could not insert recipe prices:', insErr.message);
+        return false;
+      }
+    }
+
     return true;
   } catch (err) {
     console.error('Error saving channel prices:', err);
@@ -148,21 +206,29 @@ export async function loadCustomMenuItems(): Promise<CustomMenuItem[]> {
     }
   } catch (e) {}
 
-  // Supabase system_settings
+  // Supabase
   try {
-    const { data } = await supabase
-      .from('system_settings')
-      .select('value')
-      .eq('key', SETTING_KEY_CUSTOM)
+    const { data: menuItem } = await supabase
+      .from('menu_items')
+      .select('id')
+      .eq('sku', SKU_CUSTOM_ITEMS)
       .maybeSingle();
 
-    if (data?.value) {
-      const parsed = typeof data.value === 'string' ? JSON.parse(data.value) : data.value;
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        items = parsed;
-        try {
-          localStorage.setItem(LOCAL_STORAGE_CUSTOM_ITEMS_KEY, JSON.stringify(items));
-        } catch (e) {}
+    if (menuItem?.id) {
+      const { data: recData } = await supabase
+        .from('recipes')
+        .select('instructions')
+        .eq('menu_item_id', menuItem.id)
+        .maybeSingle();
+
+      if (recData?.instructions) {
+        const parsed = typeof recData.instructions === 'string' ? JSON.parse(recData.instructions) : recData.instructions;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          items = parsed;
+          try {
+            localStorage.setItem(LOCAL_STORAGE_CUSTOM_ITEMS_KEY, JSON.stringify(items));
+          } catch (e) {}
+        }
       }
     }
   } catch (e) {}
@@ -179,14 +245,58 @@ export async function saveCustomMenuItems(items: CustomMenuItem[]): Promise<bool
   } catch (e) {}
 
   try {
-    await supabase
-      .from('system_settings')
-      .upsert({
-        key: SETTING_KEY_CUSTOM,
-        value: JSON.stringify(items),
-        description: 'Stores user-created custom menu items',
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'key' });
+    let { data: menuItem } = await supabase
+      .from('menu_items')
+      .select('id')
+      .eq('sku', SKU_CUSTOM_ITEMS)
+      .maybeSingle();
+
+    let menuItemId = menuItem?.id;
+
+    if (!menuItemId) {
+      const { data: newMenu, error: mErr } = await supabase
+        .from('menu_items')
+        .insert({
+          name: 'Custom Menu Items Config',
+          sku: SKU_CUSTOM_ITEMS,
+          selling_price: 0,
+          active: true
+        })
+        .select('id')
+        .single();
+
+      if (mErr) return false;
+      menuItemId = newMenu.id;
+    }
+
+    const payloadStr = JSON.stringify(items);
+    const { data: existingRec } = await supabase
+      .from('recipes')
+      .select('id')
+      .eq('menu_item_id', menuItemId)
+      .maybeSingle();
+
+    if (existingRec?.id) {
+      await supabase
+        .from('recipes')
+        .update({
+          instructions: payloadStr,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existingRec.id);
+    } else {
+      const { data: units } = await supabase.from('units').select('id').limit(1);
+      await supabase
+        .from('recipes')
+        .insert({
+          menu_item_id: menuItemId,
+          yield_quantity: 1,
+          yield_unit_id: units?.[0]?.id,
+          instructions: payloadStr,
+          active: true
+        });
+    }
+
     return true;
   } catch (e) {
     return false;
