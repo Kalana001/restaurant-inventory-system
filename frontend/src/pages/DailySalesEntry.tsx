@@ -2,6 +2,16 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { SEED_MENU_ITEMS } from '../data/menuSeedData';
 import { 
+  loadChannelPrices, 
+  saveChannelPrices, 
+  loadCustomMenuItems, 
+  saveCustomMenuItems
+} from '../lib/channelPrices';
+import type { 
+  ChannelPriceMap, 
+  CustomMenuItem 
+} from '../lib/channelPrices';
+import { 
   ShoppingBag, 
   Calendar, 
   Search, 
@@ -19,7 +29,10 @@ import {
   Layers,
   Sparkles,
   Plus,
-  ListChecks
+  ListChecks,
+  TrendingUp,
+  TrendingDown,
+  ArrowRight
 } from 'lucide-react';
 import { format, parseISO, subDays, addDays } from 'date-fns';
 
@@ -28,7 +41,9 @@ export interface MenuItem {
   item_code: string;
   name: string;
   category: string;
-  current_price: number;
+  restaurant_price: number;
+  pickme_price: number;
+  current_price: number; // Dynamically set to the active channel's price
   is_active: boolean;
 }
 
@@ -49,6 +64,7 @@ export const DailySalesEntry: React.FC = () => {
 
   // Menu items list
   const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [channelPrices, setChannelPrices] = useState<ChannelPriceMap>({});
   const [selectedCategory, setSelectedCategory] = useState<string>('ALL');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
@@ -66,9 +82,10 @@ export const DailySalesEntry: React.FC = () => {
   const [pnlPickme, setPnlPickme] = useState<number>(0);
   const [hasPnlRecord, setHasPnlRecord] = useState<boolean>(false);
 
-  // Price Edit Modal
+  // Single Price Edit Modal (Allows editing BOTH Restaurant & PickMe prices)
   const [editingItem, setEditingItem] = useState<MenuItem | null>(null);
-  const [editPriceVal, setEditPriceVal] = useState<number | ''>('');
+  const [editRestPrice, setEditRestPrice] = useState<number | ''>('');
+  const [editPickmePrice, setEditPickmePrice] = useState<number | ''>('');
   const [savingPrice, setSavingPrice] = useState<boolean>(false);
 
   // Add Item Modal
@@ -77,13 +94,14 @@ export const DailySalesEntry: React.FC = () => {
   const [newItemName, setNewItemName] = useState<string>('');
   const [selectedAddCategory, setSelectedAddCategory] = useState<string>('');
   const [customCategoryInput, setCustomCategoryInput] = useState<string>('');
-  const [newItemPrice, setNewItemPrice] = useState<number | ''>('');
+  const [newItemRestPrice, setNewItemRestPrice] = useState<number | ''>('');
+  const [newItemPickmePrice, setNewItemPickmePrice] = useState<number | ''>('');
   const [savingNewItem, setSavingNewItem] = useState<boolean>(false);
   const [addItemError, setAddItemError] = useState<string | null>(null);
 
-  // Bulk Price Edit Modal
+  // Bulk Price Edit Modal (Side-by-side editing of both Restaurant & PickMe prices)
   const [showBulkPriceModal, setShowBulkPriceModal] = useState<boolean>(false);
-  const [bulkPrices, setBulkPrices] = useState<Record<string, number | ''>>({});
+  const [bulkPrices, setBulkPrices] = useState<Record<string, { restaurant_price: number | ''; pickme_price: number | '' }>>({});
   const [savingBulkPrices, setSavingBulkPrices] = useState<boolean>(false);
   const [bulkPriceSearch, setBulkPriceSearch] = useState<string>('');
   const [bulkPriceSaved, setBulkPriceSaved] = useState<boolean>(false);
@@ -99,71 +117,61 @@ export const DailySalesEntry: React.FC = () => {
     });
   };
 
-  // 1. Fetch or Seed Menu Items
-  const fetchMenuItems = async () => {
+  // 1. Fetch Menu Items and Channel Prices (Restaurant & PickMe)
+  const fetchMenuItemsAndPrices = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('menu_items')
-        .select('*')
-        .order('category', { ascending: true })
-        .order('item_code', { ascending: true });
+      const [savedPrices, customItems] = await Promise.all([
+        loadChannelPrices(),
+        loadCustomMenuItems()
+      ]);
 
-      if (error) {
-        // Table might not exist yet; fallback to seed
-        console.warn('Could not query menu_items table:', error.message);
-        setMenuItems(SEED_MENU_ITEMS.map((item, idx) => ({
-          id: `seed-${item.item_code}`,
-          ...item,
+      setChannelPrices(savedPrices);
+
+      // Build base items from SEED
+      const baseItems: MenuItem[] = SEED_MENU_ITEMS.map(seed => {
+        const p = savedPrices[seed.item_code];
+        const restPrice = p?.restaurant_price !== undefined ? Number(p.restaurant_price) : Number(seed.current_price);
+        const pickPrice = p?.pickme_price !== undefined ? Number(p.pickme_price) : Number(seed.current_price);
+        return {
+          id: `seed-${seed.item_code}`,
+          item_code: seed.item_code,
+          name: seed.name,
+          category: seed.category,
+          restaurant_price: restPrice,
+          pickme_price: pickPrice,
+          current_price: salesChannel === 'RESTAURANT' ? restPrice : pickPrice,
           is_active: true
-        })));
-        return;
-      }
+        };
+      });
 
-      if (!data || data.length === 0) {
-        // Auto-seed table
-        const rows = SEED_MENU_ITEMS.map(i => ({
-          item_code: i.item_code,
-          name: i.name,
-          category: i.category,
-          current_price: i.current_price,
-          is_active: true
-        }));
+      // Append custom items
+      const customFormatted: MenuItem[] = customItems.map(c => {
+        const p = savedPrices[c.item_code];
+        const restPrice = p?.restaurant_price !== undefined ? Number(p.restaurant_price) : Number(c.restaurant_price);
+        const pickPrice = p?.pickme_price !== undefined ? Number(p.pickme_price) : Number(c.pickme_price);
+        return {
+          id: c.id,
+          item_code: c.item_code,
+          name: c.name,
+          category: c.category,
+          restaurant_price: restPrice,
+          pickme_price: pickPrice,
+          current_price: salesChannel === 'RESTAURANT' ? restPrice : pickPrice,
+          is_active: c.is_active ?? true
+        };
+      });
 
-        const { data: seeded, error: seedErr } = await supabase
-          .from('menu_items')
-          .insert(rows)
-          .select();
+      const all = [...baseItems, ...customFormatted].sort((a, b) => {
+        const numA = parseInt(a.item_code, 10);
+        const numB = parseInt(b.item_code, 10);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.item_code.localeCompare(b.item_code);
+      });
 
-        if (seedErr) {
-          console.warn('Auto-seed insert skipped:', seedErr.message);
-          const sortedSeed = [...SEED_MENU_ITEMS]
-            .sort((a, b) => Number(a.item_code) - Number(b.item_code))
-            .map((item) => ({
-              id: `seed-${item.item_code}`,
-              ...item,
-              is_active: true
-            }));
-          setMenuItems(sortedSeed);
-        } else {
-          const sorted = (seeded || []).sort((a, b) => Number(a.item_code) - Number(b.item_code));
-          setMenuItems(sorted);
-        }
-      } else {
-        // Sort strictly by numeric item_code ascending (1, 2, 3, 4...)
-        const sorted = [...data].sort((a, b) => Number(a.item_code) - Number(b.item_code));
-        setMenuItems(sorted);
-      }
+      setMenuItems(all);
     } catch (err: any) {
-      console.error('Error in fetchMenuItems:', err);
-      const sortedSeed = [...SEED_MENU_ITEMS]
-        .sort((a, b) => Number(a.item_code) - Number(b.item_code))
-        .map((item) => ({
-          id: `seed-${item.item_code}`,
-          ...item,
-          is_active: true
-        }));
-      setMenuItems(sortedSeed);
+      console.error('Error in fetchMenuItemsAndPrices:', err);
     } finally {
       setLoading(false);
     }
@@ -229,7 +237,7 @@ export const DailySalesEntry: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchMenuItems();
+    fetchMenuItemsAndPrices();
   }, []);
 
   useEffect(() => {
@@ -237,6 +245,14 @@ export const DailySalesEntry: React.FC = () => {
       fetchDaySalesAndPnL(selectedDate);
     }
   }, [selectedDate]);
+
+  // When switching salesChannel, update the display price
+  useEffect(() => {
+    setMenuItems(prev => prev.map(item => ({
+      ...item,
+      current_price: salesChannel === 'RESTAURANT' ? item.restaurant_price : item.pickme_price
+    })));
+  }, [salesChannel]);
 
   // Date Navigation
   const handlePrevDay = () => setSelectedDate(format(subDays(parseISO(selectedDate), 1), 'yyyy-MM-dd'));
@@ -259,7 +275,7 @@ export const DailySalesEntry: React.FC = () => {
     });
   }, [menuItems, selectedCategory, searchQuery]);
 
-  // Calculations for Restaurant Channel
+  // Calculations for Restaurant Channel (uses restaurant_price)
   const restaurantSummary = useMemo(() => {
     let totalQty = 0;
     let totalAmount = 0;
@@ -267,15 +283,15 @@ export const DailySalesEntry: React.FC = () => {
       const qty = Number(restaurantQuantities[item.id]) || 0;
       if (qty > 0) {
         totalQty += qty;
-        totalAmount += qty * Number(item.current_price);
+        totalAmount += qty * Number(item.restaurant_price);
       }
     });
     const pnlExpected = pnlCash + pnlCard;
-    const difference = pnlExpected - totalAmount; // positive means PnL cash/card is higher, negative means item sales higher
+    const difference = pnlExpected - totalAmount;
     return { totalQty, totalAmount, pnlExpected, difference };
   }, [menuItems, restaurantQuantities, pnlCash, pnlCard]);
 
-  // Calculations for PickMe Channel
+  // Calculations for PickMe Channel (uses pickme_price)
   const pickmeSummary = useMemo(() => {
     let totalQty = 0;
     let totalAmount = 0;
@@ -283,16 +299,13 @@ export const DailySalesEntry: React.FC = () => {
       const qty = Number(pickmeQuantities[item.id]) || 0;
       if (qty > 0) {
         totalQty += qty;
-        totalAmount += qty * Number(item.current_price);
+        totalAmount += qty * Number(item.pickme_price);
       }
     });
     const pnlExpected = pnlPickme;
     const difference = pnlExpected - totalAmount;
     return { totalQty, totalAmount, pnlExpected, difference };
   }, [menuItems, pickmeQuantities, pnlPickme]);
-
-  // Combined Difference
-  const combinedDifference = restaurantSummary.difference + pickmeSummary.difference;
 
   // Handle Quantity Change
   const handleQuantityChange = (itemId: string, val: string) => {
@@ -345,13 +358,14 @@ export const DailySalesEntry: React.FC = () => {
       menuItems.forEach(item => {
         const qty = Number(activeQuantities[item.id]) || 0;
         if (qty > 0) {
+          const unitPrice = salesChannel === 'RESTAURANT' ? item.restaurant_price : item.pickme_price;
           rowsToUpsert.push({
             date: selectedDate,
             sales_channel: salesChannel,
             menu_item_id: item.id,
             quantity: qty,
-            unit_price: item.current_price,
-            total_amount: qty * item.current_price
+            unit_price: unitPrice,
+            total_amount: qty * unitPrice
           });
         }
       });
@@ -382,94 +396,150 @@ export const DailySalesEntry: React.FC = () => {
     }
   };
 
-  // Save Edited Price
+  // Open Single Price Edit Modal
+  const openSinglePriceModal = (item: MenuItem) => {
+    setEditingItem(item);
+    setEditRestPrice(item.restaurant_price);
+    setEditPickmePrice(item.pickme_price);
+  };
+
+  // Save Single Item Edited Prices (Both Restaurant & PickMe)
   const handleSavePrice = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingItem || editPriceVal === '' || Number(editPriceVal) < 0) return;
+    if (!editingItem) return;
+
+    const restVal = editRestPrice === '' ? 0 : Number(editRestPrice);
+    const pickVal = editPickmePrice === '' ? restVal : Number(editPickmePrice);
 
     setSavingPrice(true);
     try {
-      const newPrice = Number(editPriceVal);
-      const { error } = await supabase
-        .from('menu_items')
-        .update({ current_price: newPrice, updated_at: new Date().toISOString() })
-        .eq('id', editingItem.id);
+      const updatedPricesMap: ChannelPriceMap = {
+        ...channelPrices,
+        [editingItem.item_code]: {
+          restaurant_price: restVal,
+          pickme_price: pickVal,
+          updated_at: new Date().toISOString()
+        }
+      };
 
-      if (error) throw error;
+      await saveChannelPrices(updatedPricesMap);
+      setChannelPrices(updatedPricesMap);
 
-      setMenuItems(prev => prev.map(i => i.id === editingItem.id ? { ...i, current_price: newPrice } : i));
+      setMenuItems(prev => prev.map(i => {
+        if (i.id === editingItem.id) {
+          return {
+            ...i,
+            restaurant_price: restVal,
+            pickme_price: pickVal,
+            current_price: salesChannel === 'RESTAURANT' ? restVal : pickVal
+          };
+        }
+        return i;
+      }));
+
       setEditingItem(null);
     } catch (err: any) {
-      alert(err.message || 'Failed to update price');
+      alert(err.message || 'Failed to update prices');
     } finally {
       setSavingPrice(false);
     }
   };
 
-  // 7. Handle Bulk Price Save
-  const handleSaveBulkPrices = async () => {
-    setSavingBulkPrices(true);
-    try {
-      const updates = menuItems
-        .filter(item => {
-          const val = bulkPrices[item.id];
-          return val !== '' && val !== undefined && Number(val) !== Number(item.current_price);
-        })
-        .map(item => ({
-          id: item.id,
-          newPrice: Number(bulkPrices[item.id])
-        }));
-
-      if (updates.length === 0) {
-        setShowBulkPriceModal(false);
-        return;
-      }
-
-      await Promise.all(
-        updates.map(({ id, newPrice }) =>
-          supabase.from('menu_items').update({ current_price: newPrice, updated_at: new Date().toISOString() }).eq('id', id)
-        )
-      );
-
-      // Update local state
-      setMenuItems(prev =>
-        prev.map(item => {
-          const updated = updates.find(u => u.id === item.id);
-          return updated ? { ...item, current_price: updated.newPrice } : item;
-        })
-      );
-
-      setBulkPriceSaved(true);
-      setTimeout(() => {
-        setBulkPriceSaved(false);
-        setShowBulkPriceModal(false);
-      }, 1800);
-    } catch (err: any) {
-      alert(err.message || 'Failed to save prices');
-    } finally {
-      setSavingBulkPrices(false);
-    }
-  };
-
-  // Open bulk price modal — pre-fill current prices
+  // Open Bulk Price Edit Modal
   const openBulkPriceModal = () => {
-    const priceMap: Record<string, number | ''> = {};
-    menuItems.forEach(item => { priceMap[item.id] = item.current_price; });
-    setBulkPrices(priceMap);
+    const map: Record<string, { restaurant_price: number | ''; pickme_price: number | '' }> = {};
+    menuItems.forEach(item => {
+      map[item.id] = {
+        restaurant_price: item.restaurant_price,
+        pickme_price: item.pickme_price
+      };
+    });
+    setBulkPrices(map);
     setBulkPriceSearch('');
     setBulkPriceSaved(false);
     setShowBulkPriceModal(true);
   };
 
-  // 6. Handle Add New Menu Item
-  const handleAddNewItem = async (e: React.FormEvent) => {    e.preventDefault();
+  // Auto-calculate all PickMe prices in Bulk Edit
+  const handleApplyBulkMarkup = (percentage: number) => {
+    setBulkPrices(prev => {
+      const next = { ...prev };
+      menuItems.forEach(item => {
+        const curRest = prev[item.id]?.restaurant_price !== undefined && prev[item.id]?.restaurant_price !== ''
+          ? Number(prev[item.id].restaurant_price)
+          : Number(item.restaurant_price);
+        const calculated = Math.round(curRest * (1 + percentage / 100));
+        next[item.id] = {
+          restaurant_price: curRest,
+          pickme_price: calculated
+        };
+      });
+      return next;
+    });
+  };
+
+  // Save Bulk Prices (Both Restaurant & PickMe)
+  const handleSaveBulkPrices = async () => {
+    setSavingBulkPrices(true);
+    try {
+      const updatedMap: ChannelPriceMap = { ...channelPrices };
+
+      menuItems.forEach(item => {
+        const entry = bulkPrices[item.id];
+        if (entry) {
+          const restVal = entry.restaurant_price !== '' && entry.restaurant_price !== undefined
+            ? Number(entry.restaurant_price)
+            : item.restaurant_price;
+          const pickVal = entry.pickme_price !== '' && entry.pickme_price !== undefined
+            ? Number(entry.pickme_price)
+            : item.pickme_price;
+
+          updatedMap[item.item_code] = {
+            restaurant_price: restVal,
+            pickme_price: pickVal,
+            updated_at: new Date().toISOString()
+          };
+        }
+      });
+
+      await saveChannelPrices(updatedMap);
+      setChannelPrices(updatedMap);
+
+      setMenuItems(prev => prev.map(item => {
+        const entry = bulkPrices[item.id];
+        if (!entry) return item;
+        const restVal = entry.restaurant_price !== '' && entry.restaurant_price !== undefined ? Number(entry.restaurant_price) : item.restaurant_price;
+        const pickVal = entry.pickme_price !== '' && entry.pickme_price !== undefined ? Number(entry.pickme_price) : item.pickme_price;
+        return {
+          ...item,
+          restaurant_price: restVal,
+          pickme_price: pickVal,
+          current_price: salesChannel === 'RESTAURANT' ? restVal : pickVal
+        };
+      }));
+
+      setBulkPriceSaved(true);
+      setTimeout(() => {
+        setBulkPriceSaved(false);
+        setShowBulkPriceModal(false);
+      }, 1500);
+    } catch (err: any) {
+      alert(err.message || 'Failed to save bulk prices');
+    } finally {
+      setSavingBulkPrices(false);
+    }
+  };
+
+  // Add New Menu Item
+  const handleAddNewItem = async (e: React.FormEvent) => {
+    e.preventDefault();
     setAddItemError(null);
 
     const trimmedCode = newItemCode.trim();
     const trimmedName = newItemName.trim();
-    const priceNum = Number(newItemPrice);
+    const restNum = Number(newItemRestPrice);
+    const pickNum = newItemPickmePrice === '' ? restNum : Number(newItemPickmePrice);
 
-    // Resolve Category: either from selected dropdown or custom input
     const finalCategory = (
       selectedAddCategory === '__NEW__'
         ? customCategoryInput.trim()
@@ -488,12 +558,11 @@ export const DailySalesEntry: React.FC = () => {
       setAddItemError('Please select or specify a category.');
       return;
     }
-    if (isNaN(priceNum) || priceNum < 0) {
-      setAddItemError('Please enter a valid price (>= 0).');
+    if (isNaN(restNum) || restNum < 0) {
+      setAddItemError('Please enter a valid Restaurant price (>= 0).');
       return;
     }
 
-    // Check for duplicate code
     if (menuItems.some(i => i.item_code.trim() === trimmedCode)) {
       setAddItemError(`Item code #${trimmedCode} already exists. Please choose a different code.`);
       return;
@@ -501,38 +570,49 @@ export const DailySalesEntry: React.FC = () => {
 
     setSavingNewItem(true);
     try {
-      const { data, error } = await supabase
-        .from('menu_items')
-        .insert({
-          item_code: trimmedCode,
-          name: trimmedName,
-          category: finalCategory,
-          current_price: priceNum,
-          is_active: true
-        })
-        .select()
-        .single();
+      const newItemId = `custom-${trimmedCode}-${Date.now()}`;
+      const newCustomItem: CustomMenuItem = {
+        id: newItemId,
+        item_code: trimmedCode,
+        name: trimmedName,
+        category: finalCategory,
+        restaurant_price: restNum,
+        pickme_price: pickNum,
+        is_active: true
+      };
 
-      if (error) {
-        // If table doesn't support insert or offline, fallback to local state
-        console.warn('DB insert warning:', error.message);
-        const fallbackItem: MenuItem = {
-          id: `custom-${trimmedCode}-${Date.now()}`,
-          item_code: trimmedCode,
-          name: trimmedName,
-          category: finalCategory,
-          current_price: priceNum,
-          is_active: true
-        };
-        setMenuItems(prev => [...prev, fallbackItem].sort((a, b) => Number(a.item_code) - Number(b.item_code)));
-      } else if (data) {
-        setMenuItems(prev => [...prev, data].sort((a, b) => Number(a.item_code) - Number(b.item_code)));
-      }
+      const existingCustom = await loadCustomMenuItems();
+      const updatedCustom = [...existingCustom, newCustomItem];
+      await saveCustomMenuItems(updatedCustom);
+
+      const updatedPricesMap: ChannelPriceMap = {
+        ...channelPrices,
+        [trimmedCode]: {
+          restaurant_price: restNum,
+          pickme_price: pickNum,
+          updated_at: new Date().toISOString()
+        }
+      };
+      await saveChannelPrices(updatedPricesMap);
+      setChannelPrices(updatedPricesMap);
+
+      const newItem: MenuItem = {
+        ...newCustomItem,
+        current_price: salesChannel === 'RESTAURANT' ? restNum : pickNum
+      };
+
+      setMenuItems(prev => [...prev, newItem].sort((a, b) => {
+        const numA = parseInt(a.item_code, 10);
+        const numB = parseInt(b.item_code, 10);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.item_code.localeCompare(b.item_code);
+      }));
 
       setShowAddModal(false);
       setNewItemCode('');
       setNewItemName('');
-      setNewItemPrice('');
+      setNewItemRestPrice('');
+      setNewItemPickmePrice('');
       setSelectedAddCategory('');
       setCustomCategoryInput('');
     } catch (err: any) {
@@ -557,33 +637,36 @@ export const DailySalesEntry: React.FC = () => {
             </span>
           </div>
           <p className="text-sm text-slate-500 mt-1">
-            Input day-end portion quantities sold for Restaurant (Cash + Card) and PickMe. Verifies that quantity value equals collected revenue.
+            Input day-end portion quantities sold for Restaurant (Cash + Card) and PickMe. Separate unit prices stored for both channels.
           </p>
         </div>
 
         {/* Channel Tab Switcher: Restaurant vs PickMe */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start md:self-auto">
+        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start md:self-auto shadow-xs">
           <button
             onClick={() => setSalesChannel('RESTAURANT')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
               salesChannel === 'RESTAURANT'
-                ? 'bg-white text-primary shadow-sm'
+                ? 'bg-white text-primary shadow-sm border border-slate-200'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Store size={15} />
-            Restaurant (Cash + Card)
+            <span>Restaurant (Cash + Card)</span>
           </button>
           <button
             onClick={() => setSalesChannel('PICKME')}
-            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
               salesChannel === 'PICKME'
-                ? 'bg-white text-emerald-700 shadow-sm'
+                ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             <Bike size={15} />
-            PickMe Delivery
+            <span>PickMe Delivery</span>
+            <span className="text-[10px] bg-emerald-500 text-white px-1.5 py-0.2 rounded font-mono">
+              30% Comm.
+            </span>
           </button>
         </div>
       </div>
@@ -644,7 +727,9 @@ export const DailySalesEntry: React.FC = () => {
           <button
             onClick={handleSaveSalesQuantities}
             disabled={saving || loading}
-            className="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50"
+            className={`flex items-center gap-2 px-5 py-2.5 text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 disabled:opacity-50 ${
+              salesChannel === 'RESTAURANT' ? 'bg-primary hover:bg-primary-dark' : 'bg-emerald-600 hover:bg-emerald-700'
+            }`}
           >
             <Save size={16} />
             {saving ? 'Saving...' : `Save ${salesChannel === 'RESTAURANT' ? 'Restaurant' : 'PickMe'} Quantities`}
@@ -670,10 +755,12 @@ export const DailySalesEntry: React.FC = () => {
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
             Calculated Items Value
           </span>
-          <p className="text-2xl font-extrabold text-primary mt-1">
+          <p className={`text-2xl font-extrabold mt-1 ${salesChannel === 'RESTAURANT' ? 'text-primary' : 'text-emerald-700'}`}>
             LKR {formatCurrency(salesChannel === 'RESTAURANT' ? restaurantSummary.totalAmount : pickmeSummary.totalAmount)}
           </p>
-          <span className="text-[11px] text-slate-400">Qty × Current Selling Price</span>
+          <span className="text-[11px] text-slate-400">
+            Qty × {salesChannel === 'RESTAURANT' ? 'Restaurant Price' : 'PickMe Price'}
+          </span>
         </div>
 
         {/* Card 3: P&L Reported Revenue */}
@@ -681,7 +768,7 @@ export const DailySalesEntry: React.FC = () => {
           <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
             P&L {salesChannel === 'RESTAURANT' ? 'Cash + Card' : 'PickMe'}
           </span>
-          <p className="text-2xl font-extrabold text-emerald-700 mt-1">
+          <p className="text-2xl font-extrabold text-slate-800 mt-1">
             LKR {formatCurrency(salesChannel === 'RESTAURANT' ? restaurantSummary.pnlExpected : pickmeSummary.pnlExpected)}
           </p>
           <span className="text-[11px] text-slate-400">
@@ -693,7 +780,7 @@ export const DailySalesEntry: React.FC = () => {
         {(() => {
           const diff = salesChannel === 'RESTAURANT' ? restaurantSummary.difference : pickmeSummary.difference;
           const isExact = Math.abs(diff) < 0.01;
-          const isPositive = diff > 0; // P&L is higher than item sales
+          const isPositive = diff > 0;
 
           return (
             <div className={`p-4 rounded-2xl border shadow-sm ${
@@ -726,7 +813,7 @@ export const DailySalesEntry: React.FC = () => {
         })()}
       </div>
 
-      {/* SEARCH & CATEGORY FILTER BAR */}
+      {/* SEARCH & ACTIONS BAR */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
           {/* Search Box */}
@@ -741,34 +828,36 @@ export const DailySalesEntry: React.FC = () => {
             />
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="text-xs text-slate-400 font-medium">
-              Showing <strong className="text-slate-700">{filteredItems.length}</strong> items • Click ✏️ to edit price
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="text-xs text-slate-400 font-medium mr-1">
+              Showing <strong className="text-slate-700">{filteredItems.length}</strong> items
             </div>
+
             <button
               type="button"
               onClick={openBulkPriceModal}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap"
             >
-              <ListChecks size={14} />
-              Bulk Edit Prices
+              <ListChecks size={15} />
+              Bulk Edit Prices (Both Channels)
             </button>
+
             <button
               type="button"
               onClick={() => {
                 setAddItemError(null);
                 setNewItemCode('');
                 setNewItemName('');
-                setNewItemPrice('');
-                // Default to first existing category or RICE
+                setNewItemRestPrice('');
+                setNewItemPickmePrice('');
                 const existingCats = categories.filter(c => c !== 'ALL');
                 setSelectedAddCategory(existingCats[0] || 'RICE');
                 setCustomCategoryInput('');
                 setShowAddModal(true);
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap"
             >
-              <Plus size={14} />
+              <Plus size={15} />
               Add New Item
             </button>
           </div>
@@ -792,7 +881,7 @@ export const DailySalesEntry: React.FC = () => {
         </div>
       </div>
 
-      {/* ITEMS QUANTITIES TABLE */}
+      {/* ITEMS QUANTITIES & PRICES TABLE */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs">
@@ -801,7 +890,9 @@ export const DailySalesEntry: React.FC = () => {
                 <th className="px-4 py-3 text-center w-16">Code</th>
                 <th className="px-5 py-3">Item Name</th>
                 <th className="px-4 py-3">Category</th>
-                <th className="px-4 py-3 text-right">Unit Price</th>
+                <th className="px-4 py-3 text-right">
+                  {salesChannel === 'RESTAURANT' ? 'Restaurant Price' : 'PickMe Price'}
+                </th>
                 <th className="px-6 py-3 text-center w-40">
                   {salesChannel === 'RESTAURANT' ? 'Restaurant Sold Qty' : 'PickMe Sold Qty'}
                 </th>
@@ -819,7 +910,13 @@ export const DailySalesEntry: React.FC = () => {
                 filteredItems.map((item, index) => {
                   const activeQuantities = salesChannel === 'RESTAURANT' ? restaurantQuantities : pickmeQuantities;
                   const qty = activeQuantities[item.id] ?? '';
-                  const lineTotal = (Number(qty) || 0) * Number(item.current_price);
+                  const unitPrice = salesChannel === 'RESTAURANT' ? item.restaurant_price : item.pickme_price;
+                  const lineTotal = (Number(qty) || 0) * unitPrice;
+
+                  // PickMe 30% margin preview
+                  const pickmeNet = item.pickme_price * 0.70;
+                  const marginVsRest = pickmeNet - item.restaurant_price;
+                  const isMarginLoss = marginVsRest < -0.5;
 
                   return (
                     <tr
@@ -834,8 +931,20 @@ export const DailySalesEntry: React.FC = () => {
                       </td>
 
                       {/* Name */}
-                      <td className="px-5 py-3 font-bold text-slate-800">
-                        {item.name}
+                      <td className="px-5 py-3">
+                        <span className="font-bold text-slate-800">{item.name}</span>
+                        {salesChannel === 'PICKME' && (
+                          <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                            <span>Rest: LKR {formatCurrency(item.restaurant_price)}</span>
+                            <span>•</span>
+                            <span>Net (-30%): LKR {formatCurrency(pickmeNet)}</span>
+                            {isMarginLoss && (
+                              <span className="text-rose-600 font-bold bg-rose-50 px-1 rounded">
+                                Loss -LKR {Math.abs(marginVsRest).toFixed(0)}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </td>
 
                       {/* Category */}
@@ -846,19 +955,20 @@ export const DailySalesEntry: React.FC = () => {
                       </td>
 
                       {/* Price + Edit Icon */}
-                      <td className="px-4 py-3 text-right font-semibold text-slate-700 whitespace-nowrap">
-                        <span>LKR {formatCurrency(Number(item.current_price))}</span>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingItem(item);
-                            setEditPriceVal(item.current_price);
-                          }}
-                          className="ml-2 text-slate-400 hover:text-primary transition-colors p-1"
-                          title="Edit price"
-                        >
-                          <Edit3 size={13} />
-                        </button>
+                      <td className="px-4 py-3 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-2">
+                          <span className={`font-bold ${salesChannel === 'RESTAURANT' ? 'text-slate-800' : 'text-emerald-700'}`}>
+                            LKR {formatCurrency(unitPrice)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => openSinglePriceModal(item)}
+                            className="text-slate-400 hover:text-primary transition-colors p-1 rounded-lg hover:bg-slate-100"
+                            title="Edit Restaurant & PickMe prices"
+                          >
+                            <Edit3 size={13} />
+                          </button>
+                        </div>
                       </td>
 
                       {/* Quantity Input with Enter Key Navigation */}
@@ -875,7 +985,9 @@ export const DailySalesEntry: React.FC = () => {
                           onFocus={e => e.target.select()}
                           className={`w-28 px-3 py-1.5 border rounded-xl text-center font-bold text-sm outline-none transition-all ${
                             Number(qty) > 0
-                              ? 'border-primary ring-2 ring-primary/20 bg-white text-primary'
+                              ? salesChannel === 'RESTAURANT'
+                                ? 'border-primary ring-2 ring-primary/20 bg-white text-primary'
+                                : 'border-emerald-600 ring-2 ring-emerald-600/20 bg-white text-emerald-700'
                               : 'border-slate-200 text-slate-700 focus:border-primary'
                           }`}
                         />
@@ -900,7 +1012,137 @@ export const DailySalesEntry: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL: BULK EDIT ITEM PRICES */}
+      {/* MODAL: SINGLE ITEM PRICE EDIT (BOTH RESTAURANT & PICKME) */}
+      {editingItem && (() => {
+        const restNum = Number(editRestPrice) || 0;
+        const pickNum = Number(editPickmePrice) || 0;
+        const diff = pickNum - restNum;
+        const diffPct = restNum > 0 ? ((diff / restNum) * 100).toFixed(1) : '0';
+        const netPickme = pickNum * 0.70;
+        const marginVsRest = netPickme - restNum;
+        const isProfit = marginVsRest >= 0;
+        const breakEvenPrice = Math.ceil(restNum / 0.70);
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-2xl border border-slate-100 max-w-md w-full p-6 shadow-2xl relative">
+              <button
+                onClick={() => setEditingItem(null)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 p-1"
+              >
+                <X size={18} />
+              </button>
+
+              <h3 className="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
+                <Edit3 size={16} className="text-primary" />
+                Edit Item Prices
+              </h3>
+              <p className="text-xs text-slate-400 mb-4">
+                #{editingItem.item_code} - <strong>{editingItem.name}</strong> ({editingItem.category})
+              </p>
+
+              <form onSubmit={handleSavePrice} className="space-y-4 text-xs">
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-bold text-slate-700 mb-1 flex items-center gap-1">
+                      <Store size={13} className="text-primary" />
+                      Restaurant Price (LKR) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editRestPrice}
+                      onChange={e => setEditRestPrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-base text-slate-800 outline-none focus:ring-2 focus:ring-primary/20"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block font-bold text-emerald-800 mb-1 flex items-center gap-1">
+                      <Bike size={13} className="text-emerald-600" />
+                      PickMe Price (LKR) *
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={editPickmePrice}
+                      onChange={e => setEditPickmePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                      className="w-full px-3 py-2 border border-emerald-300 rounded-xl font-bold text-base text-emerald-800 outline-none focus:ring-2 focus:ring-emerald-500/20 bg-emerald-50/20"
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Quick PickMe Calculation Buttons */}
+                <div className="flex items-center gap-2 pt-1">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase">Quick Set:</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditPickmePrice(breakEvenPrice)}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] font-bold text-slate-700 transition-colors"
+                  >
+                    Break-Even (+42.9% = LKR {breakEvenPrice})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditPickmePrice(Math.round(restNum * 1.30))}
+                    className="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg text-[10px] font-bold text-slate-700 transition-colors"
+                  >
+                    +30% Markup
+                  </button>
+                </div>
+
+                {/* PickMe vs Restaurant 30% Deduction Analysis Box */}
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 font-medium">Difference vs Restaurant:</span>
+                    <span className="font-bold text-slate-700">
+                      {diff >= 0 ? `+LKR ${diff.toFixed(2)} (+${diffPct}%)` : `-LKR ${Math.abs(diff).toFixed(2)} (${diffPct}%)`}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-500 font-medium">Net Payout after PickMe 30% cut:</span>
+                    <span className="font-bold text-slate-800 font-mono">
+                      LKR {netPickme.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700">Net Profit / Loss vs Dine-in:</span>
+                    <span className={`px-2 py-0.5 rounded-lg text-xs font-black flex items-center gap-1 ${
+                      isProfit ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                    }`}>
+                      {isProfit ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                      {isProfit ? `+LKR ${marginVsRest.toFixed(2)}` : `-LKR ${Math.abs(marginVsRest).toFixed(2)}`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingItem(null)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={savingPrice}
+                    className="px-5 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-sm transition-all"
+                  >
+                    {savingPrice ? 'Saving...' : 'Save Both Prices'}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* MODAL: BULK EDIT ITEM PRICES (SIDE-BY-SIDE RESTAURANT & PICKME) */}
       {showBulkPriceModal && (() => {
         const bulkFiltered = menuItems.filter(item =>
           item.is_active && (
@@ -911,24 +1153,19 @@ export const DailySalesEntry: React.FC = () => {
           )
         );
 
-        const changedCount = menuItems.filter(item => {
-          const val = bulkPrices[item.id];
-          return val !== '' && val !== undefined && Number(val) !== Number(item.current_price);
-        }).length;
-
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-            <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl shadow-2xl flex flex-col max-h-[88vh]">
+            <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-4xl shadow-2xl flex flex-col max-h-[90vh]">
 
               {/* Header */}
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 rounded-t-2xl">
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/70 rounded-t-2xl">
                 <div>
                   <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
-                    <ListChecks size={17} className="text-amber-500" />
-                    Bulk Edit Item Prices
+                    <ListChecks size={18} className="text-amber-500" />
+                    Bulk Edit Menu Prices (Restaurant & PickMe)
                   </h3>
                   <p className="text-xs text-slate-400 mt-0.5">
-                    Edit prices for all menu items at once — applies to both Restaurant & PickMe channels
+                    Store independent prices for both Restaurant and PickMe. PickMe prices automatically calculate the 30% commission.
                   </p>
                 </div>
                 <button onClick={() => setShowBulkPriceModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
@@ -936,18 +1173,36 @@ export const DailySalesEntry: React.FC = () => {
                 </button>
               </div>
 
-              {/* Search */}
-              <div className="px-6 py-3 border-b border-slate-100 bg-white">
-                <div className="relative">
+              {/* Tools Bar: Search & Quick Markup Actions */}
+              <div className="px-6 py-3 border-b border-slate-100 bg-white flex flex-col sm:flex-row items-center justify-between gap-3">
+                <div className="relative w-full sm:w-72">
                   <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                   <input
                     type="text"
-                    placeholder="Search by item name, code or category..."
+                    placeholder="Search item name, code or category..."
                     value={bulkPriceSearch}
                     onChange={e => setBulkPriceSearch(e.target.value)}
-                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400/30"
+                    className="w-full pl-9 pr-3 py-1.5 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400/30"
                     autoFocus
                   />
+                </div>
+
+                <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Apply to all PickMe:</span>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyBulkMarkup(30)}
+                    className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 rounded-lg text-xs font-bold transition-all"
+                  >
+                    +30% Markup
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleApplyBulkMarkup(42.86)}
+                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-200 rounded-lg text-xs font-bold transition-all"
+                  >
+                    Break-Even (+42.9%)
+                  </button>
                 </div>
               </div>
 
@@ -956,51 +1211,91 @@ export const DailySalesEntry: React.FC = () => {
                 <table className="w-full text-left text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky top-0 z-10">
                     <tr>
-                      <th className="px-4 py-2.5 w-16 text-center">Code</th>
+                      <th className="px-3 py-2.5 w-14 text-center">Code</th>
                       <th className="px-4 py-2.5">Item Name</th>
-                      <th className="px-4 py-2.5">Category</th>
-                      <th className="px-4 py-2.5 text-right w-32">Current Price</th>
-                      <th className="px-4 py-2.5 text-right w-40">New Price (LKR)</th>
+                      <th className="px-3 py-2.5">Category</th>
+                      <th className="px-4 py-2.5 text-right w-36">Restaurant Price (LKR)</th>
+                      <th className="px-4 py-2.5 text-right w-36">PickMe Price (LKR)</th>
+                      <th className="px-3 py-2.5 text-right w-24">PickMe (-30%)</th>
+                      <th className="px-3 py-2.5 text-center w-28">Net vs Rest.</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
                     {bulkFiltered.length === 0 ? (
-                      <tr><td colSpan={5} className="text-center py-10 text-slate-400">No items match your search.</td></tr>
+                      <tr><td colSpan={7} className="text-center py-10 text-slate-400">No items match your search.</td></tr>
                     ) : (
                       bulkFiltered.map(item => {
-                        const val = bulkPrices[item.id];
-                        const isChanged = val !== '' && val !== undefined && Number(val) !== Number(item.current_price);
+                        const entry = bulkPrices[item.id] || { restaurant_price: item.restaurant_price, pickme_price: item.pickme_price };
+                        const restVal = Number(entry.restaurant_price) || 0;
+                        const pickVal = Number(entry.pickme_price) || 0;
+                        const netPickme = pickVal * 0.70;
+                        const marginDiff = netPickme - restVal;
+                        const isProfit = marginDiff >= 0;
+
                         return (
-                          <tr key={item.id} className={`hover:bg-slate-50/80 transition-colors ${isChanged ? 'bg-amber-50/40' : ''}`}>
-                            <td className="px-4 py-2.5 text-center font-bold text-slate-500 font-mono text-[11px]">
+                          <tr key={item.id} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="px-3 py-2 text-center font-bold text-slate-500 font-mono text-[11px]">
                               #{item.item_code}
                             </td>
-                            <td className="px-4 py-2.5 font-semibold text-slate-800">{item.name}</td>
-                            <td className="px-4 py-2.5">
+                            <td className="px-4 py-2 font-semibold text-slate-800">
+                              {item.name}
+                            </td>
+                            <td className="px-3 py-2">
                               <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold text-[10px]">
                                 {item.category}
                               </span>
                             </td>
-                            <td className="px-4 py-2.5 text-right font-semibold text-slate-500">
-                              LKR {Number(item.current_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="px-4 py-2.5 text-right">
+                            {/* Restaurant Price Input */}
+                            <td className="px-4 py-1.5 text-right">
                               <input
                                 type="number"
                                 step="0.01"
                                 min="0"
-                                value={val}
-                                onChange={e => setBulkPrices(prev => ({
-                                  ...prev,
-                                  [item.id]: e.target.value === '' ? '' : Number(e.target.value)
-                                }))}
-                                onFocus={e => e.target.select()}
-                                className={`w-32 px-3 py-1.5 border rounded-xl text-right font-bold text-sm outline-none transition-all ${
-                                  isChanged
-                                    ? 'border-amber-400 ring-2 ring-amber-400/25 bg-amber-50 text-amber-800'
-                                    : 'border-slate-200 text-slate-700 focus:border-amber-400'
-                                }`}
+                                value={entry.restaurant_price}
+                                onChange={e => {
+                                  const val = e.target.value === '' ? '' : Number(e.target.value);
+                                  setBulkPrices(prev => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      restaurant_price: val
+                                    }
+                                  }));
+                                }}
+                                className="w-28 px-2 py-1 border border-slate-200 rounded-lg text-right font-bold text-slate-800 focus:border-primary outline-none"
                               />
+                            </td>
+                            {/* PickMe Price Input */}
+                            <td className="px-4 py-1.5 text-right">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={entry.pickme_price}
+                                onChange={e => {
+                                  const val = e.target.value === '' ? '' : Number(e.target.value);
+                                  setBulkPrices(prev => ({
+                                    ...prev,
+                                    [item.id]: {
+                                      ...prev[item.id],
+                                      pickme_price: val
+                                    }
+                                  }));
+                                }}
+                                className="w-28 px-2 py-1 border border-emerald-300 bg-emerald-50/30 rounded-lg text-right font-bold text-emerald-800 focus:border-emerald-600 outline-none"
+                              />
+                            </td>
+                            {/* Net after 30% */}
+                            <td className="px-3 py-2 text-right font-mono font-semibold text-slate-600 text-[11px]">
+                              LKR {netPickme.toFixed(0)}
+                            </td>
+                            {/* Net Margin vs Rest */}
+                            <td className="px-3 py-2 text-center">
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                                isProfit ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                              }`}>
+                                {isProfit ? `+${marginDiff.toFixed(0)}` : `${marginDiff.toFixed(0)}`}
+                              </span>
                             </td>
                           </tr>
                         );
@@ -1011,20 +1306,14 @@ export const DailySalesEntry: React.FC = () => {
               </div>
 
               {/* Footer */}
-              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/60 rounded-b-2xl">
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/70 rounded-b-2xl">
                 <div className="text-xs text-slate-500 font-medium">
-                  {changedCount > 0 ? (
-                    <span className="text-amber-700 font-bold">
-                      ✏️ {changedCount} price{changedCount > 1 ? 's' : ''} changed
-                    </span>
-                  ) : (
-                    <span className="text-slate-400">No changes made yet</span>
-                  )}
+                  Editing prices across all {menuItems.length} items
                 </div>
                 <div className="flex items-center gap-2">
                   {bulkPriceSaved && (
                     <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 animate-in fade-in">
-                      <CheckCircle2 size={13} /> Prices Saved!
+                      <CheckCircle2 size={13} /> Prices Saved Successfully!
                     </span>
                   )}
                   <button
@@ -1037,11 +1326,11 @@ export const DailySalesEntry: React.FC = () => {
                   <button
                     type="button"
                     onClick={handleSaveBulkPrices}
-                    disabled={savingBulkPrices || changedCount === 0}
+                    disabled={savingBulkPrices}
                     className="flex items-center gap-2 px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition-all disabled:opacity-50"
                   >
                     <Save size={14} />
-                    {savingBulkPrices ? 'Saving...' : `Save ${changedCount > 0 ? changedCount : ''} Price${changedCount !== 1 ? 's' : ''}`}
+                    {savingBulkPrices ? 'Saving...' : 'Save All Channel Prices'}
                   </button>
                 </div>
               </div>
@@ -1049,60 +1338,6 @@ export const DailySalesEntry: React.FC = () => {
           </div>
         );
       })()}
-
-      {/* MODAL: EDIT ITEM PRICE */}
-      {editingItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white rounded-2xl border border-slate-100 max-w-sm w-full p-6 shadow-2xl relative">
-            <button
-              onClick={() => setEditingItem(null)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600"
-            >
-              <X size={18} />
-            </button>
-
-            <h3 className="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
-              <Edit3 size={16} className="text-primary" />
-              Update Item Price
-            </h3>
-            <p className="text-xs text-slate-400 mb-4">
-              Editing price for <strong>#{editingItem.item_code} - {editingItem.name}</strong>.
-            </p>
-
-            <form onSubmit={handleSavePrice} className="space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Selling Price (LKR) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={editPriceVal}
-                  onChange={e => setEditPriceVal(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-base text-slate-800 outline-none focus:ring-2 focus:ring-primary/20"
-                  required
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2">
-                <button
-                  type="button"
-                  onClick={() => setEditingItem(null)}
-                  className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingPrice}
-                  className="px-5 py-2 bg-primary hover:bg-primary-dark text-white rounded-xl text-xs font-bold shadow-sm transition-all"
-                >
-                  {savingPrice ? 'Updating...' : 'Update Price'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* MODAL: ADD NEW MENU ITEM */}
       {showAddModal && (
@@ -1120,7 +1355,7 @@ export const DailySalesEntry: React.FC = () => {
               Add New Menu Item
             </h3>
             <p className="text-xs text-slate-400 mb-4">
-              Add a new item with an item code (1, 2, 3...). It will automatically appear sorted numerically.
+              Add a new menu item and define both its Restaurant and PickMe prices.
             </p>
 
             {addItemError && (
@@ -1164,7 +1399,6 @@ export const DailySalesEntry: React.FC = () => {
                 </div>
               </div>
 
-              {/* If user selected "+ Create New Category...", show input */}
               {selectedAddCategory === '__NEW__' && (
                 <div className="p-3 bg-amber-50/70 border border-amber-200 rounded-xl animate-in fade-in duration-150">
                   <label className="block font-bold text-amber-900 mb-1">New Category Name *</label>
@@ -1176,9 +1410,6 @@ export const DailySalesEntry: React.FC = () => {
                     onChange={e => setCustomCategoryInput(e.target.value.toUpperCase())}
                     className="w-full px-3 py-2 border border-amber-300 rounded-lg font-bold text-slate-800 uppercase outline-none focus:ring-2 focus:ring-amber-500/30 bg-white"
                   />
-                  <span className="text-[10px] text-amber-700 mt-1 block">
-                    This new category will be created and added to the category list.
-                  </span>
                 </div>
               )}
 
@@ -1194,18 +1425,39 @@ export const DailySalesEntry: React.FC = () => {
                 />
               </div>
 
-              <div>
-                <label className="block font-bold text-slate-700 mb-1">Selling Price (LKR) *</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  required
-                  placeholder="0.00"
-                  value={newItemPrice}
-                  onChange={e => setNewItemPrice(e.target.value === '' ? '' : Number(e.target.value))}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-base text-slate-800 outline-none focus:ring-2 focus:ring-primary/20"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block font-bold text-slate-700 mb-1">Restaurant Price (LKR) *</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    required
+                    placeholder="0.00"
+                    value={newItemRestPrice}
+                    onChange={e => {
+                      const v = e.target.value === '' ? '' : Number(e.target.value);
+                      setNewItemRestPrice(v);
+                      if (newItemPickmePrice === '') {
+                        setNewItemPickmePrice(v);
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl font-bold text-base text-slate-800 outline-none focus:ring-2 focus:ring-primary/20"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-bold text-emerald-800 mb-1">PickMe Price (LKR)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Same as Rest. or higher"
+                    value={newItemPickmePrice}
+                    onChange={e => setNewItemPickmePrice(e.target.value === '' ? '' : Number(e.target.value))}
+                    className="w-full px-3 py-2 border border-emerald-300 rounded-xl font-bold text-base text-emerald-800 outline-none focus:ring-2 focus:ring-emerald-500/20 bg-emerald-50/20"
+                  />
+                </div>
               </div>
 
               <div className="flex items-center justify-end gap-2 pt-2">
