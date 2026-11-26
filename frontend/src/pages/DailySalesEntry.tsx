@@ -18,7 +18,8 @@ import {
   Store,
   Layers,
   Sparkles,
-  Plus
+  Plus,
+  ListChecks
 } from 'lucide-react';
 import { format, parseISO, subDays, addDays } from 'date-fns';
 
@@ -79,6 +80,13 @@ export const DailySalesEntry: React.FC = () => {
   const [newItemPrice, setNewItemPrice] = useState<number | ''>('');
   const [savingNewItem, setSavingNewItem] = useState<boolean>(false);
   const [addItemError, setAddItemError] = useState<string | null>(null);
+
+  // Bulk Price Edit Modal
+  const [showBulkPriceModal, setShowBulkPriceModal] = useState<boolean>(false);
+  const [bulkPrices, setBulkPrices] = useState<Record<string, number | ''>>({});
+  const [savingBulkPrices, setSavingBulkPrices] = useState<boolean>(false);
+  const [bulkPriceSearch, setBulkPriceSearch] = useState<string>('');
+  const [bulkPriceSaved, setBulkPriceSaved] = useState<boolean>(false);
 
   // Input refs for Enter key navigation
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -398,9 +406,63 @@ export const DailySalesEntry: React.FC = () => {
     }
   };
 
+  // 7. Handle Bulk Price Save
+  const handleSaveBulkPrices = async () => {
+    setSavingBulkPrices(true);
+    try {
+      const updates = menuItems
+        .filter(item => {
+          const val = bulkPrices[item.id];
+          return val !== '' && val !== undefined && Number(val) !== Number(item.current_price);
+        })
+        .map(item => ({
+          id: item.id,
+          newPrice: Number(bulkPrices[item.id])
+        }));
+
+      if (updates.length === 0) {
+        setShowBulkPriceModal(false);
+        return;
+      }
+
+      await Promise.all(
+        updates.map(({ id, newPrice }) =>
+          supabase.from('menu_items').update({ current_price: newPrice, updated_at: new Date().toISOString() }).eq('id', id)
+        )
+      );
+
+      // Update local state
+      setMenuItems(prev =>
+        prev.map(item => {
+          const updated = updates.find(u => u.id === item.id);
+          return updated ? { ...item, current_price: updated.newPrice } : item;
+        })
+      );
+
+      setBulkPriceSaved(true);
+      setTimeout(() => {
+        setBulkPriceSaved(false);
+        setShowBulkPriceModal(false);
+      }, 1800);
+    } catch (err: any) {
+      alert(err.message || 'Failed to save prices');
+    } finally {
+      setSavingBulkPrices(false);
+    }
+  };
+
+  // Open bulk price modal — pre-fill current prices
+  const openBulkPriceModal = () => {
+    const priceMap: Record<string, number | ''> = {};
+    menuItems.forEach(item => { priceMap[item.id] = item.current_price; });
+    setBulkPrices(priceMap);
+    setBulkPriceSearch('');
+    setBulkPriceSaved(false);
+    setShowBulkPriceModal(true);
+  };
+
   // 6. Handle Add New Menu Item
-  const handleAddNewItem = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddNewItem = async (e: React.FormEvent) => {    e.preventDefault();
     setAddItemError(null);
 
     const trimmedCode = newItemCode.trim();
@@ -685,6 +747,14 @@ export const DailySalesEntry: React.FC = () => {
             </div>
             <button
               type="button"
+              onClick={openBulkPriceModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition-all active:scale-95 whitespace-nowrap"
+            >
+              <ListChecks size={14} />
+              Bulk Edit Prices
+            </button>
+            <button
+              type="button"
               onClick={() => {
                 setAddItemError(null);
                 setNewItemCode('');
@@ -829,6 +899,156 @@ export const DailySalesEntry: React.FC = () => {
           </table>
         </div>
       </div>
+
+      {/* MODAL: BULK EDIT ITEM PRICES */}
+      {showBulkPriceModal && (() => {
+        const bulkFiltered = menuItems.filter(item =>
+          item.is_active && (
+            !bulkPriceSearch ||
+            item.name.toLowerCase().includes(bulkPriceSearch.toLowerCase()) ||
+            item.item_code.toLowerCase().includes(bulkPriceSearch.toLowerCase()) ||
+            item.category.toLowerCase().includes(bulkPriceSearch.toLowerCase())
+          )
+        );
+
+        const changedCount = menuItems.filter(item => {
+          const val = bulkPrices[item.id];
+          return val !== '' && val !== undefined && Number(val) !== Number(item.current_price);
+        }).length;
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-white rounded-2xl border border-slate-100 w-full max-w-2xl shadow-2xl flex flex-col max-h-[88vh]">
+
+              {/* Header */}
+              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/60 rounded-t-2xl">
+                <div>
+                  <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <ListChecks size={17} className="text-amber-500" />
+                    Bulk Edit Item Prices
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Edit prices for all menu items at once — applies to both Restaurant & PickMe channels
+                  </p>
+                </div>
+                <button onClick={() => setShowBulkPriceModal(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Search */}
+              <div className="px-6 py-3 border-b border-slate-100 bg-white">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Search by item name, code or category..."
+                    value={bulkPriceSearch}
+                    onChange={e => setBulkPriceSearch(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold text-slate-800 outline-none focus:ring-2 focus:ring-amber-400/30"
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              {/* Items Table */}
+              <div className="overflow-y-auto flex-1">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider sticky top-0 z-10">
+                    <tr>
+                      <th className="px-4 py-2.5 w-16 text-center">Code</th>
+                      <th className="px-4 py-2.5">Item Name</th>
+                      <th className="px-4 py-2.5">Category</th>
+                      <th className="px-4 py-2.5 text-right w-32">Current Price</th>
+                      <th className="px-4 py-2.5 text-right w-40">New Price (LKR)</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {bulkFiltered.length === 0 ? (
+                      <tr><td colSpan={5} className="text-center py-10 text-slate-400">No items match your search.</td></tr>
+                    ) : (
+                      bulkFiltered.map(item => {
+                        const val = bulkPrices[item.id];
+                        const isChanged = val !== '' && val !== undefined && Number(val) !== Number(item.current_price);
+                        return (
+                          <tr key={item.id} className={`hover:bg-slate-50/80 transition-colors ${isChanged ? 'bg-amber-50/40' : ''}`}>
+                            <td className="px-4 py-2.5 text-center font-bold text-slate-500 font-mono text-[11px]">
+                              #{item.item_code}
+                            </td>
+                            <td className="px-4 py-2.5 font-semibold text-slate-800">{item.name}</td>
+                            <td className="px-4 py-2.5">
+                              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-600 font-semibold text-[10px]">
+                                {item.category}
+                              </span>
+                            </td>
+                            <td className="px-4 py-2.5 text-right font-semibold text-slate-500">
+                              LKR {Number(item.current_price).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="px-4 py-2.5 text-right">
+                              <input
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={val}
+                                onChange={e => setBulkPrices(prev => ({
+                                  ...prev,
+                                  [item.id]: e.target.value === '' ? '' : Number(e.target.value)
+                                }))}
+                                onFocus={e => e.target.select()}
+                                className={`w-32 px-3 py-1.5 border rounded-xl text-right font-bold text-sm outline-none transition-all ${
+                                  isChanged
+                                    ? 'border-amber-400 ring-2 ring-amber-400/25 bg-amber-50 text-amber-800'
+                                    : 'border-slate-200 text-slate-700 focus:border-amber-400'
+                                }`}
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between bg-slate-50/60 rounded-b-2xl">
+                <div className="text-xs text-slate-500 font-medium">
+                  {changedCount > 0 ? (
+                    <span className="text-amber-700 font-bold">
+                      ✏️ {changedCount} price{changedCount > 1 ? 's' : ''} changed
+                    </span>
+                  ) : (
+                    <span className="text-slate-400">No changes made yet</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  {bulkPriceSaved && (
+                    <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg border border-emerald-200 animate-in fade-in">
+                      <CheckCircle2 size={13} /> Prices Saved!
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setShowBulkPriceModal(false)}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleSaveBulkPrices}
+                    disabled={savingBulkPrices || changedCount === 0}
+                    className="flex items-center gap-2 px-5 py-2 bg-amber-500 hover:bg-amber-600 text-white rounded-xl text-xs font-bold shadow-sm transition-all disabled:opacity-50"
+                  >
+                    <Save size={14} />
+                    {savingBulkPrices ? 'Saving...' : `Save ${changedCount > 0 ? changedCount : ''} Price${changedCount !== 1 ? 's' : ''}`}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL: EDIT ITEM PRICE */}
       {editingItem && (
