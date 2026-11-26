@@ -933,18 +933,32 @@ export const DailySalesEntry: React.FC = () => {
                       {/* Name */}
                       <td className="px-5 py-3">
                         <span className="font-bold text-slate-800">{item.name}</span>
-                        {salesChannel === 'PICKME' && (
-                          <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
-                            <span>Rest: LKR {formatCurrency(item.restaurant_price)}</span>
-                            <span>•</span>
-                            <span>Net (-30%): LKR {formatCurrency(pickmeNet)}</span>
-                            {isMarginLoss && (
-                              <span className="text-rose-600 font-bold bg-rose-50 px-1 rounded">
-                                Loss -LKR {Math.abs(marginVsRest).toFixed(0)}
+                        {salesChannel === 'PICKME' && (() => {
+                          const isUnsetOrEqual = Math.abs(item.pickme_price - item.restaurant_price) < 0.01;
+                          if (isUnsetOrEqual) {
+                            return (
+                              <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                                <span>Rest: LKR {formatCurrency(item.restaurant_price)}</span>
+                                <span>•</span>
+                                <span className="text-slate-500 font-semibold bg-slate-100 px-1.5 py-0.5 rounded text-[10px]">
+                                  ⚪ Dine-In Only / Unset
+                                </span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="text-[10px] text-slate-400 flex items-center gap-1.5 mt-0.5">
+                              <span>Rest: LKR {formatCurrency(item.restaurant_price)}</span>
+                              <span>•</span>
+                              <span>Net (-30%): LKR {formatCurrency(pickmeNet)}</span>
+                              <span className={`px-1.5 py-0.5 rounded font-bold text-[10px] ${
+                                isMarginLoss ? 'text-rose-600 bg-rose-50' : 'text-emerald-700 bg-emerald-50'
+                              }`}>
+                                {isMarginLoss ? `Loss -LKR ${Math.abs(marginVsRest).toFixed(0)}` : `Profit +LKR ${marginVsRest.toFixed(0)}`}
                               </span>
-                            )}
-                          </div>
-                        )}
+                            </div>
+                          );
+                        })()}
                       </td>
 
                       {/* Category */}
@@ -1096,29 +1110,49 @@ export const DailySalesEntry: React.FC = () => {
                 </div>
 
                 {/* PickMe vs Restaurant 30% Deduction Analysis Box */}
-                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500 font-medium">Difference vs Restaurant:</span>
-                    <span className="font-bold text-slate-700">
-                      {diff >= 0 ? `+LKR ${diff.toFixed(2)} (+${diffPct}%)` : `-LKR ${Math.abs(diff).toFixed(2)} (${diffPct}%)`}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between text-[11px]">
-                    <span className="text-slate-500 font-medium">Net Payout after PickMe 30% cut:</span>
-                    <span className="font-bold text-slate-800 font-mono">
-                      LKR {netPickme.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
-                    <span className="text-xs font-bold text-slate-700">Net Profit / Loss vs Dine-in:</span>
-                    <span className={`px-2 py-0.5 rounded-lg text-xs font-black flex items-center gap-1 ${
-                      isProfit ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                    }`}>
-                      {isProfit ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
-                      {isProfit ? `+LKR ${marginVsRest.toFixed(2)}` : `-LKR ${Math.abs(marginVsRest).toFixed(2)}`}
-                    </span>
-                  </div>
-                </div>
+                {(() => {
+                  const isUnsetOrEqual = Math.abs(pickNum - restNum) < 0.01;
+                  if (isUnsetOrEqual) {
+                    return (
+                      <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1.5">
+                        <div className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-500 font-medium">PickMe Pricing Status:</span>
+                          <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-slate-200 text-slate-700">
+                            ⚪ Dine-In Only / Unset
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 leading-relaxed">
+                          PickMe price is currently identical to Dine-In (LKR {restNum.toLocaleString()}). If listed on PickMe, set price to <strong>LKR {breakEvenPrice.toLocaleString()}</strong> to break even after the 30% fee.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500 font-medium">Difference vs Restaurant:</span>
+                        <span className="font-bold text-slate-700">
+                          {diff >= 0 ? `+LKR ${diff.toFixed(2)} (+${diffPct}%)` : `-LKR ${Math.abs(diff).toFixed(2)} (${diffPct}%)`}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-slate-500 font-medium">Net Payout after PickMe 30% cut:</span>
+                        <span className="font-bold text-slate-800 font-mono">
+                          LKR {netPickme.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="pt-2 border-t border-slate-200 flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-700">Net Profit / Loss vs Dine-in:</span>
+                        <span className={`px-2 py-0.5 rounded-lg text-xs font-black flex items-center gap-1 ${
+                          isProfit ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                        }`}>
+                          {isProfit ? <TrendingUp size={13} /> : <TrendingDown size={13} />}
+                          {isProfit ? `+LKR ${marginVsRest.toFixed(2)}` : `-LKR ${Math.abs(marginVsRest).toFixed(2)}`}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <div className="flex items-center justify-end gap-2 pt-2">
                   <button
@@ -1291,11 +1325,17 @@ export const DailySalesEntry: React.FC = () => {
                             </td>
                             {/* Net Margin vs Rest */}
                             <td className="px-3 py-2 text-center">
-                              <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
-                                isProfit ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
-                              }`}>
-                                {isProfit ? `+${marginDiff.toFixed(0)}` : `${marginDiff.toFixed(0)}`}
-                              </span>
+                              {Math.abs(pickVal - restVal) < 0.01 ? (
+                                <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-500">
+                                  ⚪ Dine-In Only
+                                </span>
+                              ) : (
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-black ${
+                                  isProfit ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'
+                                }`}>
+                                  {isProfit ? `+${marginDiff.toFixed(0)}` : `${marginDiff.toFixed(0)}`}
+                                </span>
+                              )}
                             </td>
                           </tr>
                         );
