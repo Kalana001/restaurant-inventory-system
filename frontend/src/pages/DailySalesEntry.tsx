@@ -32,9 +32,11 @@ import {
   ListChecks,
   TrendingUp,
   TrendingDown,
-  ArrowRight
+  ArrowRight,
+  Calculator
 } from 'lucide-react';
 import { format, parseISO, subDays, addDays } from 'date-fns';
+import { PickMePricingCalculator } from '../components/PickMePricingCalculator';
 
 export interface MenuItem {
   id: string;
@@ -58,7 +60,10 @@ export interface DailySaleEntry {
 }
 
 export const DailySalesEntry: React.FC = () => {
-  // Mode: 'RESTAURANT' (Cash + Card) vs 'PICKME'
+  // Mode: 'SALES' (Portions entry) vs 'CALCULATOR' (PickMe Price Calculator)
+  const [activeView, setActiveView] = useState<'SALES' | 'CALCULATOR'>('SALES');
+
+  // Channel: 'RESTAURANT' (Cash + Card) vs 'PICKME'
   const [salesChannel, setSalesChannel] = useState<'RESTAURANT' | 'PICKME'>('RESTAURANT');
   const [selectedDate, setSelectedDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
 
@@ -641,12 +646,15 @@ export const DailySalesEntry: React.FC = () => {
           </p>
         </div>
 
-        {/* Channel Tab Switcher: Restaurant vs PickMe */}
-        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start md:self-auto shadow-xs">
+        {/* Channel Tab Switcher: Restaurant vs PickMe vs Calculator */}
+        <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200 self-start md:self-auto shadow-xs flex-wrap gap-1">
           <button
-            onClick={() => setSalesChannel('RESTAURANT')}
+            onClick={() => {
+              setActiveView('SALES');
+              setSalesChannel('RESTAURANT');
+            }}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
-              salesChannel === 'RESTAURANT'
+              activeView === 'SALES' && salesChannel === 'RESTAURANT'
                 ? 'bg-white text-primary shadow-sm border border-slate-200'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -655,9 +663,12 @@ export const DailySalesEntry: React.FC = () => {
             <span>Restaurant (Cash + Card)</span>
           </button>
           <button
-            onClick={() => setSalesChannel('PICKME')}
+            onClick={() => {
+              setActiveView('SALES');
+              setSalesChannel('PICKME');
+            }}
             className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
-              salesChannel === 'PICKME'
+              activeView === 'SALES' && salesChannel === 'PICKME'
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
@@ -668,11 +679,50 @@ export const DailySalesEntry: React.FC = () => {
               30% Comm.
             </span>
           </button>
+          <button
+            onClick={() => setActiveView('CALCULATOR')}
+            className={`px-4 py-2 rounded-lg text-xs font-bold transition-all flex items-center gap-2 ${
+              activeView === 'CALCULATOR'
+                ? 'bg-gradient-to-r from-emerald-700 to-teal-800 text-white shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Calculator size={15} />
+            <span>PickMe Price Calculator</span>
+            <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+              activeView === 'CALCULATOR' ? 'bg-amber-300 text-amber-950' : 'bg-emerald-100 text-emerald-800'
+            }`}>
+              ÷ 0.70
+            </span>
+          </button>
         </div>
       </div>
 
-      {/* Date Navigation & Actions Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
+      {/* Main Subpage View Switcher */}
+      {activeView === 'CALCULATOR' ? (
+        <PickMePricingCalculator
+          menuItems={menuItems}
+          channelPrices={channelPrices}
+          onApplyPrices={async (updatedPrices) => {
+            await saveChannelPrices(updatedPrices);
+            setChannelPrices(updatedPrices);
+            setMenuItems(prev => prev.map(item => {
+              const entry = updatedPrices[item.item_code];
+              if (!entry) return item;
+              return {
+                ...item,
+                restaurant_price: entry.restaurant_price,
+                pickme_price: entry.pickme_price,
+                current_price: salesChannel === 'RESTAURANT' ? entry.restaurant_price : entry.pickme_price
+              };
+            }));
+          }}
+          onClose={() => setActiveView('SALES')}
+        />
+      ) : (
+        <>
+          {/* Date Navigation & Actions Bar */}
+          <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col sm:flex-row items-center justify-between gap-4">
         <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
           <button
             type="button"
@@ -1025,6 +1075,8 @@ export const DailySalesEntry: React.FC = () => {
           </table>
         </div>
       </div>
+      </>
+      )}
 
       {/* MODAL: SINGLE ITEM PRICE EDIT (BOTH RESTAURANT & PICKME) */}
       {editingItem && (() => {
