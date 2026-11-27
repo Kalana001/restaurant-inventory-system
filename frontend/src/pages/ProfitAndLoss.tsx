@@ -393,7 +393,6 @@ export const ProfitAndLoss: React.FC = () => {
 
       const [
         pnlRes,
-        salesRes,
         reasonsRes,
         purchasesRes,
         transportRes,
@@ -404,11 +403,6 @@ export const ProfitAndLoss: React.FC = () => {
           .from('expenses')
           .select('*')
           .eq('expense_type', 'DAILY_PNL_SUMMARY')
-          .gte('date', start)
-          .lte('date', end),
-        supabase
-          .from('daily_menu_sales')
-          .select('date, sales_channel, total_amount')
           .gte('date', start)
           .lte('date', end),
         supabase
@@ -443,30 +437,69 @@ export const ProfitAndLoss: React.FC = () => {
 
       if (pnlRes.error) throw pnlRes.error;
 
-      // Group menu sales by date
+      // Group menu sales by date (paginated in chunks to avoid Supabase 1,000 row cap)
       const sMap: Record<string, { restAmount: number; pickmeAmount: number }> = {};
-      (salesRes.data || []).forEach(row => {
-        if (!sMap[row.date]) sMap[row.date] = { restAmount: 0, pickmeAmount: 0 };
-        if (row.sales_channel === 'RESTAURANT') {
-          sMap[row.date].restAmount += Number(row.total_amount) || 0;
-        } else if (row.sales_channel === 'PICKME') {
-          sMap[row.date].pickmeAmount += Number(row.total_amount) || 0;
+      let salesFrom = 0;
+      const salesBatchSize = 1000;
+      let salesHasMore = true;
+
+      while (salesHasMore) {
+        const { data: sBatch, error: sErr } = await supabase
+          .from('daily_menu_sales')
+          .select('date, sales_channel, total_amount')
+          .gte('date', start)
+          .lte('date', end)
+          .range(salesFrom, salesFrom + salesBatchSize - 1);
+
+        if (sErr || !sBatch || sBatch.length === 0) {
+          salesHasMore = false;
+        } else {
+          sBatch.forEach(row => {
+            if (!sMap[row.date]) sMap[row.date] = { restAmount: 0, pickmeAmount: 0 };
+            if (row.sales_channel === 'RESTAURANT') {
+              sMap[row.date].restAmount += Number(row.total_amount) || 0;
+            } else if (row.sales_channel === 'PICKME') {
+              sMap[row.date].pickmeAmount += Number(row.total_amount) || 0;
+            }
+          });
+          if (sBatch.length < salesBatchSize) {
+            salesHasMore = false;
+          } else {
+            salesFrom += salesBatchSize;
+          }
         }
-      });
+      }
       setMonthlySalesMap(sMap);
 
-      // Fetch kitchen stock out movements for the month
+      // Fetch kitchen stock out movements for the month (paginated in chunks to avoid Supabase 1,000 row cap)
       const kReasonIds = (reasonsRes.data || []).map(r => r.id);
       let movementsData: any[] = [];
       if (kReasonIds.length > 0) {
-        const { data: mvData } = await supabase
-          .from('stock_movements')
-          .select('created_at, quantity, cost_price')
-          .eq('type', 'STOCK_OUT')
-          .in('reason_id', kReasonIds)
-          .gte('created_at', monthStart)
-          .lte('created_at', monthEnd);
-        movementsData = mvData || [];
+        let from = 0;
+        const batchSize = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          const { data: mvData, error: mvErr } = await supabase
+            .from('stock_movements')
+            .select('created_at, quantity, cost_price')
+            .eq('type', 'STOCK_OUT')
+            .in('reason_id', kReasonIds)
+            .gte('created_at', monthStart)
+            .lte('created_at', monthEnd)
+            .range(from, from + batchSize - 1);
+
+          if (mvErr || !mvData || mvData.length === 0) {
+            hasMore = false;
+          } else {
+            movementsData.push(...mvData);
+            if (mvData.length < batchSize) {
+              hasMore = false;
+            } else {
+              from += batchSize;
+            }
+          }
+        }
       }
 
       // Build daily live system costs map
